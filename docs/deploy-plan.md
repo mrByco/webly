@@ -30,6 +30,12 @@ editing session left behind: a package installed and then removed, a stale `.nex
 after the commit. Building from the committed tree with `npm ci` against the committed lockfile is what
 makes a failed deployment safe to retry and a successful one reproducible.
 
+That was reasoning until `tools/e2e` tried it the other way round, and it is now a measurement. Building in
+the warm sandbox after a re-seed — the source directory deleted and rewritten underneath a running dev
+server, which is exactly what happens when the head moves — produced a build that **reported success and
+exported only `404.html`**. No home page. A publish that says Ready and serves nothing is the worst failure
+mode available to this product, and it is a stale `.next` away at all times.
+
 **In a fresh sandbox, seeded from the version being published** — what happens. It costs a machine start
 per publish, which is a minute somebody is watching a progress line for, and it buys the property the whole
 product rests on:

@@ -236,13 +236,17 @@ async function runMock(sandbox, message) {
 // The run.
 // ---------------------------------------------------------------------------------------------
 let sandbox;
+
+/** The second, short-lived sandbox a publish runs in — see step 12. */
+let publishSandbox;
 let workspaceRoot;
 
-// A killed harness still has a sandbox and a dev server to take with it. Without this, running under `timeout`
-// — which is how anything with a CI-shaped patience runs it — leaves both behind.
+// A killed harness still has sandboxes and dev servers to take with it. Without this, running under `timeout`
+// — which is how anything with a CI-shaped patience runs it — leaves them behind.
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
     if (sandbox) void sandbox.dispose();
+    if (publishSandbox) void publishSandbox.dispose();
     process.exit(130);
   });
 }
@@ -464,6 +468,10 @@ try {
     const stray = 'src/app/about/page.tsx';
     const tree = await box.readTree(sandbox);
 
+    // Read back what is actually there first. The interesting failure is not "the stray survived" but "the
+    // re-seed took the real pages with it", and a check that only looked for the stray would pass through it.
+    check(tree.some(f => f.path === 'src/app/page.tsx'), `the tree read back has ${tree.length} files including the home page`);
+
     await box.writeTree(sandbox, [
       ...tree,
       { path: stray, content: Buffer.from('export default function About() { return null; }\n') },
@@ -475,9 +483,25 @@ try {
     await box.writeTree(sandbox, tree);
     check(!existsSync(join(sandbox.workspace, stray)), 'and re-seeding removed it');
 
-    // The two things a re-seed must not throw away: they cost minutes and are in no commit.
+    // What it must NOT have removed: the site. This is the assertion that matters.
+    for (const path of ['src/app/page.tsx', 'src/app/layout.tsx', 'package.json', 'next.config.ts']) {
+      check(existsSync(join(sandbox.workspace, path)), `${path} survived the re-seed`);
+    }
+
+    // And the two derived directories, which cost minutes and are in no commit.
     check(existsSync(join(sandbox.workspace, 'node_modules')), 'node_modules survived the re-seed');
     check(existsSync(join(sandbox.workspace, '.next')), '.next survived the re-seed');
+
+    // The preview has to survive it too. This is what a person sees right after a restore, and the dev server
+    // has just had its whole source directory deleted and rewritten underneath it.
+    const response = await box.waitFor(async () => {
+      const attempt = await box.preview(sandbox);
+      if (!attempt.ok) return null;
+      const html = await attempt.text();
+      return html.includes('<h1') ? html : null;
+    }, 60_000, 'the preview did not recover after a re-seed');
+
+    check(response.length > 0, 'and the preview still renders the site afterwards');
   });
 
   // -- 11. Restore writes forward ----------------------------------------------------------------
@@ -510,9 +534,27 @@ try {
     });
   });
 
-  // -- 12. The publish gate ----------------------------------------------------------------------
-  await step('The publish gate: the site actually builds', async () => {
-    const build = await box.exec(sandbox, {
+  // -- 12. The publish gate, in a FRESH sandbox --------------------------------------------------
+  //
+  // Not the warm editing sandbox, because that is not what the product does: DeploymentJobRunner starts a new
+  // one and seeds it from the version being published. Doing it the other way here did not just make the test
+  // unfaithful, it made it fail — a `.next` left behind by the dev server, after the source directory had been
+  // deleted and rewritten by a re-seed, produced a build that "succeeded" and exported nothing but a 404 page.
+  // Which is the argument for the fresh sandbox, demonstrated.
+  await step('A publish builds from the committed tree in a fresh sandbox', async () => {
+    const head = await store.resolveHead(repository);
+    const tree = await store.readTree(repository, head);
+
+    publishSandbox = await box.startSandbox();
+    await box.writeTree(publishSandbox, tree);
+
+    // Standing in for the image's prebaked dependencies, as in step 5. The real runner runs `npm ci` against
+    // the committed lockfile here.
+    symlinkSync(join(template, 'node_modules'), join(publishSandbox.workspace, 'node_modules'), 'dir');
+
+    check(!existsSync(join(publishSandbox.workspace, '.next')), 'the fresh sandbox has no build cache');
+
+    const build = await box.exec(publishSandbox, {
       command: 'npm',
       args: ['run', 'build'],
       env: { NEXT_TELEMETRY_DISABLED: '1' },
@@ -521,10 +563,7 @@ try {
 
     if (!build.succeeded) process.stdout.write(`\n${build.output.slice(-3000)}\n`);
     check(build.succeeded, 'npm run build succeeded, so this version is publishable');
-
-    const out = join(sandbox.workspace, 'out');
-    const next = join(sandbox.workspace, '.next');
-    check(existsSync(out) || existsSync(next), `the build produced output in ${existsSync(out) ? 'out/' : '.next/'}`);
+    check(existsSync(join(publishSandbox.workspace, 'out')), 'the build produced a static export in out/');
   });
 
   // -- 13. The publish: the built site copied out and served ------------------------------------
@@ -535,7 +574,7 @@ try {
     //
     // Plain `base64`, no -w 0: that flag is GNU's, and with the local provider the "sandbox" is whatever
     // machine the developer has.
-    const packed = await box.exec(sandbox, {
+    const packed = await box.exec(publishSandbox, {
       command: 'sh',
       args: ['-c', 'test -d out && tar -c -z -C out . | base64'],
       timeoutMs: 120_000,
@@ -555,6 +594,11 @@ try {
     rmSync(archive, { force: true });
 
     const index = join(published, 'index.html');
+
+    if (!existsSync(index)) {
+      process.stdout.write(`    published/ contains: ${readdirSync(published).join(', ') || '(nothing)'}\n`);
+    }
+
     check(existsSync(index), 'index.html is where a static host would look for it');
 
     const html = readFileSync(index, 'utf8');
@@ -606,7 +650,11 @@ try {
   if (sandbox) process.stdout.write(`\nSandbox agent log:\n${sandbox.log}\n`);
   process.exitCode = 1;
 } finally {
-  if (sandbox && !keep) await sandbox.dispose();
-  if (workspaceRoot && !keep) rmSync(workspaceRoot, { recursive: true, force: true });
-  if (keep) process.stdout.write(`\nKept: ${workspaceRoot} and ${sandbox?.workspace}\n`);
+  if (!keep) {
+    if (sandbox) await sandbox.dispose();
+    if (publishSandbox) await publishSandbox.dispose();
+    if (workspaceRoot) rmSync(workspaceRoot, { recursive: true, force: true });
+  } else {
+    process.stdout.write(`\nKept: ${workspaceRoot}, ${sandbox?.workspace}, ${publishSandbox?.workspace}\n`);
+  }
 }

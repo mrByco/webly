@@ -69,6 +69,12 @@ build — are all exercised for real. What is mocked is the part written in the 
 - **A hung request stalled the run silently.** `waitFor` bounded the retry loop but not each attempt, so a dev
   server compiling under load held one `fetch` open past every deadline and the harness simply stopped rather
   than failing. Attempts are bounded now.
+- **Building in the warm sandbox exports a broken site.** The harness used to publish from the editing
+  sandbox. After a re-seed — the source directory deleted and rewritten under a running dev server — `next
+  build` reported *success* and produced an `out/` containing only `404.html` and `_next`: no home page at
+  all. A publish that reports Ready and serves nothing is about the worst failure this product has.
+  `DeploymentJobRunner` already used a fresh sandbox for reasons that were reasoning rather than evidence;
+  this is the evidence, and step 12 now does the same thing.
 
 ## The fixture
 
