@@ -8,7 +8,9 @@ import { apiSitesNanoidOpenPost } from '../api/fn/site/api-sites-nanoid-open-pos
 import { apiSitesNanoidDelete } from '../api/fn/site/api-sites-nanoid-delete';
 import { apiSitesNanoidVersionsGet$Json } from '../api/fn/site/api-sites-nanoid-versions-get-json';
 import { apiSitesNanoidVersionsVersionNanoidGet$Json } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-get-json';
-import { apiSitesNanoidVersionsVersionNanoidDiffGet$Plain } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-diff-get-plain';
+// No `$Plain` suffix on this one: it answers text/plain and nothing else, so the generator emits a single
+// function rather than a variant per content type.
+import { apiSitesNanoidVersionsVersionNanoidDiffGet } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-diff-get';
 import { apiSitesNanoidVersionsVersionNanoidRestorePost$Json } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-restore-post-json';
 import { apiSitesNanoidFilesGet$Json } from '../api/fn/site/api-sites-nanoid-files-get-json';
 import { apiSitesNanoidFileGet$Json } from '../api/fn/site/api-sites-nanoid-file-get-json';
@@ -84,7 +86,7 @@ export class SiteService {
 
   /** What one version changed, as a unified diff. Text, because that is what a diff is. */
   diff(nanoid: string, versionNanoid: string): Promise<string> {
-    return this.api.invoke(apiSitesNanoidVersionsVersionNanoidDiffGet$Plain, { nanoid, versionNanoid });
+    return this.api.invoke(apiSitesNanoidVersionsVersionNanoidDiffGet, { nanoid, versionNanoid });
   }
 
   async restore(nanoid: string, versionNanoid: string): Promise<SiteVersionResponse> {

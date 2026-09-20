@@ -58,12 +58,9 @@ $Backend = @{
     PidFile    = Join-Path $RunDir 'backend.pid'
     OutLog     = Join-Path $RunDir 'backend.out.log'
     ErrLog     = Join-Path $RunDir 'backend.err.log'
-    # The repository root, not Webly.Api — which is why the launch below needs --project.
-    #
-    # Three settings are paths relative to the repository root: Repositories:Root (.run/repositories),
-    # Templates:SitePath (templates/next-site) and Sandbox:Local:AgentPath (tools/sandbox-agent/index.js).
-    # They resolve against the process's working directory, so started from Webly.Api the first site
-    # creation fails for a missing template and the first agent turn fails for a missing sandbox agent.
+    # The repository root, not Webly.Api — which is why the launch below needs --project. It is where .run/
+    # belongs and nothing more: the app anchors its own paths and its content root to the binary, because
+    # `dotnet run` ignores this setting anyway. See Webly.Api/Infrastructure/PathAnchor.cs.
     WorkingDir = $RepoRoot
 }
 $Frontend = @{
@@ -248,8 +245,9 @@ switch ($Action) {
         Ensure-RunDir
 
         if ($targets -contains $Backend) {
-            # --project, because the working directory is now the repository root and Webly.slnx there
-            # would make a bare `dotnet run` ambiguous.
+            # --project, because the working directory is the repository root and Webly.slnx there would make a
+            # bare `dotnet run` ambiguous. Which working directory the app ends up with does not matter any
+            # more: it anchors its own paths and its content root to the binary — see PathAnchor.
             Start-Service $Backend 'dotnet' @('run', '--project', 'Webly.Api', '-c', 'Debug', '--launch-profile', 'https')
             Wait-ForHttp $Backend $BackendTimeoutSec
         }

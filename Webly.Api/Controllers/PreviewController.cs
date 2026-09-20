@@ -45,7 +45,14 @@ public class PreviewController(
     /// answers 405 to a <c>HEAD</c> for a font, or to whatever the framework adds next, is a proxy with a list
     /// to maintain; and the page being served is the customer's, so the list is not ours to predict.
     /// </summary>
+    ///
+    /// Out of the OpenAPI document, and it has to be: Swashbuckle refuses an action with no explicit method
+    /// ("Ambiguous HTTP method for action"), so accepting every verb and describing the endpoint are mutually
+    /// exclusive. Describing it is the one to give up. It is not an operation a generated client calls — the
+    /// editor puts this URL in an <c>iframe</c>'s <c>src</c> and the browser asks for everything under it —
+    /// and a catch-all proxy has no request or response shape to generate anyway.
     [Route("{**path}")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> Forward(string siteNanoid, CancellationToken cancellationToken)
     {
         var site = await siteRepository.FindForOwnerLightAsync(siteNanoid, this.GetUserId(), cancellationToken);

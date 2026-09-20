@@ -107,7 +107,13 @@ public class SiteController(
     /// </summary>
     [HttpGet("{nanoid}/versions/{versionNanoid}/diff")]
     [Produces("text/plain")]
-    public async Task<IActionResult> Diff(string nanoid, string versionNanoid, CancellationToken cancellationToken)
+    // `ActionResult<string>`, not `IActionResult`. The declared return type is what the API explorer reads, so an
+    // `IActionResult` here describes no type at all and the generated client comes back typed `void` — a history
+    // screen with nothing to show, from a change to a controller that still compiles and still works by hand.
+    public async Task<ActionResult<string>> Diff(
+        string nanoid,
+        string versionNanoid,
+        CancellationToken cancellationToken)
     {
         var result = await readSiteFiles.DiffAsync(this.GetUserId(), nanoid, versionNanoid, cancellationToken);
 

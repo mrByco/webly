@@ -14,7 +14,17 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
-var builder = WebApplication.CreateBuilder(args);
+// The content root is the application's own directory, not whatever directory somebody launched it from.
+// `WebApplication.CreateBuilder` defaults it to the current directory, and that default has no correct value
+// here: `dotnet run` uses the project's directory while the dev MCP server runs the built exe from the
+// repository root, so one of the two would always fail to find appsettings.json. Anchoring it to the binary
+// makes both work, and production — where the published app and its configuration sit in /app together — is
+// the same case.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 // The provider keys live here in development, never in appsettings.json — that file is in git.
 if (builder.Environment.IsDevelopment())
@@ -34,12 +44,28 @@ builder.Services.AddOpenApi();
 builder.Services.AddSignalR()
     .AddJsonProtocol(options =>
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Nullable reference types are the DTOs' documentation, and without this line the document throws all of
+    // it away: every `string` is described as nullable and nothing is required, so the generated TypeScript
+    // types every field as `string | null`. The client then either fills itself with `!` and `?? ''` — which
+    // is a hundred assertions standing in for a contract — or stops type-checking against the API at all.
+    // `Nullable` is enabled solution-wide precisely so that `string` and `string?` mean different things; this
+    // is what carries the difference across the wire.
+    options.SupportNonNullableReferenceTypes();
+});
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
 // Resolve the dev DB up front so both the DbContext and the /health endpoint agree on which
 // Postgres instance is actually in use. See DevDatabaseResolver for the hybrid strategy.
+// The three settings that name something on disk, made absolute before anything reads them. They are
+// written relative in configuration because "templates/next-site" is what they mean, and a relative path
+// otherwise resolves against the working directory — which is not a thing this app gets to choose. See
+// PathAnchor for what they are resolved against and why it is not the content root.
+PathAnchor.Resolve(builder.Configuration, builder.Environment,
+    "Templates:SitePath", "Sandbox:Local:AgentPath", "Repositories:Root");
+
 var configuredConnectionString = builder.Configuration.GetConnectionString("WeblyDb")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:WeblyDb configuration.");
 
@@ -85,18 +111,15 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<IOptions<RepositoryOptions>>().Value.Root);
 
     // The same argument, for the two paths that cannot be created because they have to contain something.
-    //
-    // Both are relative in the default configuration and therefore resolve against the process's working
-    // directory, which is the repository root — that is what run-app.ps1 and the dev MCP server set, and the
-    // comment on each of them says why. Checked here because the alternative is a first site creation that
-    // fails for a missing template and a first agent turn that fails for a missing sandbox agent, neither of
-    // which points at the working directory as the cause.
+    // Both have already been made absolute by PathAnchor, so what is left to check is whether the thing is
+    // really there — and the alternative to checking is a first site creation that fails for a missing
+    // template and a first agent turn that fails for a missing sandbox agent, neither of which names a path.
     var templatePath = scope.ServiceProvider.GetRequiredService<IOptions<TemplateOptions>>().Value.SitePath;
 
     if (!Directory.Exists(templatePath))
         throw new InvalidOperationException(
-            $"Templates:SitePath '{templatePath}' does not exist (looked in {Directory.GetCurrentDirectory()}). "
-            + "Every new site starts as a copy of it. Start the API from the repository root, or set an absolute path.");
+            $"Templates:SitePath '{templatePath}' does not exist. Every new site starts as a copy of it: it is "
+            + "templates/next-site in the repository, and the container copies it next to the published app.");
 
     var sandboxOptions = scope.ServiceProvider.GetRequiredService<IOptions<SandboxOptions>>().Value;
 
@@ -106,8 +129,8 @@ using (var scope = app.Services.CreateScope())
 
         if (!File.Exists(agentPath))
             throw new InvalidOperationException(
-                $"Sandbox:Local:AgentPath '{agentPath}' does not exist (looked in {Directory.GetCurrentDirectory()}). "
-                + "It is the sandbox agent every turn runs through. Start the API from the repository root, or set an absolute path.");
+                $"Sandbox:Local:AgentPath '{agentPath}' does not exist. It is the sandbox agent every turn runs "
+                + "through, tools/sandbox-agent/index.js in the repository.");
     }
 }
 
