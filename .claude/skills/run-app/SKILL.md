@@ -35,31 +35,47 @@ Fallback without MCP: `./run-app.ps1 start|stop|status|logs` and `./regen-api.ps
 
 ## Database — hybrid, and `/health` tells you which
 
-1. Backend tries the persistent docker-compose Postgres (`docker-compose.dev.yml`, `localhost:5434` — not 5432, so a native Postgres install can't shadow it; container `webly-postgres-dev`).
-2. If that is unreachable it falls back to an ephemeral Testcontainers Postgres (needs Docker Desktop). **That data is gone on the next restart.**
-3. `GET https://localhost:5000/health` → `{ status, dbSource }` where `dbSource` is `docker-compose` or `testcontainers`. `app_status` shows the same.
+1. Backend tries whatever Postgres is on `localhost:5434` — the docker-compose one (`docker-compose.dev.yml`, container `webly-postgres-dev`) or one installed locally; the port is all it can tell apart. Not 5432, so a native Postgres install can't shadow it.
+2. If nothing answers it falls back to an ephemeral Testcontainers Postgres (needs Docker Desktop). **That data is gone on the next restart.**
+3. If Docker is missing too, startup fails with a sentence naming both remedies rather than a Testcontainers stack trace. Starting any Postgres on 5434 with the database, user and password from `ConnectionStrings:WeblyDb` is the other way out.
+4. `GET https://localhost:5000/health` → `{ status, dbSource }` where `dbSource` is `persistent` or `testcontainers`. `app_status` shows the same.
 
 To work with data that survives restarts: `db_compose_up`, then `app_restart`.
 
-## Editing a site needs three more things
+## Editing a site: what it needs, and what it needs nothing for
 
-An agent turn does not run on the backend — it runs in a sandbox, so the chat is the one feature that needs
-more than the stack above:
+An agent turn does not run on the backend — it runs in a sandbox. The development defaults are picked so that
+needs **node and git and nothing else**:
 
-1. **The sandbox image.** `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from
-   the repository root (the context is the root, not `deploy/sandbox`). Without it the first message fails
-   with "the sandbox container never became reachable".
-2. **Docker running**, because `Sandbox:Provider` is `docker` in development. `docker ps --filter
-   name=webly-sandbox` shows what is warm; idle ones are reaped after ten minutes.
-3. **A model key**: `dotnet user-secrets set "Agent:ClaudeCode:ApiKey" "<key>" --project Webly.Api`. Without
-   it the chat is *absent* rather than broken — `/api/sites/{nanoid}/chat/status` reports `enabled: false`
-   and the client hides it, which is easy to mistake for a bug in the client.
+- `Sandbox:Provider` is `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace
+  under `.run/workspaces`. Not isolation, and refused outside Development. For real isolation set it to
+  `docker` and build the image first:
+  `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from the repository root (the
+  context is the root, not `deploy/sandbox`). Without the image, the first message fails with "the sandbox
+  container never became reachable".
+- `Agent:Mock:Enabled` is true, so with no model key the chat still works — the mock agent makes one real
+  edit to the home page's headline. For the real thing:
+  `dotnet user-secrets set "Agent:ClaudeCode:ApiKey" "<key>" --project Webly.Api`, and it takes over with no
+  settings change. With the mock off and no key the chat is *absent* rather than broken:
+  `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the client hides it, which is easy to
+  mistake for a bug in the client.
+- `Deployment:Provider` is `filesystem`, so publishing runs the real `next build` and writes the export to
+  `.run/published/{slug}`, reachable at `https://localhost:5000/published/{slug}/`.
 
-The preview is that sandbox's own `next dev`, proxied through `https://localhost:5000/api/sites/{nanoid}/preview/`.
-So an empty preview pane usually means no workspace, not a broken renderer — there is no renderer.
+The preview is that sandbox's own `next dev`, proxied through
+`https://localhost:5000/api/sites/{nanoid}/preview/`. So an empty preview pane usually means no workspace, not
+a broken renderer — there is no renderer. A workspace only starts when a turn does, which is why a cold
+editor shows "your preview is asleep".
 
 Site repositories live in `.run/repositories/{nanoid}.git` (gitignored). To see what a turn actually did:
 `git --git-dir .run/repositories/<nanoid>.git log --stat`.
+
+## Driving it without the backend at all
+
+`node tools/e2e/run.mjs --agent mock` runs the whole product loop — template, commit, sandbox, dev server,
+preview, agent turn, commit, restore, build, publish — with no .NET, Docker, database or credentials. Use it
+when the question is "does the loop work" rather than "does this screen look right", and read
+`tools/e2e/README.md` first.
 
 ## Things that cost time if unknown
 

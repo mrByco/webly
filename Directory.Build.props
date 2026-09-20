@@ -1,0 +1,34 @@
+<Project>
+
+  <!--
+    Settings every project in the solution shares, so no csproj repeats them and none can disagree.
+
+    This file is load-bearing and its absence is not a subtle failure: without a TargetFramework here, no
+    csproj declares one at all and every project fails to restore with NETSDK1013 ("The TargetFramework value
+    '' was not recognized"), which names the symptom and not the cause. Both Dockerfiles copy it before
+    restoring for that reason.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+
+    <!-- The usual pair. Nullable is on everywhere because the alternative is a codebase where `string?` means
+         nothing, and the entity classes lean on it to say which columns are optional. -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Warnings are not errors, deliberately. This solution has never been compiled (see CLAUDE.md
+         "Status"), so the first build is expected to produce a list to work through — and a first build that
+         stops at the first unused variable hides the twenty real problems behind it. Turn this on once the
+         build is green, which is the point at which it starts being useful. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- XML doc comments are how this codebase records decisions, and there are a lot of them. 1591 off
+         because "missing doc comment on a public member" would fire on every DTO property, which are named
+         well enough that a comment repeating the name is noise. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

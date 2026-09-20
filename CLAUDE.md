@@ -28,23 +28,40 @@ compiled, no migration has been generated, and the generated Angular API client 
 does not exist yet — so the client does not type-check against real DTOs either, although it builds and
 its templates type-check against the shapes the services declare.
 
-Four things *were* verified by hand, because they are the ones where being wrong is expensive and none of
-them needs .NET:
+**What has been run, end to end, is the whole product loop except the C# that orchestrates it.**
+`tools/e2e/run.mjs` stands in for `AgentTurnService` and drives everything underneath it for real — real git
+plumbing, the real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — and asserts
+fourteen steps from "a new site is the template" to "the published page says what the person typed". Run it
+with `node tools/e2e/run.mjs --agent mock` (no credentials) or `--agent claude`. `tools/e2e/README.md`
+explains what is real, what is standing in, and the bugs it has already caught. Also verified: the Angular
+client builds and prerenders (against throwaway stand-ins for the generated client).
 
-- **The git plumbing sequence** — `hash-object`, `update-index`, `write-tree`, `commit-tree`,
-  `update-ref`, `ls-tree`, `diff-tree`, and a restore by tree — driven against a real temporary bare
-  repository. `GitSiteRepositoryStoreTests` is the same ground as a test suite.
-- **The sandbox agent contract** (`tools/sandbox-agent`): auth, tar in and out with the excludes, NDJSON
-  exec, the HTTP proxy, and a WebSocket upgrade.
-- **The site template builds** (`templates/next-site`, `npm run build`).
-- **The Angular client builds and prerenders**, against throwaway stand-ins for the generated client.
+So the git layer, the sandbox contract, the agent CLI's interface, the template and the build are evidence
+rather than intent. What is **still unrun** is everything that needs a compiler:
 
-Three things are written against another product's documented interface and have **never been run**:
-`ClaudeCodeAgent`'s stream-json parsing, `OpenCodeAgent`, and `VercelDeploymentTarget` (both its REST half
-and its CLI half). Treat their shapes as the plan.
+- **No .NET has been compiled**, so every C# file is unverified *as C#* — including the four classes added
+  for the MVP (`LocalSandboxProvider`, `MockCodingAgent`, `FileSystemDeploymentTarget`,
+  `ClaudeStreamJsonParser`). Their behaviour is mirrored in the harness where it could be; their syntax is
+  not checked by anything.
+- **There is no EF migration**, so the app cannot start until one is generated.
+- **`client/src/app/api/` does not exist**, so the client does not type-check against real DTOs.
+- **`OpenCodeAgent` and `VercelDeploymentTarget` have never run.** Treat their shapes as the plan.
 
-Do not treat a green anything as evidence yet. `MASTER_PLAN.md` P1 and `whats_next.md` list the exact
-first steps, in order.
+`MASTER_PLAN.md` P1 and `whats_next.md` list the exact first steps, in order.
+
+### Running it with nothing installed
+
+The development defaults are chosen so that a fresh clone works with **node, git and a Postgres**, and
+nothing else — no Docker, no model key, no hosting account:
+
+| Piece | Default | What it means |
+|---|---|---|
+| `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process. **Not isolation**, and refused outside Development. |
+| `Agent:Mock:Enabled` | `true` | `MockCodingAgent` makes one real, deterministic edit. A real key takes over without a settings change. |
+| `Deployment:Provider` | `filesystem` | The real `next build` as the publish gate, then the export written to `.run/published/{slug}` and served at `/published/{slug}/`. |
+
+Each of those is a development-only substitute and each refuses to run in production, in code rather than in
+a comment. Swapping any one of them for the real thing is one configuration key.
 
 ## Work philosophy
 
@@ -79,6 +96,7 @@ more than one restating what the line does.
 | Build the sandbox image | — | `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` |
 | Inspect a live sandbox | — | `docker ps --filter name=webly-sandbox`, then `docker exec -it <name> sh` |
 | Look at a site's repository | — | `git --git-dir .run/repositories/<nanoid>.git log --stat` |
+| **Drive the whole product loop without the backend** | — | `node tools/e2e/run.mjs --agent mock` (or `--agent claude`) |
 
 ### Running-the-stack facts that cost time if unknown
 
@@ -88,27 +106,37 @@ more than one restating what the line does.
   proxy points at the built Angular SSR node server (`node dist/client/server/server.mjs`, :4000).
   **There is no CORS and there must not be** — same-origin is by construction. Do not point the browser at
   :4200.
-- **Hybrid dev database.** On startup in Development the backend tries the docker-compose Postgres
-  (`docker-compose.dev.yml`, **`localhost:5434`**). Not 5432, which a locally installed Postgres commonly
-  owns, and not 5433, which is the reference project's dev DB — connecting to *that* by accident is worse
-  than not connecting at all, because its schema is close enough to look plausible and wrong. If
-  unreachable it falls back to an ephemeral Testcontainers Postgres (needs Docker) — **that data is gone on
-  the next restart.** `GET /health` → `{ status, dbSource }` says which is active; so does `app_status`.
+- **Hybrid dev database.** On startup in Development the backend tries whatever Postgres is on
+  **`localhost:5434`** — the docker-compose one in `docker-compose.dev.yml`, or one installed locally; the
+  port is all it can tell apart, which is why `dbSource` reports `persistent` rather than naming compose.
+  Not 5432, which a locally installed Postgres commonly owns, and not 5433, which is the reference project's
+  dev DB — connecting to *that* by accident is worse than not connecting at all, because its schema is close
+  enough to look plausible and wrong. If nothing answers it falls back to an ephemeral Testcontainers
+  Postgres (needs Docker) — **that data is gone on the next restart** — and if Docker is absent too it says
+  so in a sentence naming both remedies rather than throwing a Testcontainers stack trace.
+  `GET /health` → `{ status, dbSource }` says which is active; so does `app_status`.
 - **Start order: backend first.** The frontend's `prestart` (`ng-openapi-gen`) reads the backend's live
   swagger. `run-app.ps1` and `app_start` both do this in the right order.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
 - Logs and pidfiles live in `.run/` (gitignored). `Webly.Api` locks its build output while running —
   `app_build` handles stop/build/start.
-- **Editing a site needs Docker and the sandbox image.** In development `Sandbox:Provider` is `docker`, so
-  a turn starts a container from `Sandbox:Image` — build it first (see the table above) or the first
-  message fails with "the sandbox container never became reachable". Idle sandboxes are reaped after ten
-  minutes; `docker ps --filter name=webly-sandbox` is how to see what is warm.
-- **Editing a site also needs `git` on PATH.** `GitSiteRepositoryStore` drives the real binary. A site's
-  repository is `.run/repositories/{nanoid}.git` locally, which is gitignored: a developer's test sites are
-  their own, and they are not backed up.
-- **An agent turn needs a model key.** `Agent:ClaudeCode:ApiKey` in user secrets, or nothing happens —
-  `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the client hides the chat rather than
-  failing inside it.
+- **Editing a site needs `node` and `git` on PATH**, and by default nothing else. `Sandbox:Provider` is
+  `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace under
+  `.run/workspaces`; set it to `docker` for real isolation (build the image first — see the table above) or
+  the first message fails with "the sandbox container never became reachable". Idle sandboxes are reaped
+  after ten minutes either way.
+- **A site's repository is `.run/repositories/{nanoid}.git`** locally, which is gitignored: a developer's
+  test sites are their own, and they are not backed up. `git --git-dir … log --stat` is how to see what a
+  turn actually did.
+- **An agent turn without a model key gets the mock agent**, which makes one real edit to the home page's
+  headline — enough to exercise the workspace, the commit, the preview and the publish. Put
+  `Agent:ClaudeCode:ApiKey` in user secrets and the real agent takes over with no settings change. With
+  `Agent:Mock:Enabled` false and no key, `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the
+  client hides the chat rather than failing inside it.
+- **Publishing goes to a directory by default.** `Deployment:Provider` is `filesystem`, which runs the real
+  `next build` and writes the export to `.run/published/{slug}`, served at
+  `https://localhost:5000/published/{slug}/`. So the publish path — including a failed build blocking it — is
+  testable with no hosting account. Set it to `vercel` once `Deployment:Vercel:Token` is in user secrets.
 - The solution file is `Webly.slnx` (the new .NET 10 format).
 - Package manager for `client/` is **yarn** (classic). Central Package Management for .NET: versions live
   in `Directory.Packages.props`, csproj files carry bare `<PackageReference>`s, and transitive pinning is

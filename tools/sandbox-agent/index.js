@@ -17,10 +17,10 @@
 // image is a supply chain plus a build step for something that is 300 lines of node:http. `tar` does the
 // archive work because it is already in every image that can run Next.js.
 
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { connect } from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
 
 const PORT = Number(process.env.WEBLY_AGENT_PORT ?? 8080);
 const TOKEN = process.env.WEBLY_AGENT_TOKEN ?? '';
@@ -113,7 +113,41 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
   });
 }
 
+/**
+ * What is left alone when a tree is written: the expensive derived directories.
+ *
+ * They are not part of any commit — `streamTar` excludes them on the way out — and rebuilding them costs
+ * minutes, which is the whole reason a workspace stays warm. Everything else is replaced.
+ */
+const PRESERVED = ['node_modules', '.next', '.vercel', '.turbo', '.claude', '.opencode'];
+
+// Every preserved name is also in IGNORED, and that is the invariant rather than a coincidence: a directory
+// kept across a re-seed must never be able to travel back out into a commit. `out` and `dist` are in IGNORED
+// but deliberately not here — build output should be rebuilt from the tree that arrived, and the publish path
+// builds after seeding anyway.
+for (const name of PRESERVED) {
+  if (!IGNORED.includes(name)) throw new Error(`${name} is preserved across a re-seed but is not ignored on the way out`);
+}
+
+/**
+ * Replaces the workspace's source with the tree in the request body.
+ *
+ * <b>Replaces, not overlays.</b> `tar -x` on its own only adds and overwrites, so a file that the incoming tree
+ * does not contain would survive — and then get committed again by the next turn. That matters most for the
+ * case the seeding code exists for: re-seeding a warm workspace after a restore that *deleted* a page would
+ * leave the page there, and the restore would silently not have removed it. So the source is cleared first,
+ * keeping only the derived directories above.
+ */
 function extractTar(request, response) {
+  try {
+    for (const entry of readdirSync(WORKSPACE)) {
+      if (PRESERVED.includes(entry)) continue;
+      rmSync(`${WORKSPACE}/${entry}`, { recursive: true, force: true });
+    }
+  } catch (error) {
+    return json(response, 500, { ok: false, error: `could not clear the workspace: ${error.message}` });
+  }
+
   const tar = spawn('tar', ['-x', '-z', '-C', WORKSPACE], { stdio: ['pipe', 'ignore', 'pipe'] });
   let error = '';
 
@@ -141,6 +175,10 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
     cwd: WORKSPACE,
     env: { ...process.env, ...env, PORT: String(DEV_PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
+    // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the
+    // shutdown handler at the bottom of this file.
+    detached: true,
   });
 
   // Kept in memory and served on /dev/log: a compile error in the dev server is the most useful thing
@@ -165,28 +203,40 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
 }
 
 /**
- * Proxies /preview/* to the dev server, including the WebSocket upgrade that hot reload runs on.
+ * Proxies /preview/* to the dev server.
  *
- * Hand-rolled over a TCP socket rather than with a proxy library, for the same zero-dependency reason —
- * and it is genuinely small: rewrite the path, pipe both ways, done.
+ * Through node's own HTTP client rather than a raw TCP relay, which is what this was first written as. The
+ * relay looked smaller — rewrite the request line, pipe both ways — and it does not work: writing a
+ * complete HTTP response into `response.socket` while the server's own response object still owns that
+ * socket ends the connection without a parseable reply, so every preview fetch fails with "other side
+ * closed". `http.request` is still zero-dependency, and it gets chunked encoding, content-length and
+ * keep-alive right instead of re-deriving them.
+ *
+ * The WebSocket upgrade is the one case that genuinely is a raw relay, and it is handled separately in
+ * `server.on('upgrade')` below.
  */
 function proxy(request, response) {
   const path = request.url.slice('/preview'.length) || '/';
+  const headers = { ...request.headers, host: `127.0.0.1:${DEV_PORT}` };
+  delete headers.authorization;
 
-  const upstream = connect(DEV_PORT, '127.0.0.1', () => {
-    const headers = { ...request.headers, host: `127.0.0.1:${DEV_PORT}` };
-    delete headers.authorization;
-
-    const lines = Object.entries(headers).map(([key, value]) => `${key}: ${value}`).join('\r\n');
-    upstream.write(`${request.method} ${path} HTTP/1.1\r\n${lines}\r\n\r\n`);
-    request.pipe(upstream);
-  });
-
-  upstream.pipe(response.socket ?? response);
+  const upstream = httpRequest(
+    { host: '127.0.0.1', port: DEV_PORT, method: request.method, path, headers },
+    upstreamResponse => {
+      // The dev server's own status and headers, passed through untouched: a 404 from the site has to read
+      // as a 404, and Next.js's content types and cache headers are part of what the preview is for.
+      response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers);
+      upstreamResponse.pipe(response);
+    });
 
   upstream.on('error', () => {
+    // Almost always the dev server still compiling, or not up yet. A sentence rather than a dead socket,
+    // because this reaches an <iframe> in somebody's editor.
     if (!response.headersSent) json(response, 502, { ok: false, error: 'The dev server is not answering yet.' });
+    else response.end();
   });
+
+  request.pipe(upstream);
 }
 
 const server = createServer(async (request, response) => {
@@ -242,3 +292,29 @@ server.on('upgrade', (request, socket, head) => {
 
 server.listen(PORT, '0.0.0.0', () =>
   console.log(`webly sandbox agent on :${PORT}, workspace ${WORKSPACE}, dev server :${DEV_PORT}`));
+
+/**
+ * Take the dev server down with us.
+ *
+ * In a container this is irrelevant — stopping the container takes everything in it. It matters for the local
+ * provider, where the "sandbox" is a process on a developer's machine: the dev server is a child of this
+ * process, and a signal delivered here does not reach it. Without this, every stopped sandbox leaves a
+ * `next dev` holding its port and a few hundred megabytes, and they accumulate silently until something else
+ * on the machine fails.
+ *
+ * Only the polite signals can be handled, so the provider also kills the whole process group. Two
+ * mechanisms for one leak, because the expensive half of the failure is invisible.
+ */
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    if (devServer) {
+      try {
+        process.kill(-devServer.pid, 'SIGKILL');
+      } catch {
+        devServer.kill('SIGKILL');
+      }
+    }
+
+    process.exit(0);
+  });
+}

@@ -43,6 +43,26 @@ product rests on:
 pins. The project link is written to `.vercel/project.json` rather than passed as flags, which keeps the
 token out of an argument list that ends up in a process table.
 
+### The development target
+
+`FileSystemDeploymentTarget` (`Deployment:Provider=filesystem`, the default in development, refused outside it)
+runs **the same real `next build` in the same sandbox** and then writes the static export to
+`.run/published/{slug}`, which the dev host serves at `/published/{slug}/`.
+
+So what is simulated is only the upload. Everything that decides whether a publish is safe is real: the fresh
+sandbox, `npm ci` against the committed lockfile, the build, the failure blocking the publish, the log's tail
+reaching `Deployment.ErrorDetail`, and `PublishedVersionId` moving only on success. That matters because the
+publish path is the most consequential one in the product and it should not be testable only by people who have
+a hosting account.
+
+It fetches the build output with a base64'd `tar` over `/exec` rather than through the tree-reading contract,
+deliberately: that contract excludes build output on the way out, and it should — an artefact must never be able
+to travel back into somebody's git history.
+
+Its domain calls are a **simulation and say so**: attach answers pending with a record that names itself, check
+then answers verified. That exercises the two-step "add it, go to your registrar, come back and check" flow the
+UI is built around, without claiming anything resolves. Nothing there touches DNS.
+
 ## 3. Why one platform-owned Vercel account
 
 "Self-service" cannot begin with "create a Vercel account and generate an API token". So Webly owns the

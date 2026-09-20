@@ -24,6 +24,14 @@ deliberately the plainer implementation — its headless output is prose rather 
 the person sees the agent's words and a coarse activity line instead of per-tool chips. That is the honest
 consequence of the choice rather than something to paper over with guesses about its log format.
 
+There is a third, `MockCodingAgent`, which has no model behind it and makes one deterministic edit to the home
+page's headline. It is not a stub: everything around a turn — the workspace starting, the dev server compiling,
+the tree coming back, the commit, the version row, the preview refreshing, the publish — is Webly's code and
+none of it is the model's, and without a keyless agent the most expensive credential in the system is a
+prerequisite for testing the parts that do not use it. It edits a real file for the same reason: a turn that
+changed nothing would commit nothing, and the interesting half would never run. Enabled by
+`Agent:Mock:Enabled`, off in production, and the registry prefers a configured real agent over it.
+
 ### 1.1 The model
 
 `AgentModels.Default` is `claude-opus-5`, and the cheaper `claude-sonnet-5` is opt-in. That ordering is
@@ -114,6 +122,31 @@ Zero dependencies on purpose: an `npm install` inside the image would be a suppl
 300 lines of `node:http`, and `tar` is already in every image that can run Next.js. `SandboxAgentClient` is
 the .NET side, and it is the same class for every provider — which is what makes a provider swap a class
 nobody else has to know about. `deploy/sandbox/Dockerfile` is the image.
+
+Two details of that contract are load-bearing and were both wrong at first, which is the argument for
+`tools/e2e` existing:
+
+- **`POST /files` replaces the source, it does not overlay it.** `tar -x` only adds and overwrites, so the
+  workspace's source is cleared first (keeping `node_modules` and `.next`, which are in no commit and cost
+  minutes). Without that, re-seeding a warm workspace after a restore that *deleted* a page leaves the page
+  there and the next turn commits it back — a restore that silently did not remove anything.
+- **`GET /preview/*` proxies through `http.request`, not a raw socket relay.** The first version wrote a
+  complete HTTP response into the server's own socket, which ends the connection without a parseable reply;
+  every preview fetch failed. The WebSocket upgrade is the one case that genuinely is a raw relay, and it is
+  handled separately.
+
+### Three providers, and only one of them for production
+
+| Provider | Starts | For |
+|---|---|---|
+| `local` | `tools/sandbox-agent` as a child process, workspace in `.run/workspaces` | development, and the default — it needs nothing but node |
+| `docker` | a container from the sandbox image | development with real isolation |
+| `e2b` | a managed sandbox | production |
+
+`local` is the one that makes "clone it and try it" true, and it is also the one where every security property
+in `ISandbox`'s comment is absent: the workspace is a directory on the host and the agent runs as the API's own
+user. So selecting it outside Development throws at startup rather than warning. The same rule applies to
+`FileSystemDeploymentTarget` — see `docs/deploy-plan.md`.
 
 ### 2.2 A workspace is warm, and shared
 

@@ -5,7 +5,9 @@ using Webly.Api.Middleware;
 using Webly.Data;
 using Webly.Services;
 using Webly.Services.Services.Realtime;
+using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Repositories;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -61,7 +63,7 @@ builder.Services.AddDbContext<WeblyDbContext>(options => options.UseNpgsql(resol
 builder.Services.AddWeblyServices();
 builder.Services.AddWeblyEmail(builder.Configuration);
 builder.Services.AddWeblyAuthentication(builder.Configuration);
-builder.Services.AddWeblySites(builder.Configuration);
+builder.Services.AddWeblySites(builder.Configuration, builder.Environment);
 builder.Services.AddWeblyRealtime();
 builder.Services.AddWeblyAgents();
 
@@ -87,6 +89,23 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Locally published sites, served from where FileSystemDeploymentTarget wrote them, so that "publish" ends
+    // at a page somebody can actually open rather than at a row saying Ready. Development only: in production
+    // the provider serves the site and this path does not exist.
+    //
+    // Static files rather than a controller, because a static export is exactly what a static file middleware is
+    // for — and UseDefaultFiles is what makes /published/{slug}/about/ find its index.html, which is the
+    // convention `trailingSlash: true` in the template's next.config.ts produces.
+    var publishedRoot = Path.GetFullPath(
+        app.Services.GetRequiredService<IOptions<DeploymentOptions>>().Value.FileSystem.Root);
+
+    Directory.CreateDirectory(publishedRoot);
+
+    var publishedFiles = new PhysicalFileProvider(publishedRoot);
+
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = publishedFiles, RequestPath = "/published" });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = publishedFiles, RequestPath = "/published" });
 }
 
 // Everything in front of this app in a deployment terminates TLS and forwards over plain HTTP

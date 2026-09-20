@@ -24,12 +24,21 @@ public class DeploymentFailedException(string message, string? providerDetail = 
 /// because that is the same place the editing happened, which is what makes "what I previewed is what I
 /// published" true rather than hopeful.
 ///
-/// One implementation today (Vercel). The interface exists because the thing behind it is the part a business
-/// decision can change — pricing, a region requirement, an outage — and none of those should reach
-/// <c>PublishSite</c>.
+/// Two implementations: Vercel, and <see cref="FileSystemDeploymentTarget"/> for development, which runs the
+/// same real build and then writes the output to a directory. The interface exists for both reasons — the thing
+/// behind it is the part a business decision can change (pricing, a region requirement, an outage), and the
+/// publish path is too consequential to be testable only by people who have a hosting account.
 /// </summary>
 public interface IDeploymentTarget
 {
+    /// <summary>
+    /// Whether this deployment can actually publish. Asked of the target rather than read off a configuration
+    /// key, because the answer differs per target and only the target knows it: Vercel needs a token, the
+    /// development one needs nothing. A caller that checked <c>Deployment:Vercel:Token</c> itself would report
+    /// publishing unavailable in a deployment where it works fine.
+    /// </summary>
+    bool IsConfigured { get; }
+
     /// <summary>
     /// Makes sure a provider-side project exists for this site and returns its id. Idempotent: called on every
     /// publish, cheap when the project is already there, and the reason <c>Site.ProviderProjectId</c> is stored

@@ -18,4 +18,13 @@
     <ProjectReference Include="..\Webly.Data\Webly.Data.csproj" />
   </ItemGroup>
 
+  <!-- ClaudeStreamJsonParser is internal because it is one agent's reading of another product's output, not
+       an API anything else should call — but it is also the piece most worth testing, since it is the only
+       code here whose contract is owned by somebody else. Internal plus this beats making it public. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Webly.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

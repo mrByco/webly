@@ -92,3 +92,10 @@ see `docs/agent-plan.md` §5 for each decision.
 10. **English throughout.** Unlike the reference projects, whose UI is Hungarian.
 11. **The agent may not publish, buy domains, or delete a site.** Its sandbox has no route to any of
     them: it is a machine with the site's files on it and a model key, and nothing else.
+12. **Every external dependency has a development substitute, and each one refuses to run in production.**
+    A sandbox provider that needs no Docker, an agent that needs no model key, a deployment target that
+    needs no hosting account — so a clone runs with node, git and a Postgres, and the paths that matter most
+    (a turn, a commit, a build, a publish) are testable by anyone. The substitutes do the real work wherever
+    the real work is ours: the local sandbox speaks the same contract, the mock agent makes a real edit, and
+    the filesystem target runs the real build and lets a failure block the publish. `CLAUDE.md` "Running it
+    with nothing installed" is the table; `tools/e2e/run.mjs` drives the whole loop without the backend.

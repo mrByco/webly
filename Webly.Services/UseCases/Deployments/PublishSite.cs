@@ -2,7 +2,6 @@ using Webly.Data;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Sites;
-using Microsoft.Extensions.Options;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Deployments;
 using Webly.Services.Services.Deployments;
@@ -25,7 +24,7 @@ namespace Webly.Services.UseCases.Deployments;
 public class PublishSite(
     ISiteRepository siteRepository,
     IDeploymentRepository deployments,
-    IOptions<DeploymentOptions> deploymentOptions,
+    IDeploymentTarget deploymentTarget,
     WeblyDbContext dbContext)
 {
     public async Task<Result<DeployError, DeploymentResponse>> ExecuteAsync(
@@ -33,7 +32,9 @@ public class PublishSite(
         string siteNanoid,
         CancellationToken cancellationToken = default)
     {
-        if (!deploymentOptions.Value.Vercel.IsConfigured)
+        // Asked of the target, not of a configuration key: which credential publishing needs is the target's
+        // business, and the development target needs none.
+        if (!deploymentTarget.IsConfigured)
             return Result<DeployError, DeploymentResponse>.Fail(DeployError.PublishingUnavailable);
 
         var site = await siteRepository.FindForOwnerAsync(siteNanoid, userId, cancellationToken);

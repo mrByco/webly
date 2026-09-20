@@ -35,9 +35,20 @@ public class CodingAgentOptions
 
     public ClaudeCodeOptions ClaudeCode { get; set; } = new();
     public OpenCodeOptions OpenCode { get; set; } = new();
+    public MockOptions Mock { get; set; } = new();
 
     /// <summary>How long one turn may run before the sandbox kills it.</summary>
     public TimeSpan TurnTimeout { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// The agent with no model behind it. Off unless asked for, and it is the one agent whose absence is not
+    /// about credentials: enabling it in a deployment would mean customers' sites being edited by a headline
+    /// substitution.
+    /// </summary>
+    public class MockOptions
+    {
+        public bool Enabled { get; set; }
+    }
 
     public class ClaudeCodeOptions
     {

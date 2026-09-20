@@ -36,21 +36,43 @@ production stack.
    §3 and §5.
 5. **The sandbox image has never been built**, because there is no Docker here either.
 
-What *was* verified by hand, because these are the parts where being wrong is expensive and none of them
-needs .NET:
+What *was* run, and it is more than the above implies: **the whole product loop, end to end, with everything
+except the C# orchestration being the real thing.** `tools/e2e/run.mjs` is that harness and
+`tools/e2e/README.md` is its write-up. Fourteen asserted steps:
 
-- **The git plumbing sequence**, against a real temporary bare repository: `hash-object`, `update-index
-  --cacheinfo`, `write-tree`, `commit-tree`, `update-ref`, `ls-tree -r -l -z`, `diff-tree`, and a restore by
-  writing an old tree forward. `GitSiteRepositoryStoreTests` is the same ground, as tests.
-- **The sandbox agent contract** (`tools/sandbox-agent/index.js`) end to end against real node: the bearer
-  check, a tar in and a tar out with the excludes applied, `/exec` streaming NDJSON with an exit line, the
-  HTTP proxy, and a WebSocket upgrade relayed with an echo back.
-- **The site template builds** (`npm run build` in `templates/next-site`).
-- **The Angular client builds and prerenders** — browser and SSR bundles, three prerendered routes, all
-  templates type-checked — against throwaway stand-ins for the generated client, which were then deleted.
+- a new site is the template, committed to its own bare repository, through the same git plumbing sequence
+  `GitSiteRepositoryStore` drives;
+- a turn that changes nothing commits nothing;
+- a sandbox starts, the tree lands in it, and `npm ls --depth=0` passes without an install — the bet the
+  sandbox image's prebaked dependencies make;
+- `next dev` starts and the preview serves the page **through the sandbox agent's proxy**;
+- the real `claude` CLI edits the site, and its stream is recorded as
+  `tools/e2e/fixtures/claude-stream-json.ndjson`;
+- the tree comes back and becomes exactly one commit, authored by the person, with a diff;
+- hot reload puts the change on screen with nothing on Webly's side asking;
+- a restore writes forward and leaves the undone version reachable;
+- the site builds, the export is copied out, and **the published page says what the person typed**;
+- a broken build fails, with the log that would reach `Deployment.ErrorDetail`.
 
-So the component layer, the git layer and the sandbox contract are sound. The service layer's call shapes
-and every external CLI are not yet.
+Two things that turn is worth noting for. The CLI **does** follow the `SUMMARY:` convention
+`ClaudeCodeAgent`'s prompt asks for, so the commit subject is the agent's own sentence. And it edited
+`content/brand.md` without being asked, because `AGENTS.md` tells it to — which is the mechanism the
+product's memory depends on, working.
+
+Also verified: the Angular client builds and prerenders — browser and SSR bundles, three prerendered routes,
+all templates type-checked — against throwaway stand-ins for the generated client, which were then deleted.
+
+**Three bugs the harness found**, none of which review had:
+
+1. **The preview proxy did not work at all.** `tools/sandbox-agent` relayed `/preview` by writing a raw HTTP
+   response into `response.socket` while the server's own response object still owned it, so every fetch
+   failed with "other side closed". It uses `http.request` now. The preview is the product's main surface.
+2. **The mock agent produced a file the build rejects** — rewriting the hero component's `<h1>` orphaned its
+   `headline` prop under `strict`. It edits the page's `headline="…"` instead.
+3. **`base64 -w 0` is GNU-only**, and with the local sandbox provider the "sandbox" is the developer's own
+   machine. `FileSystemDeploymentTarget` strips the wrapping itself now.
+
+What that leaves genuinely unverified is narrower than it was: the C# **as C#**, `OpenCodeAgent`, and Vercel.
 
 ## The first six things, in order
 

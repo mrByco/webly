@@ -9,7 +9,29 @@ public class DeploymentOptions
 {
     public const string SectionName = "Deployment";
 
+    /// <summary>
+    /// Which target to publish through: <c>vercel</c>, or <c>filesystem</c> in development. Defaults to
+    /// Vercel, because that is what a real deployment means — the local one is opt-in so that nothing
+    /// publishes to a directory by accident.
+    /// </summary>
+    public string Provider { get; set; } = "vercel";
+
     public VercelOptions Vercel { get; set; } = new();
+    public FileSystemOptions FileSystem { get; set; } = new();
+
+    /// <summary>Where a locally published site is written, and what URL it is served from.</summary>
+    public class FileSystemOptions
+    {
+        /// <summary>Under <c>.run/</c>, which is gitignored: a published copy is build output.</summary>
+        public string Root { get; set; } = ".run/published";
+
+        /// <summary>
+        /// The origin the dev host answers on, so a deployment's URL is one somebody can click. Not derived
+        /// from the request, for the same reason mail links are not: a publish can be triggered by a job with
+        /// no request in sight.
+        /// </summary>
+        public string BaseUrl { get; set; } = "https://localhost:5000";
+    }
 
     public class VercelOptions
     {

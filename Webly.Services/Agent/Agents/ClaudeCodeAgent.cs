@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Webly.Services.Services.Sandboxes;
 
 namespace Webly.Services.Agent.Agents;
@@ -25,10 +23,14 @@ namespace Webly.Services.Agent.Agents;
 /// to resume — otherwise the same history is paid for twice.</item>
 /// </list>
 ///
-/// <b>Unverified against the CLI.</b> The flags and the <c>stream-json</c> event shapes below follow Claude
-/// Code's documented headless interface, but nothing here has been run — see whats_next.md. The parser is
-/// written to ignore what it does not recognise for that reason: an unknown event type costs a chip in the
-/// UI, not the turn.
+/// <b>Verified against the real CLI</b> (2.1.x) by <c>tools/e2e/run.mjs</c>, which runs a turn on the starter
+/// template inside a real sandbox and records the stream. Two things that recording settled, because both
+/// were guesses before it: the CLI does follow the <c>SUMMARY:</c> convention this prompt asks for, and it
+/// edits <c>content/brand.md</c> unprompted because <c>AGENTS.md</c> tells it to — which is the mechanism
+/// the product's memory depends on. <see cref="ClaudeStreamJsonParser"/> documents the event shapes.
+///
+/// What is still unverified is this class under .NET: the process launch, the flag list as
+/// <see cref="SandboxCommand"/> passes it, and the timeout. The harness runs the same argv from node.
 /// </summary>
 public class ClaudeCodeAgent(
     IOptions<CodingAgentOptions> options,
@@ -80,11 +82,15 @@ public class ClaudeCodeAgent(
                 ["CI"] = "true"
             });
 
-        var parser = new StreamJsonParser(onEvent, logger);
+        var parser = new ClaudeStreamJsonParser(onEvent, logger);
 
         var result = await sandbox.RunAsync(command, parser.HandleAsync, cancellationToken);
 
-        if (!result.Succeeded && parser.Reply.Length == 0)
+        // Two ways a turn fails, and they are not the same thing. The CLI can report its own failure in the
+        // result event while still exiting zero (`is_error`), and it can exit non-zero having already said
+        // something useful. Either is a failed turn; what is not a failure is a non-zero exit with a reply,
+        // which is the shape of "it finished and then something tidying up went wrong".
+        if (parser.Failed || (!result.Succeeded && parser.Reply.Length == 0))
             throw new SandboxException(
                 "The editing agent could not finish.",
                 $"claude exited {result.ExitCode}: {Tail(result.Output)}");
@@ -128,158 +134,4 @@ public class ClaudeCodeAgent(
 
     private static string Tail(string output) =>
         output.Length <= 2000 ? output : output[^2000..];
-
-    /// <summary>
-    /// Reads the CLI's <c>stream-json</c> output: one JSON object per line, of which this cares about three
-    /// kinds — assistant text, tool use, and the final result carrying the session id.
-    ///
-    /// Tolerant by construction. The stream is a different product's interface, so anything unrecognised is
-    /// skipped rather than failing the turn, and the reply is accumulated from whatever text did arrive.
-    /// </summary>
-    private sealed class StreamJsonParser(Func<CodingAgentEvent, Task> onEvent, ILogger logger)
-    {
-        private readonly StringBuilder _reply = new();
-        private readonly StringBuilder _buffer = new();
-
-        public string Reply => _reply.ToString();
-        public string? SessionId { get; private set; }
-
-        public async Task HandleAsync(SandboxOutput output)
-        {
-            // stderr from the CLI is diagnostics, not content. Logged, never shown: a person asking for a new
-            // headline should not see a node warning.
-            if (output.IsError)
-            {
-                logger.LogDebug("claude stderr: {Text}", output.Text);
-                return;
-            }
-
-            _buffer.Append(output.Text);
-
-            while (true)
-            {
-                var text = _buffer.ToString();
-                var newline = text.IndexOf('\n');
-
-                if (newline < 0) break;
-
-                var line = text[..newline].Trim();
-                _buffer.Remove(0, newline + 1);
-
-                if (line.Length > 0) await HandleLineAsync(line);
-            }
-        }
-
-        private async Task HandleLineAsync(string line)
-        {
-            JsonNode? node;
-
-            try
-            {
-                node = JsonNode.Parse(line);
-            }
-            catch (JsonException)
-            {
-                return;
-            }
-
-            SessionId ??= node?["session_id"]?.GetValue<string>();
-
-            switch (node?["type"]?.GetValue<string>())
-            {
-                case "assistant":
-                    foreach (var block in node["message"]?["content"]?.AsArray() ?? [])
-                    {
-                        switch (block?["type"]?.GetValue<string>())
-                        {
-                            case "text" when block["text"]?.GetValue<string>() is { Length: > 0 } value:
-                                _reply.Append(value);
-                                await onEvent(new CodingAgentEvent.Text(value));
-                                break;
-
-                            case "tool_use":
-                                await ReportToolAsync(block);
-                                break;
-                        }
-                    }
-
-                    break;
-
-                case "result":
-                    // The CLI's own final text, which is the authority on what it said — the assistant blocks
-                    // above may have been partial.
-                    if (node["result"]?.GetValue<string>() is { Length: > 0 } final) Replace(final);
-                    break;
-            }
-        }
-
-        private async Task ReportToolAsync(JsonNode block)
-        {
-            var tool = block["name"]?.GetValue<string>() ?? "tool";
-            var path = block["input"]?["file_path"]?.GetValue<string>();
-
-            if (path is { Length: > 0 })
-            {
-                var relative = path.StartsWith("/workspace/", StringComparison.Ordinal) ? path["/workspace/".Length..] : path;
-
-                if (tool is "Write" or "Edit" or "NotebookEdit")
-                    await onEvent(new CodingAgentEvent.FileChanged(relative));
-            }
-
-            await onEvent(new CodingAgentEvent.Activity(Phrase(tool), path));
-        }
-
-        private void Replace(string text)
-        {
-            _reply.Clear();
-            _reply.Append(text);
-        }
-
-        /// <summary>
-        /// A tool name as something a person reading it would recognise. The set is the agent's built-in
-        /// tools; anything else gets the generic phrase rather than its internal name, because a chip that
-        /// reads "Glob" makes the product look like a debugger.
-        /// </summary>
-        private static string Phrase(string tool) => tool switch
-        {
-            "Read" => "Reading your site",
-            "Write" => "Writing a file",
-            "Edit" => "Editing a file",
-            "Glob" or "Grep" => "Looking through your site",
-            "Bash" => "Running a command",
-            "WebSearch" or "WebFetch" => "Looking something up",
-            "TodoWrite" => "Planning",
-            _ => "Working"
-        };
-
-        /// <summary>
-        /// Splits the reply into what the person sees and the one line Webly commits with. A convention in the
-        /// prompt rather than a structured output, because the same convention has to work for a second agent
-        /// with a different interface — and a missing line is recoverable: the person's own request is a
-        /// perfectly good commit subject.
-        /// </summary>
-        public CodingAgentOutcome ToOutcome(string fallbackSummary)
-        {
-            var reply = Reply.Trim();
-            var summary = fallbackSummary.Length <= 70 ? fallbackSummary : $"{fallbackSummary[..67]}...";
-            var lines = reply.Split('\n');
-
-            for (var index = lines.Length - 1; index >= 0; index--)
-            {
-                var line = lines[index].Trim();
-
-                if (!line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase)) continue;
-
-                var value = line["SUMMARY:".Length..].Trim();
-
-                if (value.Length > 0 && !value.Equals("none", StringComparison.OrdinalIgnoreCase))
-                    summary = value.Length <= 70 ? value : $"{value[..67]}...";
-
-                reply = string.Join('\n', lines.Take(index)).TrimEnd();
-                break;
-            }
-
-            return new CodingAgentOutcome(reply, summary, Details: null, SessionId);
-        }
-    }
 }

@@ -72,6 +72,36 @@ jobs:
         if: steps.generated.outputs.present == 'true'
         run: yarn test --watch=false
 
+  # The product loop, end to end, without the backend.
+  #
+  # This is the only job here that exercises the sandbox contract, the site template and the Next.js build
+  # together — and it needs no .NET, no Docker, no database and no credentials, which is why it can run on
+  # every push. It is also where the expensive bugs have actually been found: a preview proxy that never
+  # worked, a tree write that overlaid instead of replacing, a leaked dev server per run. See
+  # tools/e2e/README.md.
+  #
+  # `--agent mock` deliberately: the real CLI costs money and needs a key, so the agent itself is covered by
+  # the recorded transcript in ClaudeStreamJsonParserTests instead.
+  loop:
+    name: Product loop (no backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # The harness stands in for the sandbox image's prebaked dependencies by symlinking the template's own
+      # node_modules, so they have to exist. `npm ci` against the committed lockfile, which is also what a
+      # publish does.
+      - name: Install the site template's dependencies
+        working-directory: templates/next-site
+        run: npm ci --no-audit --no-fund
+
+      - name: Run the loop
+        run: node tools/e2e/run.mjs --agent mock
+
 # Deployment is its own pair of workflows (webly-dev-deploy.yaml, webly-prod.yaml) and deliberately does
 # not gate on this one: a red master should still produce a dev image to look at. That is a decision, not
 # an oversight — see CLAUDE.md "Deployment".

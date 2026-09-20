@@ -44,17 +44,30 @@ Everything in this phase exists in the repository:
 - **The client**: Angular 22 SSR, auth screens, site list, first-site onboarding, the editor (chat + the
   proxied preview), history with diffs and restore, domains, settings with the build log.
 
+Plus the substitutes that make it runnable with nothing installed — a local sandbox provider, a mock agent and
+a filesystem deployment target, each refused outside Development. `CLAUDE.md` "Running it with nothing
+installed" is the table.
+
+**The loop has been driven end to end**, by `tools/e2e/run.mjs`: real git plumbing, the real sandbox agent, the
+real `claude` CLI, the real Next.js dev server and build, fourteen asserted steps ending at a published page
+that says what the person typed. So the parts owned by somebody else — git, the CLI's stream format, the
+framework — are evidence. What remains is what needs a compiler.
+
 **Known gaps inside P0**, each with a note in the code:
 
 | Gap | Where |
 |---|---|
-| Nothing has been compiled or run; no EF migration has been generated yet | `whats_next.md` |
+| No C# has been compiled, so every file is unverified *as C#*; no EF migration has been generated | `whats_next.md` |
 | `client/src/app/api/` (the generated client) does not exist yet, so the client does not type-check against real DTOs | `CLAUDE.md`, `whats_next.md` |
-| `ClaudeCodeAgent`'s flags and stream-json parsing are written from the documented interface, never run | `docs/agent-plan.md` §5 |
-| `OpenCodeAgent` likewise, and its output is prose rather than a typed stream | `OpenCodeAgent` class comment |
+| `OpenCodeAgent` has never run, and its output is prose rather than a typed stream | `OpenCodeAgent` class comment |
 | `E2bSandboxProvider` has never called E2B | `E2bSandboxProvider` class comment |
 | `VercelDeploymentTarget` is unverified in both halves — REST and CLI | `docs/deploy-plan.md` §6 |
 | Hub DTOs are declared by hand in the client | `docs/agent-plan.md` §3.3 |
+
+Closed since the pivot, by running things rather than reading them: `ClaudeCodeAgent`'s stream-json format is
+reconciled against a recorded turn and covered by `ClaudeStreamJsonParserTests`; the preview proxy was broken
+and is fixed; the sandbox agent leaked a dev server per stop and does not; `Directory.Build.props` was missing
+entirely, so nothing could have built at all.
 
 ---
 
@@ -62,18 +75,22 @@ Everything in this phase exists in the repository:
 
 The phase that turns the skeleton into a running product. No new features.
 
+0. `node tools/e2e/run.mjs --agent mock` first, because it needs nothing and it is the fastest way to find out
+   whether the machine can do the things the product needs at all.
 1. `dotnet build`, then `dotnet ef migrations add InitialCreate`, then **hand-write the deferred-constraint
    SQL** into that migration (see `CLAUDE.md` "Deferred foreign keys") and run
    `WeblyDbContextTests.Deleting_a_user_removes_their_sites_and_everything_under_them`.
-2. Run `GitSiteRepositoryStoreTests`. It needs no Postgres and no Docker, so it is the first suite that can
-   be green, and it covers the layer where being wrong loses somebody's website.
+2. Run `GitSiteRepositoryStoreTests` and `ClaudeStreamJsonParserTests`. Neither needs Postgres, Docker or a
+   key, so they are the first suites that can be green — and between them they cover the layer where being
+   wrong loses somebody's website and the one whose input format belongs to another product.
 3. Start the stack, run `regen_api`, commit `client/src/app/api/`, fix whatever the generated names actually
    are, and get `client_typecheck` and `client_build` green.
-4. Build the sandbox image and check the contract end to end from .NET: start a sandbox, write a tree, run
-   `npm ls`, start the dev server, load the preview through the proxy, and confirm hot reload survives the
-   WebSocket forward.
-5. **One real turn**, with a real key: a message, files written, a commit, the preview updating by itself.
-   Then reconcile `ClaudeCodeAgent` with what the CLI actually emitted. Then a reload mid-turn, then Stop.
+4. **One real turn through the app**, with the defaults (local sandbox, mock agent, filesystem publish) and no
+   credentials at all: register, verify, create a site, send a message, watch the preview change, publish, open
+   the published page. Everything in that sentence has been proven to work from node; this is the step that
+   proves the C# orchestrating it does.
+5. Then the same with `Agent:ClaudeCode:ApiKey` set, and a reload mid-turn and Stop — the two paths that only
+   exist because a run outlives its connection.
 6. Reconcile `VercelDeploymentTarget` against a real token: publish, add a domain, verify it.
 
 ## P2 — The editor people can actually use

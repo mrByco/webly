@@ -27,6 +27,8 @@ public class VercelDeploymentTarget(
 {
     private readonly DeploymentOptions.VercelOptions _vercel = options.Value.Vercel;
 
+    public bool IsConfigured => _vercel.IsConfigured;
+
     public async Task<string> EnsureProjectAsync(
         string siteNanoid,
         string siteName,

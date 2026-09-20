@@ -202,9 +202,16 @@ public static class ServiceCollectionExtensions
     /// absence is a legitimate deployment (a sandbox vendor's key, a Vercel token, an agent's key) are not — see
     /// CLAUDE.md, "An unconfigured feature is absent, not broken".
     /// </summary>
+    /// <summary>
+    /// Sites: where their source lives, where the agent runs, and how they are published.
+    ///
+    /// Takes the environment as well as the configuration because of one decision: the local sandbox provider
+    /// is not isolation, so selecting it outside Development is refused here rather than trusted to a comment.
+    /// </summary>
     public static IServiceCollection AddWeblySites(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services.AddOptions<SitesOptions>()
             .Bind(configuration.GetSection(SitesOptions.SectionName))
@@ -222,6 +229,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddOptions<SandboxOptions>().Bind(configuration.GetSection(SandboxOptions.SectionName));
+        services.AddOptions<LocalSandboxOptions>().Bind(configuration.GetSection(LocalSandboxOptions.SectionName));
         services.AddOptions<CodingAgentOptions>().Bind(configuration.GetSection(CodingAgentOptions.SectionName));
         services.AddOptions<DeploymentOptions>().Bind(configuration.GetSection(DeploymentOptions.SectionName));
 
@@ -234,23 +242,68 @@ public static class ServiceCollectionExtensions
         // instead.
         services.AddHttpClient(SandboxAgentClient.HttpClientName, client => client.Timeout = TimeSpan.FromMinutes(20));
 
-        // Both providers are registered as themselves so either can be resolved in a test; only the selected one
-        // is the ISandboxProvider the app uses.
+        // All three providers are registered as themselves so any can be resolved in a test; only the selected
+        // one is the ISandboxProvider the app uses.
         services.AddSingleton<E2bSandboxProvider>();
         services.AddSingleton<DockerSandboxProvider>();
+        services.AddSingleton<LocalSandboxProvider>();
 
-        var provider = configuration[$"{SandboxOptions.SectionName}:Provider"] ?? DockerSandboxProvider.ProviderName;
+        var provider = configuration[$"{SandboxOptions.SectionName}:Provider"] ?? LocalSandboxProvider.ProviderName;
 
         if (string.Equals(provider, E2bSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
-            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<E2bSandboxProvider>());
-        else
-            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<DockerSandboxProvider>());
-
-        services.AddHttpClient<IDeploymentTarget, VercelDeploymentTarget>(client =>
         {
-            client.BaseAddress = new Uri("https://api.vercel.com");
-            client.Timeout = TimeSpan.FromMinutes(2);
-        });
+            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<E2bSandboxProvider>());
+        }
+        else if (string.Equals(provider, DockerSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<DockerSandboxProvider>());
+        }
+        else if (string.Equals(provider, LocalSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            // Refused rather than warned about. The local provider runs a coding agent as this process's own
+            // user with no isolation at all, so in production it would hand somebody's website's agent the
+            // database credentials — a crash at boot is the only safe way to be wrong about this.
+            if (!environment.IsDevelopment())
+                throw new InvalidOperationException(
+                    "Sandbox:Provider 'local' is a development-only provider and offers no isolation. "
+                    + "Use 'e2b' outside Development.");
+
+            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<LocalSandboxProvider>());
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Unknown Sandbox:Provider '{provider}'. Expected 'local', 'docker' or 'e2b'.");
+        }
+
+        // The publishing target. Vercel is a typed client because it is an HTTP API; the filesystem one is not,
+        // because it only needs the sandbox and a directory.
+        var deploymentProvider = configuration[$"{DeploymentOptions.SectionName}:Provider"] ?? "vercel";
+
+        if (string.Equals(deploymentProvider, FileSystemDeploymentTarget.ProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            // Same rule as the local sandbox: refused rather than warned about. A production deployment that
+            // silently published into a container's filesystem would report success and serve nothing.
+            if (!environment.IsDevelopment())
+                throw new InvalidOperationException(
+                    "Deployment:Provider 'filesystem' is development-only — it publishes to a local directory. "
+                    + "Use 'vercel' outside Development.");
+
+            services.AddSingleton<IDeploymentTarget, FileSystemDeploymentTarget>();
+        }
+        else if (string.Equals(deploymentProvider, "vercel", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient<IDeploymentTarget, VercelDeploymentTarget>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.vercel.com");
+                client.Timeout = TimeSpan.FromMinutes(2);
+            });
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Unknown Deployment:Provider '{deploymentProvider}'. Expected 'vercel' or 'filesystem'.");
+        }
 
         // The preview proxy's own client: no timeout of its own, because a dev server compiling a page on first
         // request can take a minute and YARP's ActivityTimeout is what bounds it. AllowAutoRedirect off, so a

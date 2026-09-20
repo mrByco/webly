@@ -19,6 +19,14 @@
     <Using Include="NUnit.Framework" />
   </ItemGroup>
 
+  <!-- The recorded CLI transcript ClaudeStreamJsonParserTests drives. Linked rather than copied, so there is
+       one file and the harness that records it (tools/e2e/run.mjs) overwrites the thing the test reads. -->
+  <ItemGroup>
+    <None Include="..\tools\e2e\fixtures\claude-stream-json.ndjson"
+          Link="Fixtures\claude-stream-json.ndjson"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Webly.Api\Webly.Api.csproj" />
     <ProjectReference Include="..\Webly.Services\Webly.Services.csproj" />

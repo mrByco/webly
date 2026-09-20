@@ -124,6 +124,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<ICodingAgent, ClaudeCodeAgent>();
         services.AddSingleton<ICodingAgent, OpenCodeAgent>();
+
+        // The keyless one. Registered unconditionally like the others and reporting itself unconfigured
+        // unless Agent:Mock:Enabled is set, so "which agents does this deployment have" stays one question
+        // with one answer in CodingAgentRegistry.
+        services.AddSingleton<ICodingAgent, MockCodingAgent>();
         services.AddSingleton<CodingAgentRegistry>();
         services.AddScoped<IAgentTurnService, AgentTurnService>();
 

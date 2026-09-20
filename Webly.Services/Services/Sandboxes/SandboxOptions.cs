@@ -6,11 +6,14 @@ public class SandboxOptions
     public const string SectionName = "Sandbox";
 
     /// <summary>
-    /// Which provider to use: <c>e2b</c> in production, <c>docker</c> locally. Not a required setting with
-    /// no default, because a fresh clone has to be able to edit a site on a laptop without a vendor
-    /// account — the managed provider is what production wants, not what development needs.
+    /// Which provider to use: <c>e2b</c> in production, <c>local</c> or <c>docker</c> in development.
+    ///
+    /// The default is <c>local</c>, which needs nothing but node — not because it is the best provider but
+    /// because it is the one a fresh clone definitely has. <c>docker</c> is the same thing with real
+    /// isolation, for anyone who has a daemon and wants it; <c>e2b</c> is what production uses, and selecting
+    /// <c>local</c> outside Development is refused at startup.
     /// </summary>
-    public string Provider { get; set; } = "docker";
+    public string Provider { get; set; } = "local";
 
     /// <summary>
     /// The image (or E2B template) holding node, git, tar, the agent CLIs and the sandbox agent — with the
