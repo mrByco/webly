@@ -135,6 +135,26 @@ public class GitSiteRepositoryStore(
             // Against the first parent, and with no colour or pager: this is read by a client, not a terminal.
             "diff", "--no-color", "--unified=3", $"{commitSha}~1", commitSha);
 
+    /// <summary>
+    /// <c>git bundle create - HEAD &lt;branch&gt;</c>: the whole repository on stdout.
+    ///
+    /// The literal <c>-</c> is how git spells stdout here, and <see cref="RunBinaryAsync"/> is why that is safe
+    /// — a bundle is a packfile, and reading it as text would corrupt it exactly the way reading a blob as text
+    /// would. That is the same reason the read path for files is binary.
+    ///
+    /// <b><c>HEAD</c> is not redundant.</b> A bundle of the branch alone carries the commits and the ref, and
+    /// <c>git bundle verify</c> is perfectly happy with it — but <c>git clone</c> of it produces a repository
+    /// with <i>no files checked out</i>, because there is no HEAD to say which branch to check out. Naming HEAD
+    /// as well is the difference between a customer who leaves getting their website and getting an empty
+    /// directory, which is the whole point of the endpoint. Measured, not assumed; the harness runs the same
+    /// arguments and clones the result.
+    /// </summary>
+    public Task<byte[]> CreateBundleAsync(
+        string siteNanoid,
+        string branch,
+        CancellationToken cancellationToken = default) =>
+        RunBinaryAsync(PathFor(siteNanoid), cancellationToken, "bundle", "create", "-", "HEAD", branch);
+
     public async Task<string?> ResolveHeadAsync(
         string siteNanoid,
         string branch,

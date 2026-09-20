@@ -98,6 +98,10 @@ turn with a compile error, and most of the time it does not. When it does, the p
 fixes it, and they can only write that message if they can see what broke. The publish path does not rely on
 this at all: `vercel build` runs there and a failure blocks the deployment.
 
+`AGENTS.md` also tells the agent to run `npm run typecheck` as its last step, which the recorded turn did not
+do on its own. That is the cheapest place to catch the failure that matters: a type error the agent introduced
+costs seconds to find here and, found later, costs the person a failed publish and a wait.
+
 ## 2. Where the agent runs: workspaces and sandboxes
 
 The one part of this product that makes somebody wait, so it is worth the machinery.

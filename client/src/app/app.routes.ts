@@ -38,7 +38,7 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/new-site/new-site').then(m => m.NewSitePage),
   },
   {
-    // One shell, three children. The shell owns the site — it loads it once, holds the publish button
+    // One shell, four children. The shell owns the site — it loads it once, holds the publish button
     // and the switcher — so moving between the editor, the history and the domains does not reload it
     // and cannot show a header that disagrees with the pane below it.
     path: AppRoutes.site.path,
@@ -48,6 +48,10 @@ export const routes: Routes = [
       {
         path: AppRoutes.siteHistory.childPath,
         loadComponent: () => import('./pages/site-history/site-history').then(m => m.SiteHistoryPage),
+      },
+      {
+        path: AppRoutes.siteCode.childPath,
+        loadComponent: () => import('./pages/site-code/site-code').then(m => m.SiteCodePage),
       },
       {
         path: AppRoutes.siteDomains.childPath,

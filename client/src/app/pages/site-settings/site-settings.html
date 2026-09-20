@@ -30,6 +30,22 @@
       </div>
     }
 
+    <!-- The claim, with a button under it. A bundle rather than a zip: `git clone` on it gives a working
+         project with every version, which is the difference between owning a site and owning a copy of one. -->
+    <div class="surface flex flex-wrap items-center gap-3 p-4">
+      <div class="min-w-0 flex-1">
+        <h3 class="text-sm font-bold">Take your site with you</h3>
+        <p class="text-sm text-base-content/65">
+          It is a real Next.js project in a git repository. Download it and every version comes too.
+        </p>
+      </div>
+
+      <a class="btn btn-sm" [href]="exportUrl()" [download]="exportFileName()">
+        <app-icon class="size-4" name="external" />
+        Download
+      </a>
+    </div>
+
     <div>
       <h3 class="mb-2 text-sm font-bold">Publishing history</h3>
 

@@ -27,6 +27,18 @@ actually confirmed.
 8. **Accessibility and responsiveness are not optional.** Real alt text, one `h1` per page, visible focus
    states, and every layout works at 390px.
 
+## Check your work before you finish
+
+Run `npm run typecheck` as your last step, and fix whatever it reports.
+
+It takes a few seconds. The alternative is that the person presses Publish, the build fails, their site does
+not go live, and the first they hear of it is an email saying so — which costs them a wait and you another
+turn. A type error you introduced is the single most likely way for that to happen, and it is the one kind of
+mistake a machine can catch for you.
+
+If you changed a page's structure or copy, also look at the running dev server's output for a compile error
+before you finish. It is already compiling while you work.
+
 ## Shape of the project
 
 - `src/app/` — routes. `page.tsx` is the home page; a new page is a folder with a `page.tsx`.

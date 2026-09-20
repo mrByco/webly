@@ -1,9 +1,10 @@
 # tools/e2e — the product loop, without the backend
 
 ```
-node tools/e2e/run.mjs --agent mock      # no credentials needed
-node tools/e2e/run.mjs --agent claude    # the real CLI; also re-records the parser's fixture
-node tools/e2e/run.mjs --agent mock --keep   # leave the workspace and repository to poke at
+node tools/e2e/run.mjs --agent mock              # no credentials needed
+node tools/e2e/run.mjs --agent claude            # the real CLI; also re-records the parser's fixture
+node tools/e2e/run.mjs --agent mock --keep       # leave the workspace and repository to poke at
+node tools/e2e/run.mjs --agent mock --out ./site # keep the published site, to open in a browser
 ```
 
 Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a hosting account — except
@@ -47,7 +48,8 @@ build — are all exercised for real. What is mocked is the part written in the 
 11. Restoring an earlier version writes it forward and keeps the history reachable.
 12. The publish gate: the site really builds.
 13. Publishing copies the export out and **the published page says what the person typed**.
-14. A broken build is caught rather than published, and the log says why.
+14. The site exports as a git bundle that **clones into a working project** with its history.
+15. A broken build is caught rather than published, and the log says why.
 
 ## Things it has already caught
 
@@ -69,6 +71,11 @@ build — are all exercised for real. What is mocked is the part written in the 
 - **A hung request stalled the run silently.** `waitFor` bounded the retry loop but not each attempt, so a dev
   server compiling under load held one `fetch` open past every deadline and the harness simply stopped rather
   than failing. Attempts are bounded now.
+- **The export bundle cloned into an empty directory.** `git bundle create - <branch>` records the commits and
+  the ref but no `HEAD`, so `git bundle verify` says "complete history" and `git clone` checks out *nothing*.
+  The export endpoint — the feature whose whole point is that a customer can leave with their site — shipped
+  that way for about ten minutes. Naming `HEAD` as well fixes it, and step 14 asserts on the cloned working
+  tree rather than on the bundle, because only the clone shows the difference.
 - **Building in the warm sandbox exports a broken site.** The harness used to publish from the editing
   sandbox. After a re-seed — the source directory deleted and rewritten under a running dev server — `next
   build` reported *success* and produced an `out/` containing only `404.html` and `_next`: no home page at

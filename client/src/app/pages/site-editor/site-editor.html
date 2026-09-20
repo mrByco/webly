@@ -5,14 +5,28 @@
       <header class="flex flex-wrap items-center gap-3 border-b border-base-300 bg-base-100 px-4 py-3">
         <div class="min-w-0">
           <h1 class="truncate text-lg font-bold tracking-tight">{{ detail.summary.name }}</h1>
-          <a
-            class="flex items-center gap-1 truncate text-xs text-base-content/60 hover:text-base-content"
-            target="_blank"
-            rel="noopener"
-            [href]="detail.summary.url">
-            {{ detail.summary.url }}
-            <app-icon class="size-3" name="external" />
-          </a>
+
+          <!--
+            A link only once there is something at the other end of it. Before the first publish this address
+            is where the site *will* live, and offering it as a link means the first thing somebody does with
+            their new site is click through to a 404 — the same "live according to us, gone according to the
+            internet" mistake the domains code is careful to avoid.
+          -->
+          @if (detail.summary.publishedAt) {
+            <a
+              class="flex items-center gap-1 truncate text-xs text-base-content/60 hover:text-base-content"
+              target="_blank"
+              rel="noopener"
+              [href]="detail.summary.url">
+              {{ detail.summary.url }}
+              <app-icon class="size-3" name="external" />
+            </a>
+          } @else {
+            <p class="flex items-center gap-1.5 truncate text-xs text-base-content/50">
+              {{ detail.summary.url }}
+              <span class="badge badge-ghost badge-xs">not published yet</span>
+            </p>
+          }
         </div>
 
         <nav class="ml-auto flex gap-1">
@@ -27,6 +41,10 @@
           <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteHistory.build(detail.summary.nanoid)">
             <app-icon class="size-4" name="clock" />
             History
+          </a>
+          <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteCode.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="code" />
+            Code
           </a>
           <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteDomains.build(detail.summary.nanoid)">
             <app-icon class="size-4" name="link" />

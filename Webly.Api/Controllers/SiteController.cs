@@ -24,7 +24,8 @@ public class SiteController(
     ListSiteVersions listSiteVersions,
     GetSiteVersion getSiteVersion,
     RestoreSiteVersion restoreSiteVersion,
-    ReadSiteFiles readSiteFiles) : ControllerBase
+    ReadSiteFiles readSiteFiles,
+    ExportSite exportSite) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SiteSummaryResponse>>> List(CancellationToken cancellationToken) =>
@@ -37,7 +38,7 @@ public class SiteController(
     {
         var result = await createSite.ExecuteAsync(this.GetUserId(), request, cancellationToken);
 
-        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
     }
 
     [HttpGet("{nanoid}")]
@@ -45,7 +46,7 @@ public class SiteController(
     {
         var result = await getSite.ExecuteAsync(this.GetUserId(), nanoid, cancellationToken);
 
-        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
     }
 
     [HttpPut("{nanoid}")]
@@ -112,7 +113,7 @@ public class SiteController(
 
         return result.Succeeded
             ? Content(result.Value!, "text/plain; charset=utf-8")
-            : Failure(result.Error, result.Detail);
+            : Failure(result.Error);
     }
 
     /// <summary>
@@ -127,7 +128,7 @@ public class SiteController(
     {
         var result = await restoreSiteVersion.ExecuteAsync(this.GetUserId(), nanoid, versionNanoid, cancellationToken);
 
-        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
     }
 
     /// <summary>
@@ -142,7 +143,7 @@ public class SiteController(
     {
         var result = await readSiteFiles.ListAsync(this.GetUserId(), nanoid, version, cancellationToken);
 
-        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
     }
 
     /// <summary>
@@ -159,7 +160,28 @@ public class SiteController(
     {
         var result = await readSiteFiles.ReadAsync(this.GetUserId(), nanoid, path, version, cancellationToken);
 
-        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
+    }
+
+    /// <summary>
+    /// The site's whole repository, as a git bundle to download.
+    ///
+    /// The one endpoint here that answers with a file rather than JSON, and the reason it exists is the
+    /// product's central claim: a site is real source code and it belongs to the person who paid for it.
+    /// `git clone` on what this returns gives them a working project with the entire history — so leaving is
+    /// possible, which is what makes staying a choice.
+    /// </summary>
+    [HttpGet("{nanoid}/export")]
+    [Produces("application/x-git-bundle")]
+    public async Task<IActionResult> Export(string nanoid, CancellationToken cancellationToken)
+    {
+        var result = await exportSite.ExecuteAsync(this.GetUserId(), nanoid, cancellationToken);
+
+        if (!result.Succeeded) return Failure(result.Error);
+
+        // A download rather than something the browser tries to render. The client reaches this with a plain
+        // link rather than through the generated API client, because a link is what a download is.
+        return File(result.Value!.Content, "application/x-git-bundle", result.Value.FileName);
     }
 
     /// <summary>
@@ -168,7 +190,7 @@ public class SiteController(
     /// <c>NotFound</c> answers 404 for both "no such site" and "not yours" — a 403 would confirm that a guessed
     /// nanoid names a real site, and a site's existence is its owner's business.
     /// </summary>
-    private ActionResult Failure(SiteError error, string? detail = null) => error switch
+    private ActionResult Failure(SiteError error) => error switch
     {
         SiteError.NotFound => NotFound(new ProblemDetails { Title = "That site could not be found." }),
         SiteError.VersionNotFound => NotFound(new ProblemDetails { Title = "That version could not be found." }),
@@ -179,10 +201,13 @@ public class SiteController(
             Detail = "Delete one you no longer need, or upgrade."
         }),
         SiteError.InvalidName => BadRequest(new ProblemDetails { Title = "A site needs a name of at most 80 characters." }),
+        // No Detail, deliberately. The detail here is git's own stderr, and RepositoryException says in its own
+        // comment that its message is for a log rather than for a customer — it names server-side paths, which
+        // a site's owner has no use for and should not be handed. The use case logs it instead.
         SiteError.RepositoryFailed => StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
         {
             Title = "Your site's history could not be read.",
-            Detail = detail
+            Detail = "This has been recorded. Nothing has been lost — please try again."
         }),
         SiteError.WorkspaceUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
         {

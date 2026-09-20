@@ -63,6 +63,12 @@ export const AppRoutes = {
     childPath: 'history',
     build: (nanoid: string) => `/sites/${encodeURIComponent(nanoid)}/history`,
   },
+  /** The source, read-only. "You never have to touch the code" is not "you may not see it". */
+  siteCode: {
+    path: 'sites/:nanoid/code',
+    childPath: 'code',
+    build: (nanoid: string) => `/sites/${encodeURIComponent(nanoid)}/code`,
+  },
   siteDomains: {
     path: 'sites/:nanoid/domains',
     childPath: 'domains',

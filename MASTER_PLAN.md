@@ -95,8 +95,9 @@ The phase that turns the skeleton into a running product. No new features.
 
 ## P2 — The editor people can actually use
 
-- **The code view**: a file tree and a read-only viewer over `/files` and `/file`, because being able to
-  look is part of the promise even though touching it is not.
+- ~~**The code view**~~: done. A Code tab in the editor, one level of grouping by directory, a read-only
+  viewer with line numbers. Read-only deliberately — a save button there would be a second definition of what
+  a version is.
 - **Better diffs** in the history: per-file collapse, and a side-by-side for the file somebody clicks.
 - **Agent choice on screen**, if the second agent turns out to be worth offering rather than only worth
   having.
@@ -131,8 +132,9 @@ today against URLs somebody pasted; a customer photographing their shop front is
 
 ## P6 — Export, then growth surface
 
-- **Export first**, because "it is your code" is only true if there is a button: a tarball of the head
-  commit, then a push to the customer's own GitHub.
+- ~~**Export**~~: done, and done as a **git bundle** rather than a tarball, so `git clone` on it gives a
+  working project with every version. `GET /api/sites/{nanoid}/export`, linked from the settings screen. What
+  remains is the half that needs the customer's credentials: a push to their own GitHub.
 - The public marketing site, a template gallery, and an example site anybody can look at without signing up.
   Webly's own marketing site should be a Webly site, which is the more honest demonstration — and the first
   real test of the product's own limits.

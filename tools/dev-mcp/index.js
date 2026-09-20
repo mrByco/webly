@@ -42,10 +42,17 @@ const SERVICES = {
         url: `${BACKEND_ORIGIN}/swagger/v1/swagger.json`,
         pidFile: path.join(RUN_DIR, 'backend.pid'),
         outLog: path.join(RUN_DIR, 'backend.out.log'),
-        cwd: BACKEND_DIR,
+        // The repository root, not Webly.Api. Three settings are paths relative to it —
+        // Repositories:Root (.run/repositories), Templates:SitePath (templates/next-site) and
+        // Sandbox:Local:AgentPath (tools/sandbox-agent/index.js) — and every one of them resolves against
+        // the process's working directory. Started from Webly.Api, creating a site fails because the
+        // template is not there and a turn fails because the sandbox agent is not either. Configuration
+        // that says "templates/next-site" should mean the one in this repository.
+        cwd: REPO,
         // The built exe, not `dotnet run`: `dotnet run` is a launcher whose child's stdout never
         // reaches a detached log. Spawning the exe directly gives a complete log. The build step
-        // below keeps it from running stale code.
+        // below keeps it from running stale code. It is an absolute path, so the cwd above is free to be
+        // the repository root.
         command: BACKEND_EXE,
         args: [],
         env: {

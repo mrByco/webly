@@ -174,8 +174,10 @@ above it changes. That is the whole reason the check is in one query.
 
 ## 6. The next domain questions, in the order they will be asked
 
-1. **Export.** "It is your code" is only true if there is a button. A tarball of the head commit is an
-   afternoon; a push to the customer's own GitHub is the version people will actually want.
+1. ~~**Export.**~~ Done: `GET /api/sites/{nanoid}/export` returns a **git bundle**, and the settings screen
+   links to it. A bundle rather than a tarball because a tarball is a snapshot and a bundle is the repository —
+   `git clone site.bundle` gives a working project with every version and every commit message. What is still
+   open is the half that needs the customer's credentials: a push to their own GitHub.
 2. **Forms.** A contact page needs somewhere for submissions to go. With real source this is no longer a
    section type: it is a route handler the agent can write, plus a `FormSubmission` table and spam
    handling on our side. Decide whether the submission endpoint is the site's or Webly's before writing

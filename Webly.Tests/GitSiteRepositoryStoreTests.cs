@@ -215,4 +215,67 @@ public class GitSiteRepositoryStoreTests
     {
         Assert.That(await _store.ResolveHeadAsync("nope", "main"), Is.Null);
     }
+
+    /// <summary>
+    /// The export, and specifically the thing that makes it worth anything: the bundle has to <b>clone</b>.
+    ///
+    /// A bundle of the branch alone passes <c>git bundle verify</c> and contains every commit, and
+    /// <c>git clone</c> of it checks out nothing at all, because no HEAD says which branch to use. The first
+    /// version of <see cref="GitSiteRepositoryStore.CreateBundleAsync"/> was that bundle. This test is the one
+    /// that would have caught it, so it asserts on the cloned working tree rather than on the bundle's bytes.
+    /// </summary>
+    [Test]
+    public async Task A_bundle_clones_into_a_working_project_with_its_history()
+    {
+        var first = await _store.InitializeAsync(
+            "site1", "main", Tree(("package.json", "{}\n"), ("src/app/page.tsx", "export default () => null;\n")),
+            Author, "Created from the Webly starter template");
+
+        await _store.CommitAsync("site1", "main", first.Sha,
+            Tree(("package.json", "{}\n"), ("src/app/page.tsx", "export default () => <h1>Koopman Cycles</h1>;\n")),
+            Author, "Named the business on the home page", null);
+
+        var bundle = await _store.CreateBundleAsync("site1", "main");
+
+        var bundlePath = Path.Combine(_root, "export.bundle");
+        await File.WriteAllBytesAsync(bundlePath, bundle);
+
+        var clone = Path.Combine(_root, "clone");
+        await Git("clone", "--quiet", bundlePath, clone);
+
+        var page = Path.Combine(clone, "src", "app", "page.tsx");
+        var log = await Git("-C", clone, "log", "--oneline");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(page), Is.True, "the clone checked the site out");
+            Assert.That(File.ReadAllText(page), Does.Contain("Koopman Cycles"), "at the version that was current");
+            Assert.That(log.Split('\n', StringSplitOptions.RemoveEmptyEntries), Has.Length.EqualTo(2),
+                "with the history, not just the files");
+            Assert.That(log, Does.Contain("Named the business on the home page"));
+        });
+    }
+
+    /// <summary>Git, for the assertions that are about what git itself makes of our output.</summary>
+    private static async Task<string> Git(params string[] arguments)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+
+        using var process = System.Diagnostics.Process.Start(startInfo)!;
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        Assert.That(process.ExitCode, Is.Zero, $"git {arguments[0]} failed: {error}");
+
+        return output;
+    }
 }

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
@@ -29,6 +29,10 @@ export class SiteSettingsPage {
 
   protected readonly siteNanoid = this.route.parent?.snapshot.paramMap.get('nanoid') ?? '';
   protected readonly site = this.sites.current;
+
+  /** The repository download. A URL and a filename, because it is a link rather than a request. */
+  protected readonly exportUrl = computed(() => this.sites.exportUrl(this.siteNanoid));
+  protected readonly exportFileName = computed(() => `${this.site()?.summary.slug ?? 'site'}.bundle`);
 
   protected name = this.sites.current()?.summary.name ?? '';
   protected readonly saving = signal(false);

@@ -58,7 +58,13 @@ $Backend = @{
     PidFile    = Join-Path $RunDir 'backend.pid'
     OutLog     = Join-Path $RunDir 'backend.out.log'
     ErrLog     = Join-Path $RunDir 'backend.err.log'
-    WorkingDir = $BackendDir
+    # The repository root, not Webly.Api — which is why the launch below needs --project.
+    #
+    # Three settings are paths relative to the repository root: Repositories:Root (.run/repositories),
+    # Templates:SitePath (templates/next-site) and Sandbox:Local:AgentPath (tools/sandbox-agent/index.js).
+    # They resolve against the process's working directory, so started from Webly.Api the first site
+    # creation fails for a missing template and the first agent turn fails for a missing sandbox agent.
+    WorkingDir = $RepoRoot
 }
 $Frontend = @{
     Name       = 'frontend'
@@ -242,7 +248,9 @@ switch ($Action) {
         Ensure-RunDir
 
         if ($targets -contains $Backend) {
-            Start-Service $Backend 'dotnet' @('run', '-c', 'Debug', '--launch-profile', 'https')
+            # --project, because the working directory is now the repository root and Webly.slnx there
+            # would make a bare `dotnet run` ambiguous.
+            Start-Service $Backend 'dotnet' @('run', '--project', 'Webly.Api', '-c', 'Debug', '--launch-profile', 'https')
             Wait-ForHttp $Backend $BackendTimeoutSec
         }
         if ($targets -contains $Frontend) {

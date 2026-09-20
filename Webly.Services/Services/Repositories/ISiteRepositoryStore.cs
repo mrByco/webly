@@ -51,6 +51,20 @@ public interface ISiteRepositoryStore
     Task<IReadOnlyList<RepositoryEntry>> ListAsync(string siteNanoid, string commitSha, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The site's whole repository as a single git bundle.
+    ///
+    /// A bundle rather than a zip of the files, because a bundle is the repository: `git clone site.bundle`
+    /// produces a working clone with every version and every commit message in it. That is what makes "it is
+    /// your code" a true sentence rather than a slogan — a customer who leaves takes their history, not a
+    /// snapshot, and they do not need Webly to read it.
+    ///
+    /// Returned as bytes rather than streamed. A text project's bundle is a few hundred kilobytes, and
+    /// streaming it would mean holding a process open across a response for something that fits in a
+    /// packet — worth revisiting the day a site carries video.
+    /// </summary>
+    Task<byte[]> CreateBundleAsync(string siteNanoid, string branch, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Commits a tree on top of <paramref name="parentSha"/> and moves the branch to it.
     ///
     /// The whole tree, not a patch: what comes back from a sandbox is "these are the files now", and

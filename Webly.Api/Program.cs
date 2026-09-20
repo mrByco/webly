@@ -7,6 +7,7 @@ using Webly.Services;
 using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Sandboxes;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -82,6 +83,32 @@ using (var scope = app.Services.CreateScope())
     // their first site.
     Directory.CreateDirectory(
         scope.ServiceProvider.GetRequiredService<IOptions<RepositoryOptions>>().Value.Root);
+
+    // The same argument, for the two paths that cannot be created because they have to contain something.
+    //
+    // Both are relative in the default configuration and therefore resolve against the process's working
+    // directory, which is the repository root — that is what run-app.ps1 and the dev MCP server set, and the
+    // comment on each of them says why. Checked here because the alternative is a first site creation that
+    // fails for a missing template and a first agent turn that fails for a missing sandbox agent, neither of
+    // which points at the working directory as the cause.
+    var templatePath = scope.ServiceProvider.GetRequiredService<IOptions<TemplateOptions>>().Value.SitePath;
+
+    if (!Directory.Exists(templatePath))
+        throw new InvalidOperationException(
+            $"Templates:SitePath '{templatePath}' does not exist (looked in {Directory.GetCurrentDirectory()}). "
+            + "Every new site starts as a copy of it. Start the API from the repository root, or set an absolute path.");
+
+    var sandboxOptions = scope.ServiceProvider.GetRequiredService<IOptions<SandboxOptions>>().Value;
+
+    if (string.Equals(sandboxOptions.Provider, LocalSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
+    {
+        var agentPath = scope.ServiceProvider.GetRequiredService<IOptions<LocalSandboxOptions>>().Value.AgentPath;
+
+        if (!File.Exists(agentPath))
+            throw new InvalidOperationException(
+                $"Sandbox:Local:AgentPath '{agentPath}' does not exist (looked in {Directory.GetCurrentDirectory()}). "
+                + "It is the sandbox agent every turn runs through. Start the API from the repository root, or set an absolute path.");
+    }
 }
 
 if (app.Environment.IsDevelopment())

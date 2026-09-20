@@ -15,12 +15,21 @@ namespace Webly.Services.UseCases.Sites;
 /// Creates a site: a row, a git repository holding the starter project, and the subdomain it will publish at.
 ///
 /// <b>A site never exists without a commit.</b> The repository is initialized and its first commit made before
-/// the head pointer is written, so there is no state in which a site exists with nothing to check out — and no
-/// code anywhere else that has to handle one.
+/// anything is written to the database, so there is no state in which a site exists with nothing to check out —
+/// and no code anywhere else that has to handle one.
 ///
-/// The repository is created before the row is saved with its pointer, which is the safe order: a repository
-/// with no row is invisible and costs a directory, while a row pointing at a repository that was never created
-/// is a site that cannot be opened.
+/// That order is the whole point and it is worth stating why, because the obvious order is the wrong one.
+/// Saving the row first is tempting — the context mints the nanoid on insert, and the nanoid is the
+/// repository's name on disk — but then a repository step that fails (a missing template, a full disk) leaves a
+/// site row with no head version: invisible to nothing, unopenable, counting against the owner's site limit and
+/// holding their slug. So the nanoid is generated here instead, which
+/// <c>WeblyDbContext.StampEntities</c> explicitly allows, and the two failure directions become:
+///
+/// <list type="bullet">
+/// <item>repository fails → nothing exists. The person retries.</item>
+/// <item>database fails → a repository with no row, which nothing can reach, and which this deletes on the way
+/// out anyway. It costs a directory in the worst case.</item>
+/// </list>
 /// </summary>
 public class CreateSite(
     ISiteRepository siteRepository,
@@ -53,42 +62,68 @@ public class CreateSite(
         {
             OwnerId = userId,
             Name = name,
-            Slug = await ReserveSlugAsync(name, cancellationToken)
+            Slug = await ReserveSlugAsync(name, cancellationToken),
+
+            // Generated here rather than by the context on insert, because the repository has to exist before
+            // the row does and the repository is named after it. See the class comment.
+            Nanoid = NanoidDotNet.Nanoid.Generate()
         };
 
-        siteRepository.Add(site);
-
-        // Saved first, for the nanoid: it is the repository's name on disk, and the context mints it on insert.
-        await dbContext.SaveChangesAsync(cancellationToken);
+        const string summary = "Created from the Webly starter template";
 
         var commit = await repositories.InitializeAsync(
             site.Nanoid,
             site.DefaultBranch,
             await templates.ReadAsync(cancellationToken),
             new CommitAuthor(user.DisplayName, user.Email),
-            "Created from the Webly starter template",
+            summary,
             cancellationToken);
 
-        var version = new SiteVersion
+        try
         {
-            SiteId = site.Id,
-            CommitSha = commit.Sha,
-            Summary = "Created from the Webly starter template",
-            Origin = SiteVersionOrigin.Template,
-            ChangedFileCount = commit.ChangedFileCount,
-            CreatedByUserId = userId
-        };
+            siteRepository.Add(site);
 
-        versionRepository.Add(version);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            var version = new SiteVersion
+            {
+                Site = site,
+                CommitSha = commit.Sha,
+                Summary = summary,
+                Origin = SiteVersionOrigin.Template,
+                ChangedFileCount = commit.ChangedFileCount,
+                CreatedByUserId = userId
+            };
 
-        site.HeadVersionId = version.Id;
+            versionRepository.Add(version);
 
-        // The new site becomes the one the editor opens. For a person's first, this is what flips
-        // MeResponse.HasSite and gets them out of onboarding.
-        user.CurrentSiteId = site.Id;
+            // Two saves rather than one: the head pointer needs the version's key, and the version needs the
+            // site's. The navigation property is what lets EF order these two inserts; the pointer is an update
+            // after them, which is exactly why that foreign key is deferrable.
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+            site.HeadVersionId = version.Id;
+
+            // The new site becomes the one the editor opens. For a person's first, this is what flips
+            // MeResponse.HasSite and gets them out of onboarding.
+            user.CurrentSiteId = site.Id;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // The repository exists and nothing points at it. Nobody can reach it — a site is only ever found
+            // through its row — so this is tidiness rather than correctness, and it must not mask the real
+            // failure: the original exception is what the caller needs to see.
+            try
+            {
+                await repositories.DeleteAsync(site.Nanoid, CancellationToken.None);
+            }
+            catch (RepositoryException)
+            {
+                // Then it stays on disk. A directory is a smaller problem than the exception being thrown.
+            }
+
+            throw;
+        }
 
         return Result<SiteError, SiteSummaryResponse>.Ok(
             mapper.ToSummary(site, primaryDomain: null, publishedAt: null));

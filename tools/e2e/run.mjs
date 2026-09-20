@@ -13,7 +13,9 @@
 //
 // Usage:  node tools/e2e/run.mjs [--agent claude|mock] [--keep]
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync,
+} from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,6 +33,15 @@ const option = name => {
 };
 const keep = args.includes('--keep');
 const requestedAgent = option('agent') ?? 'claude';
+
+/**
+ * Where to leave the published site, if anywhere.
+ *
+ * Worth a flag because the export is the one output of this script that a person might want to look at rather
+ * than read a pass/fail about: it is a real static site, built by the real pipeline from a real turn, and
+ * opening its index.html in a browser is the shortest honest demonstration that the product works.
+ */
+const outDir = option('out');
 
 // ---------------------------------------------------------------------------------------------
 // A tiny harness. No framework: this file is the only thing that uses it.
@@ -613,9 +624,48 @@ try {
     // static host serve clean URLs with no rewrite rules.
     const nested = readdirSync(published, { withFileTypes: true }).filter(entry => entry.isDirectory());
     check(true, `the export has ${nested.length} directories beside index.html`);
+
+    if (outDir) {
+      const target = resolvePath(outDir);
+      rmSync(target, { recursive: true, force: true });
+      cpSync(published, target, { recursive: true });
+      check(true, `kept the published site at ${target}`);
+    }
   });
 
-  // -- 14. A broken build is caught --------------------------------------------------------------
+  // -- 14. Leaving with the history --------------------------------------------------------------
+  await step('The site exports as a git bundle that clones into a working project', async () => {
+    // The same arguments GitSiteRepositoryStore.CreateBundleAsync runs, to a file rather than to stdout.
+    //
+    // `HEAD` is the part that matters and the reason this step exists. Without it the bundle still contains
+    // every commit and `git bundle verify` still says "complete history" — and `git clone` of it produces a
+    // repository with no files checked out, because nothing says which branch to check out. The first version
+    // of the export shipped without it and this step is what caught it.
+    const bundle = join(workspaceRoot, 'export.bundle');
+    await store.git(repository, ['bundle', 'create', bundle, 'HEAD', 'main']);
+
+    check(existsSync(bundle), `the bundle is ${Math.round(statSync(bundle).size / 1024)} KB`);
+
+    const verify = await store.git(repository, ['bundle', 'verify', bundle]);
+    check(/complete history/i.test(verify), 'git says it records a complete history');
+
+    // The claim, tested: somebody who leaves gets a working project, not a snapshot of one.
+    const clone = join(workspaceRoot, 'clone');
+    await box.run('git', ['clone', '--quiet', bundle, clone]);
+
+    check(existsSync(join(clone, 'src/app/page.tsx')), 'the clone has the site in it');
+    check(existsSync(join(clone, 'AGENTS.md')), 'including the instructions it was edited under');
+
+    const log = await box.run('git', ['-C', clone, 'log', '--oneline']);
+    const commits = log.split('\n').filter(Boolean);
+    check(commits.length >= 3, `and ${commits.length} commits of history, not just the current files`);
+
+    const subjects = commits.map(line => line.slice(line.indexOf(' ') + 1));
+    check(subjects.some(subject => subject.includes('Restored')),
+      'with the agent\'s own sentences as the commit messages');
+  });
+
+  // -- 15. A broken build is caught --------------------------------------------------------------
   await step('A broken build is caught rather than published', async () => {
     const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
     const good = readFileSync(page, 'utf8');

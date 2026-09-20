@@ -118,4 +118,15 @@ export class SiteService {
   previewUrl(nanoid: string): string {
     return `/api/sites/${encodeURIComponent(nanoid)}/preview/`;
   }
+
+  /**
+   * Where the site's repository can be downloaded as a git bundle.
+   *
+   * A plain URL for an `<a download>` rather than a call through the generated client, because that is what a
+   * download is: the browser saves it, nothing here has to hold a few hundred kilobytes in memory to hand them
+   * straight back, and same-origin means the session cookie goes with the request.
+   */
+  exportUrl(nanoid: string): string {
+    return `/api/sites/${encodeURIComponent(nanoid)}/export`;
+  }
 }

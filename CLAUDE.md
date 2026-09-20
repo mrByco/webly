@@ -261,9 +261,16 @@ structured-document model it replaced was better at.
   session does not outlive the workspace. `CLAUDE.md` in the template just points at `AGENTS.md`, so both
   CLIs read one file.
 - **The agent may read the source and so may the customer** — `GET /api/sites/{nanoid}/files` and
-  `/file?path=` — because "you never have to touch the code" is not "you are not allowed to see it". The
-  path is a query parameter, not a route catch-all, so `src/app/page.tsx` cannot be ambiguous against the
-  routes beside it.
+  `/file?path=`, shown by the editor's Code tab — because "you never have to touch the code" is not "you are
+  not allowed to see it". The path is a query parameter, not a route catch-all, so `src/app/page.tsx` cannot be
+  ambiguous against the routes beside it. **Read-only, deliberately:** a save button there would be a second
+  way for a site to change and so a second definition of what a version is. If hand editing lands, it lands
+  through `CommitSiteVersion` like everything else.
+- **And they may take it away.** `GET /api/sites/{nanoid}/export` answers with a **git bundle** of the whole
+  repository — `git clone site.bundle` is a working project with every version and every commit message. A
+  bundle rather than a zip because a zip is a snapshot; the point is leaving with the history, which is what
+  makes "it is your code" checkable rather than a slogan. There is deliberately no import: a commit Webly never
+  validated could break the build or the next turn.
 
 ### Versions
 

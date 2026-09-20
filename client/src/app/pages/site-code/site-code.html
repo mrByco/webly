@@ -1,0 +1,74 @@
+<div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+  <div class="flex min-h-0 basis-1/2 flex-col overflow-y-auto border-base-300 p-4 lg:max-w-xs lg:border-r">
+    <h2 class="text-base font-bold">Your site's code</h2>
+    <p class="mb-3 text-xs text-base-content/60">
+      A real Next.js project. You never have to touch it — but it is yours.
+    </p>
+
+    @if (error()) {
+      <div class="alert alert-error mb-3">
+        <app-icon class="size-5" name="circle-alert" />
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (loading()) {
+      <p class="text-sm text-base-content/60">Loading…</p>
+    } @else {
+      @for (group of groups(); track group.directory) {
+        <p class="section-label mt-3 first:mt-0">{{ group.directory || 'root' }}</p>
+
+        <ul class="flex flex-col">
+          @for (file of group.files; track file.path) {
+            <li>
+              <button
+                class="flex w-full items-center gap-2 rounded-field px-2 py-1.5 text-left text-sm hover:bg-base-200"
+                type="button"
+                [class.bg-base-200]="file.path === selected()"
+                [class.font-semibold]="file.path === selected()"
+                (click)="open(file.path)">
+                <app-icon class="size-3.5 text-base-content/45" name="file" />
+                <span class="min-w-0 flex-1 truncate">{{ name(file.path) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @empty {
+        <p class="text-sm text-base-content/60">This site has no files yet.</p>
+      }
+    }
+  </div>
+
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-base-200">
+    @if (selected(); as path) {
+      <div class="flex items-center gap-2 border-b border-base-300 px-4 py-3">
+        <app-icon class="size-4 text-base-content/55" name="code" />
+        <p class="min-w-0 flex-1 truncate font-mono text-sm">{{ path }}</p>
+        <span class="text-xs text-base-content/50">{{ humanSize() }}</span>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
+        @if (loadingFile()) {
+          <p class="text-sm text-base-content/60">Loading…</p>
+        } @else if (text() !== undefined) {
+          <!-- Line numbers in a gutter rather than a highlighter: this is a reading surface, and a syntax
+               highlighter is a dependency, a theme to keep in step with two colour schemes, and a parser per
+               language for a set of files that is mostly one language. -->
+          <pre class="font-mono text-[0.7rem] leading-relaxed"><code>@for (line of lines(); track $index) {<span class="flex"><span
+            class="mr-3 w-8 shrink-0 select-none text-right text-base-content/30">{{ $index + 1 }}</span><span
+            class="whitespace-pre-wrap">{{ line }}</span></span>}</code></pre>
+        } @else {
+          <!-- The backend sends null text for anything that is not text — an image, a font. Saying so beats
+               rendering the bytes. -->
+          <p class="text-sm text-base-content/60">
+            This file is not text, so there is nothing to show — {{ humanSize() }} of it.
+          </p>
+        }
+      </div>
+    } @else if (!loading()) {
+      <div class="flex flex-1 items-center justify-center">
+        <p class="text-sm text-base-content/60">Pick a file to read it.</p>
+      </div>
+    }
+  </div>
+</div>
