@@ -50,6 +50,7 @@ build — are all exercised for real. What is mocked is the part written in the 
 13. Publishing copies the export out and **the published page says what the person typed**.
 14. The site exports as a git bundle that **clones into a working project** with its history.
 15. A broken build is caught rather than published, and the log says why.
+16. A compile error is reported when it happens and **stops being reported once it is fixed**.
 
 ## Things it has already caught
 
@@ -71,6 +72,12 @@ build — are all exercised for real. What is mocked is the part written in the 
 - **A hung request stalled the run silently.** `waitFor` bounded the retry loop but not each attempt, so a dev
   server compiling under load held one `fetch` open past every deadline and the harness simply stopped rather
   than failing. Attempts are bounded now.
+- **The build-error report could not fire, and then could not stop firing.** Two bugs in one check.
+  `next dev` compiles *on demand*, so right after a turn it has never looked at the agent's edits and the log is
+  empty — which reads as "no errors"; the turn now requests the preview first. And the log is *cumulative*, so
+  reading all of it re-reports an error from three turns ago for ever; the turn now records an offset before it
+  starts. Step 16 covers both, and writing it turned up a third thing worth knowing: `next dev` does not
+  typecheck at all, which is why `AGENTS.md` asks the agent to run `npm run typecheck` itself.
 - **The export bundle cloned into an empty directory.** `git bundle create - <branch>` records the commits and
   the ref but no `HEAD`, so `git bundle verify` says "complete history" and `git clone` checks out *nothing*.
   The export endpoint — the feature whose whole point is that a customer can leave with their site — shipped

@@ -193,15 +193,43 @@ public sealed class SandboxAgentClient(
         await EnsureOkAsync(response, "starting the dev server", cancellationToken);
     }
 
-    public async Task<string> ReadDevServerLogAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// One request through the agent's own preview proxy, which is what makes the dev server compile.
+    ///
+    /// Failures are swallowed on purpose. This is not a health check and its answer is not used: a dev server
+    /// that is still starting, or a page that throws, are both things the log will describe better than a
+    /// status code would, and neither is a reason to fail a turn that has already done its work.
+    /// </summary>
+    public async Task TouchPreviewAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await SendAsync(HttpMethod.Get, "dev/log", null, cancellationToken);
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, "preview/", null, cancellationToken);
 
-        if (!response.IsSuccessStatusCode) return string.Empty;
+            // Read the body, so that compilation finishes rather than being abandoned mid-response.
+            await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogDebug(exception, "Touching the preview of sandbox {Sandbox} failed.", id);
+        }
+    }
+
+    public async Task<DevServerLog> ReadDevServerLogAsync(
+        long since = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var path = since > 0 ? $"dev/log?since={since}" : "dev/log";
+
+        using var response = await SendAsync(HttpMethod.Get, path, null, cancellationToken);
+
+        if (!response.IsSuccessStatusCode) return DevServerLog.Empty;
 
         var body = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
 
-        return body?["log"]?.GetValue<string>() ?? string.Empty;
+        return new DevServerLog(
+            body?["log"]?.GetValue<string>() ?? string.Empty,
+            body?["offset"]?.GetValue<long>() ?? 0);
     }
 
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)

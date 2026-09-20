@@ -184,8 +184,18 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   // Kept in memory and served on /dev/log: a compile error in the dev server is the most useful thing
   // the editor can show, and it is the thing the next agent turn has to be told about.
   devServer.log = '';
+
+  // How much the dev server has ever said, not how much is in the buffer.
+  //
+  // It is what makes "did anything go wrong *during this turn*" answerable. The buffer is a sliding window, so
+  // a caller reading it after a turn sees output from every earlier turn too — and a compile error from three
+  // turns ago then reads as a compile error now, for ever. A caller that records this offset before it starts
+  // and passes it back afterwards gets only what happened in between.
+  devServer.logLength = 0;
+
   const record = text => {
     devServer.log = (devServer.log + text).slice(-16_000);
+    devServer.logLength += text.length;
     if (/ready|started server|compiled/i.test(text)) devReady = true;
   };
 
@@ -255,7 +265,24 @@ const server = createServer(async (request, response) => {
       });
     }
 
-    if (url === '/dev/log') return json(response, 200, { ok: true, log: devServer?.log ?? '' });
+    // GET /dev/log[?since=N] → { ok, log, offset }
+    //
+    // `since` is an offset previously returned as `offset`, and the log comes back trimmed to what arrived
+    // after it. `offset` is always the dev server's total output so far, so a caller records it before doing
+    // something and reads from it afterwards. Without `since`, the whole buffer — which is what a person asking
+    // "what is my site doing" wants.
+    if (url.startsWith('/dev/log')) {
+      const buffer = devServer?.log ?? '';
+      const offset = devServer?.logLength ?? 0;
+      const since = Number(new URL(url, 'http://localhost').searchParams.get('since') ?? 0);
+
+      // Where the sliding window starts, in total-output terms. A `since` older than that is clamped: the
+      // output is gone, and returning the whole window is better than returning nothing.
+      const windowStart = Math.max(0, offset - buffer.length);
+      const log = since > windowStart ? buffer.slice(Math.min(buffer.length, since - windowStart)) : buffer;
+
+      return json(response, 200, { ok: true, log, offset });
+    }
 
     if (url === '/files' && request.method === 'POST') return extractTar(request, response);
     if (url === '/files' && request.method === 'GET') return streamTar(response);

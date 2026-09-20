@@ -684,7 +684,63 @@ try {
       check(/error|failed/i.test(build.output), 'the output says why, which is what reaches Deployment.ErrorDetail');
 
       const log = await box.devLog(sandbox);
-      check(typeof log === 'string', `the dev server log is readable (${log.length} chars), which is what BuildFailed reports`);
+      check(typeof log.text === 'string',
+        `the dev server log is readable (${log.text.length} chars at offset ${log.offset}), which is what BuildFailed reports`);
+    } finally {
+      writeFileSync(page, good);
+    }
+  });
+
+  // -- 16. A fixed error stops being reported ----------------------------------------------------
+  await step('A compile error from an earlier turn is not reported again once it is fixed', async () => {
+    // The bug this exists for: the dev server's log is cumulative, so AgentTurnService reading all of it after a
+    // turn would find the error the *previous* turn left and report it again — telling somebody their site is
+    // broken every time they speak to it, however many times they have it fixed. The turn records an offset
+    // before it starts and reads from there. This proves the mechanism the fix rests on.
+    const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
+    const good = readFileSync(page, 'utf8');
+    const markers = /Failed to compile|Module not found|Type error:/i;
+
+    try {
+      // Break it with a missing import, and wait for the dev server to say so — this is "the previous turn".
+      //
+      // A missing module rather than a type error, and the difference is worth knowing: `next dev` compiles
+      // with SWC, which strips types without checking them, so a type error never reaches the dev server's
+      // output at all. What it does report is syntax errors and unresolvable imports. So the BuildFailed event
+      // catches those, `npm run typecheck` (which AGENTS.md tells the agent to run) catches types, and
+      // `next build` at publish time is the backstop for both.
+      writeFileSync(page, `import { nothing } from './does-not-exist';\n${good}\n`);
+
+      // Requested, not waited for. `next dev` compiles on demand: without a request it never looks at the file
+      // and the log stays silent — which is the second half of the bug, because AgentTurnService's check ran at
+      // exactly that moment and concluded the site was fine. It now touches the preview first, as this does.
+      const broke = await box.waitFor(async () => {
+        await box.preview(sandbox).catch(() => undefined);
+
+        const log = await box.devLog(sandbox);
+        return markers.test(log.text) ? log : null;
+      }, 90_000, 'the dev server never reported the error');
+
+      check(true, 'the dev server reported a compile error');
+
+      // Fix it, and let it recompile.
+      writeFileSync(page, good);
+
+      await box.waitFor(async () => {
+        const attempt = await box.preview(sandbox);
+        if (!attempt.ok) return null;
+        const html = await attempt.text();
+        return html.includes('<h1') ? html : null;
+      }, 90_000, 'the preview never recovered');
+
+      // What a turn starting now would see: everything since the fix. The old error is before that offset.
+      const after = await box.devLog(sandbox, broke.offset);
+      check(!markers.test(after.text),
+        `reading from offset ${broke.offset} shows no error (${after.text.length} chars since)`);
+
+      // And the proof that the offset is what makes the difference, rather than the log having been cleared.
+      const whole = await box.devLog(sandbox);
+      check(markers.test(whole.text), 'while the whole log still contains it, which is exactly the trap');
     } finally {
       writeFileSync(page, good);
     }

@@ -17,6 +17,20 @@ public record SandboxCommandResult(int ExitCode, string Output)
     public bool Succeeded => ExitCode == 0;
 }
 
+/// <summary>
+/// A slice of the dev server's output, and how far through it that slice reached.
+/// </summary>
+/// <param name="Text">What the dev server said — all of it, or only what followed the requested offset.</param>
+/// <param name="Offset">
+/// Total output so far. Pass it back as <c>since</c> next time to get only what happened in between. It counts
+/// everything the dev server has ever written, not what is still buffered, so it keeps meaning the same thing
+/// after the buffer has rolled over.
+/// </param>
+public record DevServerLog(string Text, long Offset)
+{
+    public static DevServerLog Empty { get; } = new(string.Empty, 0);
+}
+
 /// <summary>What a sandbox is asked for when it starts.</summary>
 /// <param name="SiteNanoid">Only for naming and logs; a sandbox never learns anything else about the site.</param>
 /// <param name="Environment">Injected into every command — where an agent's provider key lives for the run.</param>
@@ -78,10 +92,31 @@ public interface ISandbox : IAsyncDisposable
     Task StartDevServerAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The dev server's recent output. This is where a compile error lives, and a compile error is both the
-    /// most useful thing to show the person and the thing the next agent turn has to be told about.
+    /// Asks the dev server for the home page, and waits for it.
     /// </summary>
-    Task<string> ReadDevServerLogAsync(CancellationToken cancellationToken = default);
+    /// <remarks>
+    /// This exists because <c>next dev</c> compiles <b>on demand</b>. Nothing is compiled until something asks
+    /// for a page, so straight after a turn the dev server has no opinion at all about the files the agent just
+    /// wrote — and a compile-error check at that moment finds an empty log and reports success. The person then
+    /// hears nothing, and discovers the breakage when they press Publish.
+    ///
+    /// One request is enough to make the question answerable. The response is not interesting; whether it
+    /// compiled is, and that is in the log.
+    /// </remarks>
+    Task TouchPreviewAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The dev server's output, optionally only what arrived after <paramref name="since"/>. This is where a
+    /// compile error lives, and a compile error is both the most useful thing to show the person and the thing
+    /// the next agent turn has to be told about.
+    ///
+    /// <b>The offset is not optional in practice.</b> The log is cumulative for the life of the dev server, so a
+    /// caller that reads all of it after a turn sees every earlier turn's output too — and a compile error from
+    /// three turns ago then reads as a compile error now, permanently, however many times the person fixes it.
+    /// Record <see cref="DevServerLog.Offset"/> before doing something, pass it back afterwards, and what comes
+    /// back is what that something caused.
+    /// </summary>
+    Task<DevServerLog> ReadDevServerLogAsync(long since = 0, CancellationToken cancellationToken = default);
 
     Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default);
 }

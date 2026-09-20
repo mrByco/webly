@@ -228,10 +228,17 @@ export async function startDevServer(sandbox, body = {}) {
   return response.json();
 }
 
-export async function devLog(sandbox) {
-  const response = await request(sandbox, 'dev/log');
+/**
+ * The dev server's output, and how far through it that reached.
+ *
+ * `since` is the reason this returns a pair rather than a string: the log is cumulative, so a caller asking
+ * "did anything break just now" has to say when "now" started. AgentTurnService does exactly this.
+ */
+export async function devLog(sandbox, since = 0) {
+  const response = await request(sandbox, since > 0 ? `dev/log?since=${since}` : 'dev/log');
+  const body = await response.json();
 
-  return (await response.json()).log ?? '';
+  return { text: body.log ?? '', offset: body.offset ?? 0 };
 }
 
 /**

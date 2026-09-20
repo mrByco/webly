@@ -112,6 +112,11 @@ public class AgentTurnService(
         var workspace = lease.Workspace;
         var changedFiles = new HashSet<string>(StringComparer.Ordinal);
 
+        // Where the dev server's output has reached before this turn touches anything. Read now so that the
+        // compile-error check at the end can look at what *this* turn caused — the log is cumulative, and
+        // without this a single broken turn would make every later turn report the same error for ever.
+        var logOffset = (await workspace.Sandbox.ReadDevServerLogAsync(cancellationToken: cancellationToken)).Offset;
+
         // The agent's own session is only resumable if it belongs to this agent: the person may have switched,
         // and handing one agent another's session id is nonsense rather than an optimization.
         var sessionId = workspace.AgentKey == agent.Key ? workspace.AgentSessionId : null;
@@ -187,7 +192,7 @@ public class AgentTurnService(
             }, cancellationToken);
         }
 
-        await ReportBuildErrorsAsync(workspace, cancellationToken);
+        await ReportBuildErrorsAsync(workspace, logOffset, cancellationToken);
 
         return conversation.Nanoid;
     }
@@ -228,28 +233,44 @@ public class AgentTurnService(
     }
 
     /// <summary>
-    /// Shows the person a compile error if the turn left one.
+    /// Shows the person a compile error if <i>this turn</i> left one.
     ///
     /// The dev server is the build gate that the editor can see, and a Next.js compile error is both the most
     /// useful thing to put on screen and the exact text the next message should carry back to the agent. Read
     /// rather than inferred: the agent may sincerely believe it is finished.
+    ///
+    /// <paramref name="since"/> is the whole reason this is not a one-line check. The log is cumulative for the
+    /// life of the dev server, so reading all of it would find the error a turn three messages ago left behind
+    /// and report it again — telling somebody their site is broken every time they speak to it, no matter how
+    /// many times they have it fixed. Only output that arrived after the turn began can say anything about the
+    /// turn.
     /// </summary>
-    private async Task ReportBuildErrorsAsync(SiteWorkspace workspace, CancellationToken cancellationToken)
+    private async Task ReportBuildErrorsAsync(
+        SiteWorkspace workspace,
+        long since,
+        CancellationToken cancellationToken)
     {
-        var log = await workspace.Sandbox.ReadDevServerLogAsync(cancellationToken);
+        // Asked to compile before being asked what happened. `next dev` compiles on demand, so at this moment it
+        // has not looked at the agent's edits at all — and the log would be empty, which reads as success. This
+        // is the request that makes the question mean something; the editor's iframe would eventually send one,
+        // but not before this check ran.
+        await workspace.Sandbox.TouchPreviewAsync(cancellationToken);
 
-        if (log.Length == 0) return;
+        var log = await workspace.Sandbox.ReadDevServerLogAsync(since, cancellationToken);
+        var text = log.Text;
 
-        var hasError = log.Contains("Failed to compile", StringComparison.OrdinalIgnoreCase)
-            || log.Contains("Module not found", StringComparison.OrdinalIgnoreCase)
-            || log.Contains("Type error:", StringComparison.OrdinalIgnoreCase);
+        if (text.Length == 0) return;
+
+        var hasError = text.Contains("Failed to compile", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Module not found", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("Type error:", StringComparison.OrdinalIgnoreCase);
 
         if (!hasError) return;
 
         await writer.WriteAsync(new RunEvent
         {
             Type = RunEventType.BuildFailed,
-            Detail = log.Length <= 2000 ? log : log[^2000..]
+            Detail = text.Length <= 2000 ? text : text[^2000..]
         }, cancellationToken);
     }
 

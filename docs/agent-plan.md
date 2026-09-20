@@ -98,9 +98,22 @@ turn with a compile error, and most of the time it does not. When it does, the p
 fixes it, and they can only write that message if they can see what broke. The publish path does not rely on
 this at all: `vercel build` runs there and a failure blocks the deployment.
 
-`AGENTS.md` also tells the agent to run `npm run typecheck` as its last step, which the recorded turn did not
-do on its own. That is the cheapest place to catch the failure that matters: a type error the agent introduced
-costs seconds to find here and, found later, costs the person a failed publish and a wait.
+Two things about that check are not obvious, and both were wrong in the first version:
+
+- **`next dev` compiles on demand.** Straight after a turn it has not looked at the agent's edits at all, so a
+  log read at that moment is empty — which reads as success. `ReportBuildErrorsAsync` therefore requests the
+  preview first (`ISandbox.TouchPreviewAsync`) and only then asks what happened. Without that, `BuildFailed`
+  would essentially never fire and the person would find out at publish time.
+- **The log is cumulative.** Reading all of it finds the error a turn three messages ago left behind and reports
+  it again — telling somebody their site is broken every time they speak to it, however many times they have it
+  fixed. So the turn records the log's offset before it starts and reads only what followed.
+
+And one thing the dev server cannot do for us: **it does not typecheck.** `next dev` compiles with SWC, which
+strips types without checking them, so a type error never reaches its output. What it reports is syntax errors
+and unresolvable imports. That is the division of labour: `BuildFailed` catches those, `AGENTS.md` tells the
+agent to run `npm run typecheck` as its last step — which the recorded turn did not do unprompted — and
+`next build` at publish time is the backstop for both. A type error costs seconds to find in the turn and a
+failed publish plus a wait to find later.
 
 ## 2. Where the agent runs: workspaces and sandboxes
 
