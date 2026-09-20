@@ -22,6 +22,56 @@ public class ClaudeStreamJsonParserTests
     private static string Transcript =>
         File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, "Fixtures", "claude-stream-json.ndjson"));
 
+    private static IEnumerable<System.Text.Json.Nodes.JsonNode> Lines =>
+        Transcript.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => System.Text.Json.Nodes.JsonNode.Parse(line))
+            .OfType<System.Text.Json.Nodes.JsonNode>();
+
+    /// <summary>
+    /// What the CLI said its answer was, read straight off the last <c>result</c> event.
+    ///
+    /// Every expectation below that depends on what the agent happened to say is computed from the fixture like
+    /// this, rather than quoted into the test. The fixture is re-recorded on purpose — <c>--agent claude</c>
+    /// overwrites it — and a test that pins the prose of one recording fails on the next one for no reason,
+    /// which teaches everybody to re-record the expectations without reading them. Computing them makes the
+    /// assertion about the parser's rules instead: this oracle is four lines of the most obvious possible
+    /// reading, and the parser has to agree with it however the recording changes.
+    /// </summary>
+    private static string FinalResult =>
+        Lines.Where(x => x["type"]?.GetValue<string>() == "result")
+            .Select(x => x["result"]?.GetValue<string>() ?? string.Empty)
+            .Last();
+
+    /// <summary>Every tool the recorded turn called, in order, with the file path it was given if it had one.</summary>
+    private static List<(string Tool, string? Path)> ToolCalls =>
+    [
+        .. Lines.Where(x => x["type"]?.GetValue<string>() == "assistant")
+            .SelectMany(x => x["message"]?["content"]?.AsArray() ?? [])
+            .Where(block => block?["type"]?.GetValue<string>() == "tool_use")
+            .Select(block => (
+                Tool: block!["name"]!.GetValue<string>(),
+                Path: block["input"]?["file_path"]?.GetValue<string>()
+                    ?? block["input"]?["notebook_path"]?.GetValue<string>()))
+    ];
+
+    /// <summary>
+    /// The commit subject the recorded turn asked for: the last <c>SUMMARY:</c> line of its answer, shortened
+    /// the way a commit subject is. Computed for the reason <see cref="FinalResult"/> explains.
+    /// </summary>
+    private static string ExpectedSummary
+    {
+        get
+        {
+            var line = FinalResult
+                .Split('\n')
+                .Select(x => x.Trim())
+                .Last(x => x.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase))["SUMMARY:".Length..]
+                .Trim();
+
+            return line.Length <= 70 ? line : $"{line[..67]}...";
+        }
+    }
+
     /// <summary>Feeds the transcript in chunks of a given size, the way a streaming process would.</summary>
     private static async Task<(ClaudeStreamJsonParser Parser, List<CodingAgentEvent> Events)> ReadAsync(int chunkSize)
     {
@@ -57,7 +107,7 @@ public class ClaudeStreamJsonParserTests
     [Test]
     public async Task The_reply_is_the_final_result_not_the_narration()
     {
-        var (parser, _) = await ReadAsync(4096);
+        var (parser, events) = await ReadAsync(4096);
 
         Assert.Multiple(() =>
         {
@@ -65,8 +115,8 @@ public class ClaudeStreamJsonParserTests
 
             // The streamed text blocks include mid-turn narration; the final result event does not. Taking the
             // result is what stops the chat showing "now let me update brand.md" as part of the answer.
-            Assert.That(parser.Reply, Does.StartWith("The change is a small, low-risk text edit"));
-            Assert.That(parser.Reply, Does.Contain("Updated the home page hero"));
+            Assert.That(parser.Reply, Is.EqualTo(FinalResult));
+            Assert.That(events.OfType<CodingAgentEvent.Text>(), Is.Not.Empty, "the answer was streamed as it came");
         });
     }
 
@@ -112,16 +162,32 @@ public class ClaudeStreamJsonParserTests
 
         var paths = events.OfType<CodingAgentEvent.FileChanged>().Select(x => x.Path).ToList();
 
+        var calls = ToolCalls;
+
+        // What the recording's write tools were actually given, with /workspace/ stripped: these are what the
+        // editor lists under the turn, and what a stray absolute path would make unreadable.
+        var written = calls
+            .Where(x => x.Tool is "Write" or "Edit" or "MultiEdit" or "NotebookEdit")
+            .Select(x => x.Path!.Replace("/workspace/", string.Empty))
+            .Distinct()
+            .ToList();
+
         Assert.Multiple(() =>
         {
-            // Exactly the two files the turn edited, with /workspace/ stripped: these are what the editor
-            // lists under the turn, and what a stray absolute path would make unreadable.
-            Assert.That(paths, Is.EquivalentTo(new[] { "content/brand.md", "src/app/page.tsx" }));
+            Assert.That(written, Is.Not.Empty, "the fixture does contain writes to report");
+            Assert.That(paths, Is.EquivalentTo(written));
 
-            // Read and Bash are activity, never a file change — reporting a read as a write would tell
-            // somebody their site changed when it did not.
-            Assert.That(events.OfType<CodingAgentEvent.Activity>().Select(x => x.Phrase),
-                Does.Contain("Reading your site").And.Contain("Running a command"));
+            // Once each, however many times the agent edited the same file: the editor shows one chip per file.
+            Assert.That(paths, Is.Unique);
+
+            // Nothing the turn called is *missing* an activity line — every tool says something a person can
+            // read, including the writes, which also get their chip. The chip is the change; the line is the
+            // progress, and a turn that silently edited four files would look stuck.
+            Assert.That(events.OfType<CodingAgentEvent.Activity>().Count(), Is.EqualTo(calls.Count));
+
+            // And a read or a command is never reported as a change, which is what would tell somebody their
+            // site had been edited when it had not.
+            Assert.That(calls.Count, Is.GreaterThan(written.Count), "the fixture does call tools that write nothing");
         });
     }
 
@@ -146,12 +212,13 @@ public class ClaudeStreamJsonParserTests
         {
             // The recorded turn followed the convention the prompt asks for. This is the assertion that says
             // the commit subject is the agent's sentence rather than a fallback.
-            Assert.That(outcome.Summary, Is.EqualTo("Set home page hero to Koopman Cycles, bike repair shop in Utrecht"));
+            Assert.That(outcome.Summary, Is.EqualTo(ExpectedSummary));
+            Assert.That(outcome.Summary, Is.Not.EqualTo("the person's own message"), "the fallback was not used");
             Assert.That(outcome.Summary.Length, Is.LessThanOrEqualTo(70));
 
             // And it is removed from what the person reads: they do not need to see the commit message.
             Assert.That(outcome.Reply, Does.Not.Contain("SUMMARY:"));
-            Assert.That(outcome.Reply, Does.Contain("Updated the home page hero"));
+            Assert.That(FinalResult, Does.StartWith(outcome.Reply), "only the trailing line was removed");
             Assert.That(outcome.SessionId, Is.EqualTo("00000000-0000-4000-8000-000000000000"));
         });
     }
@@ -171,10 +238,33 @@ public class ClaudeStreamJsonParserTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(outcome.Summary, Is.EqualTo("Set home page hero to Koopman Cycles, bike repair shop in Utrecht"));
-            Assert.That(events.OfType<CodingAgentEvent.FileChanged>().Select(x => x.Path),
-                Is.EquivalentTo(new[] { "content/brand.md", "src/app/page.tsx" }));
+            Assert.That(outcome.Summary, Is.EqualTo(ExpectedSummary));
+            Assert.That(
+                events.OfType<CodingAgentEvent.FileChanged>().Select(x => x.Path),
+                Is.EquivalentTo(ToolCalls
+                    .Where(x => x.Tool is "Write" or "Edit" or "MultiEdit" or "NotebookEdit")
+                    .Select(x => x.Path!.Replace("/workspace/", string.Empty))
+                    .Distinct()));
         });
+    }
+
+    /// <summary>
+    /// The rule the recording cannot demonstrate: in it the CLI's final result happens to be exactly the text it
+    /// streamed, so "the result wins" and "the deltas win" are indistinguishable there. This is the case where
+    /// they differ — the streamed narration says what the agent was doing, the result says what it did — and the
+    /// person reads the second.
+    /// </summary>
+    [Test]
+    public async Task The_final_result_replaces_the_narration_it_disagrees_with()
+    {
+        var parser = new ClaudeStreamJsonParser(_ => Task.CompletedTask, NullLogger.Instance);
+
+        await parser.HandleAsync(new SandboxOutput(IsError: false, Text:
+            """{"type":"assistant","session_id":"s","message":{"content":[{"type":"text","text":"Let me look at the home page. "}]}}""" + "\n"
+            + """{"type":"assistant","session_id":"s","message":{"content":[{"type":"text","text":"Now updating it."}]}}""" + "\n"
+            + """{"type":"result","subtype":"success","is_error":false,"result":"Set the headline to your business name.","session_id":"s"}""" + "\n"));
+
+        Assert.That(parser.Reply, Is.EqualTo("Set the headline to your business name."));
     }
 
     [Test]

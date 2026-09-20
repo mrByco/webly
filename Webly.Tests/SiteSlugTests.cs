@@ -59,7 +59,9 @@ public class HostnameTests
     [Test]
     public void An_internationalized_hostname_becomes_punycode()
     {
-        Assert.That(Hostname.TryNormalize("kávézó.hu"), Is.EqualTo("xn--kvz-slad2ta.hu"));
+        // The expected value is IDNA's, checked against `new IdnMapping().GetAscii(...)` rather than written
+        // from memory — punycode is not something to eyeball, and the first version of this line was wrong.
+        Assert.That(Hostname.TryNormalize("kávézó.hu"), Is.EqualTo("xn--kvz-ela5b9c.hu"));
     }
 
     [Test]

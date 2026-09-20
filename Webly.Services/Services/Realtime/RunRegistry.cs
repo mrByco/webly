@@ -69,13 +69,17 @@ public sealed class RunHandle
     /// </summary>
     public DateTime UnwatchedSince { get; private set; } = DateTime.UtcNow;
 
-    internal void AddSubscriber()
+    /// <summary>
+    /// Public, unlike <see cref="Append"/>, because the counter's only honest caller is the hub — and the hub
+    /// lives in <c>Webly.Api</c>. Who is watching is a connection fact, and connections are that assembly's.
+    /// </summary>
+    public void AddSubscriber()
     {
         Interlocked.Increment(ref _subscribers);
         UnwatchedSince = DateTime.MaxValue;
     }
 
-    internal void RemoveSubscriber()
+    public void RemoveSubscriber()
     {
         if (Interlocked.Decrement(ref _subscribers) <= 0)
         {

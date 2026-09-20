@@ -56,7 +56,20 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
                 .ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new Dictionary<string, string?>
                     {
-                        ["Administrators:Emails:0"] = AdministratorEmail
+                        ["Administrators:Emails:0"] = AdministratorEmail,
+
+                        // The three paths the app checks at boot. They default to relative, resolved against the
+                        // working directory, which for the real app is the repository root and for a test host is
+                        // the test's own bin directory — so without these the host refuses to start with a
+                        // perfectly accurate message about a template that is not there. Absolute here rather
+                        // than by chdir: a test run must not depend on where it was launched from.
+                        ["Templates:SitePath"] = Path.Combine(RepositoryRoot, "templates", "next-site"),
+                        ["Sandbox:Local:AgentPath"] =
+                            Path.Combine(RepositoryRoot, "tools", "sandbox-agent", "index.js"),
+
+                        // Somewhere disposable. These tests never create a site, but the directory is created at
+                        // boot, and creating it inside the build output is how a stale one ends up committed.
+                        ["Repositories:Root"] = Path.Combine(Path.GetTempPath(), $"webly-tests-{Guid.NewGuid():N}")
                     }))
                 .ConfigureTestServices(services => services.AddSingleton<IEmailSender>(Emails)));
 
@@ -75,6 +88,27 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
         Client.Dispose();
         _factory.Dispose();
         Environment.SetEnvironmentVariable("ConnectionStrings__WeblyDb", null);
+    }
+
+    /// <summary>
+    /// The repository root, found by walking up from the test binaries until the solution file appears. The
+    /// alternative is a relative path with a specific number of <c>..</c> in it, which is correct until somebody
+    /// changes the target framework or the configuration and then silently points at nothing.
+    /// </summary>
+    private static string RepositoryRoot
+    {
+        get
+        {
+            var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+
+            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Webly.slnx")))
+                directory = directory.Parent;
+
+            return directory?.FullName
+                ?? throw new InvalidOperationException(
+                    "Could not find Webly.slnx above the test directory, so the template and sandbox agent "
+                    + "cannot be located. Run the tests from inside the repository.");
+        }
     }
 
     protected static IReadOnlyList<string> SetCookies(HttpResponseMessage response) =>

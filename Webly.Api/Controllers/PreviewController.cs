@@ -40,9 +40,12 @@ public class PreviewController(
     /// <summary>
     /// Everything under the route, forwarded. The catch-all is the point: a Next.js page asks for its own
     /// chunks, its fonts and its hot-reload socket, all relative to wherever the document was served from.
+    ///
+    /// <b>Every method, deliberately</b> — a route with no verb attribute accepts all of them. A proxy that
+    /// answers 405 to a <c>HEAD</c> for a font, or to whatever the framework adds next, is a proxy with a list
+    /// to maintain; and the page being served is the customer's, so the list is not ours to predict.
     /// </summary>
-    [HttpGet("{**path}")]
-    [HttpPost("{**path}")]
+    [Route("{**path}")]
     public async Task<IActionResult> Forward(string siteNanoid, CancellationToken cancellationToken)
     {
         var site = await siteRepository.FindForOwnerLightAsync(siteNanoid, this.GetUserId(), cancellationToken);

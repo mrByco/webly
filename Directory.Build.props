@@ -28,7 +28,16 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
 
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Off, and it has to stay off. `InvariantGlobalization` is usually a free win — a smaller image, no ICU —
+      and it looks like one here because nothing in this app formats a date for a locale. What it also does is
+      make `String.Normalize` a **silent no-op**: it returns the string unchanged rather than throwing, so
+      `SiteSlug.From` stops folding accents and a site called "Kovács Bicikli" is published at
+      `kov-cs-bicikli`. It was on for exactly as long as it took `SiteSlugTests.Accents_are_folded_rather_
+      than_dropped` to run for the first time. The name a customer types is not ASCII, and the address it
+      becomes is permanent.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
 </Project>

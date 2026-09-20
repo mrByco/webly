@@ -8,12 +8,24 @@ import { ChatMessageResponse } from '../../api/models/chat-message-response';
 
 /** A line in the transcript. One shape for everything the stream can produce. */
 export interface ChatEntry {
-  kind: 'user' | 'assistant' | 'activity' | 'files' | 'waking' | 'version' | 'build' | 'error';
+  kind: 'user' | 'assistant' | 'notice' | 'activity' | 'files' | 'waking' | 'version' | 'build' | 'error';
   text: string;
   /** `files` entries collect the paths the turn has written so far, rather than one chip per write. */
   paths?: string[];
   versionNanoid?: string;
 }
+
+/**
+ * How a stored message's role is drawn. `System` is the one worth naming: it is what the *app* said about a
+ * turn — "Stopped. Nothing was changed." — and drawing it as an assistant bubble would put words in the
+ * agent's mouth. `Tool` is mapped for completeness; nothing persists tool traffic today.
+ */
+const KIND_OF_ROLE: Record<ChatMessageResponse['role'], ChatEntry['kind']> = {
+  User: 'user',
+  Assistant: 'assistant',
+  System: 'notice',
+  Tool: 'activity',
+};
 
 /**
  * The chat. This is the product's main surface, and most of its complexity is in one place: what to do
@@ -90,7 +102,7 @@ export class SiteChat {
 
       this.entries.set(
         conversation.messages.map((message: ChatMessageResponse) => ({
-          kind: message.role === 'User' ? 'user' : 'assistant',
+          kind: KIND_OF_ROLE[message.role] ?? 'assistant',
           text: message.text,
           versionNanoid: message.producedVersionNanoid ?? undefined,
         })),

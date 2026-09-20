@@ -7,7 +7,8 @@ public class SiteRepository(WeblyDbContext dbContext) : ISiteRepository
 {
     public Task<Site?> FindForOwnerAsync(string nanoid, int userId, CancellationToken cancellationToken = default) =>
         dbContext.Sites
-            .Include(x => x.DraftVersion)
+            .Include(x => x.HeadVersion)
+            .Include(x => x.PublishedVersion)
             .FirstOrDefaultAsync(x => x.Nanoid == nanoid && x.OwnerId == userId, cancellationToken);
 
     public Task<Site?> FindForOwnerLightAsync(string nanoid, int userId, CancellationToken cancellationToken = default) =>

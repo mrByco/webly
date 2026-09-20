@@ -81,7 +81,8 @@ public class ChatRunLauncher(
         {
             logger.LogError(exception, "Run {RunId} failed.", runId);
             terminal = RunEventType.Failed;
-            error = "Something went wrong while editing your site. Nothing was changed — please try again.";
+            // The same sentence the turn writes into the thread, so the live screen and a reload agree.
+            error = AgentTurnService.FailureNote;
         }
         finally
         {

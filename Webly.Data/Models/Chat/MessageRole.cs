@@ -1,8 +1,9 @@
 namespace Webly.Data.Models.Chat;
 
 /// <summary>
-/// Who said a message. Mirrors the provider-neutral roles of <c>Microsoft.Extensions.AI</c> rather
-/// than inventing our own, because the hydration path maps these straight onto <c>ChatRole</c>.
+/// Who said a message. The conventional four rather than a set of our own, because they are what every
+/// transcript format and every agent CLI already means by a role — there is no model SDK in this solution
+/// to match (see <c>docs/agent-plan.md</c> §1), only a vocabulary worth not reinventing.
 /// </summary>
 public enum MessageRole
 {
@@ -11,8 +12,10 @@ public enum MessageRole
 
     /// <summary>
     /// A tool call and its result, kept as one message so the pair cannot be persisted half-written.
-    /// These are dropped when history is hydrated for the next turn — see <c>AgentTurnService</c>:
-    /// the tool traffic of an edit is large, and stale the moment the document moves on.
+    /// <b>Nothing writes one today</b>, deliberately: the agent's tool traffic happens inside a sandbox and
+    /// is summarised into the run's events as it goes, and a turn's worth of file writes is both large and
+    /// stale the moment the tree moves on. The value exists because a transcript that records tool calls is
+    /// a feature this shape already allows, not because it is unused space.
     /// </summary>
     Tool,
 

@@ -7,7 +7,7 @@ public class DeploymentRepository(WeblyDbContext dbContext) : IDeploymentReposit
 {
     /// <summary>The statuses a deployment can still move out of on its own.</summary>
     private static readonly DeploymentStatus[] InFlight =
-        [DeploymentStatus.Queued, DeploymentStatus.Rendering, DeploymentStatus.Uploading];
+        [DeploymentStatus.Queued, DeploymentStatus.Preparing, DeploymentStatus.Building];
 
     public Task<Deployment?> FindAsync(string nanoid, CancellationToken cancellationToken = default) =>
         dbContext.Deployments.FirstOrDefaultAsync(x => x.Nanoid == nanoid, cancellationToken);

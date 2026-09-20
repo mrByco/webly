@@ -49,7 +49,6 @@ public class AgentTurnService(
     IConversationRepository conversations,
     IUserRepository users,
     ISiteWorkspaceRegistry workspaces,
-    ISiteRepositoryStore repositories,
     CodingAgentRegistry agents,
     CommitSiteVersion commitSiteVersion,
     RunWriter writer,
@@ -62,6 +61,17 @@ public class AgentTurnService(
     /// describe a site that has since changed.
     /// </summary>
     private const int HistoryMessages = 8;
+
+    /// <summary>
+    /// What a failed turn says, in the thread and in the run's terminal event alike — <see cref="ChatRunLauncher"/>
+    /// reads it from here so the two cannot drift. "Nothing was changed" is a promise the design keeps rather than a
+    /// reassurance: the commit is the last step, so a turn that threw left the branch exactly where it was.
+    /// </summary>
+    public const string FailureNote =
+        "Something went wrong while editing your site. Nothing was changed — please try again.";
+
+    /// <summary>What a stopped turn says. Not an error: the person asked for it, and nothing was committed.</summary>
+    public const string StoppedNote = "Stopped. Nothing was changed.";
 
     public async Task<string> RunAsync(SendMessageRequest request, int userId, CancellationToken cancellationToken)
     {
@@ -101,6 +111,39 @@ public class AgentTurnService(
         conversations.AddMessage(userMessage);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // From here the turn reaches a sandbox, another product's CLI and a git repository, so it can fail for
+        // reasons this app does not control. However it ends, the thread has to end up describing it: the person's
+        // message is already saved, and a thread whose last entry is their own sentence reads as "it ignored me".
+        try
+        {
+            await RunTurnAsync(site, user, conversation, history, request, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            await NoteAsync(conversation.Id, StoppedNote);
+            throw;
+        }
+        catch (Exception)
+        {
+            await NoteAsync(conversation.Id, FailureNote);
+            throw;
+        }
+
+        return conversation.Nanoid;
+    }
+
+    /// <summary>
+    /// The turn itself, once the person's message is saved. Split out so that <see cref="RunAsync"/> says what
+    /// happens when it throws in one place, rather than around each of the six things that can.
+    /// </summary>
+    private async Task RunTurnAsync(
+        Site site,
+        Data.Models.Authentication.User user,
+        Conversation conversation,
+        IReadOnlyList<ConversationMessage> history,
+        SendMessageRequest request,
+        CancellationToken cancellationToken)
+    {
         var agent = agents.Resolve(request.Agent);
 
         await using var lease = await workspaces.AcquireAsync(
@@ -193,8 +236,37 @@ public class AgentTurnService(
         }
 
         await ReportBuildErrorsAsync(workspace, logOffset, cancellationToken);
+    }
 
-        return conversation.Nanoid;
+    /// <summary>
+    /// Writes what the app has to say about a turn that did not finish, as a <see cref="MessageRole.System"/> line
+    /// in the thread — the same sentence the run's terminal event carries, so a reload tells the person what the
+    /// live screen told them.
+    ///
+    /// <see cref="CancellationToken.None"/> throughout, because the usual reason to be here is that the turn's own
+    /// token has just tripped. Its own try/catch, because the failure being reported may itself have been the
+    /// database: a note that cannot be written is worth a log line and nothing more, and must not replace the
+    /// exception on its way up with one about failing to describe it.
+    /// </summary>
+    private async Task NoteAsync(int conversationId, string text)
+    {
+        try
+        {
+            conversations.AddMessage(new ConversationMessage
+            {
+                ConversationId = conversationId,
+                Role = MessageRole.System,
+                Sequence = await conversations.NextSequenceAsync(conversationId, CancellationToken.None),
+                Text = text
+            });
+
+            await dbContext.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception, "Could not record the outcome of a turn in conversation {Conversation}.", conversationId);
+        }
     }
 
     private async Task<SiteVersion?> CommitAsync(

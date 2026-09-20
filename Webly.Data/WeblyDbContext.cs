@@ -144,12 +144,21 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.RestoredFromVersionId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            // NoAction rather than Cascade: the account that asked for a change is not what the change
-            // belongs to. Deleting a user deletes their sites, which takes the versions with them.
+            // Not Cascade: the account that asked for a change is not what the change belongs to. Deleting a
+            // user deletes their sites, which takes the versions with them.
+            //
+            // ClientNoAction rather than NoAction, which is the difference between this compiling and this
+            // working. Both produce ON DELETE NO ACTION, which is what the deferred constraint in the migration
+            // needs. But NoAction still leaves EF's own change tracker in charge of the loaded graph, and its
+            // default for a *required* relationship whose principal is being removed is to sever it — which for
+            // a non-nullable foreign key means throwing "the association has been severed" before a single
+            // statement is sent. ClientNoAction tells it to leave the graph alone and let the database keep its
+            // own promises. The three relationships in this file that point a required key at a row a cascade
+            // will remove anyway all say it.
             version.HasOne(x => x.CreatedBy)
                 .WithMany()
                 .HasForeignKey(x => x.CreatedByUserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
             // A version outlives the chat that produced it — see SiteVersion.SourceMessageId.
             version.HasOne(x => x.SourceMessage)
@@ -202,10 +211,11 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.SiteVersionId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            // ClientNoAction, for the reason SiteVersion.CreatedBy explains.
             deployment.HasOne(x => x.TriggeredBy)
                 .WithMany()
                 .HasForeignKey(x => x.TriggeredByUserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.ClientNoAction);
         });
 
         modelBuilder.Entity<Conversation>(conversation =>
@@ -219,10 +229,11 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.SiteId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // ClientNoAction, for the reason SiteVersion.CreatedBy explains.
             conversation.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
             // One active thread per site (see Conversation). Partial, so archived threads accumulate
             // freely — the index states the invariant the editor relies on instead of a lookup that two

@@ -24,16 +24,3 @@ public record Result<TError> where TError : struct, Enum
     public static Result<TError> Fail(TError error, string? detail = null) =>
         new() { Succeeded = false, Error = error, Detail = detail };
 }
-
-public record Result<TError, T> where TError : struct, Enum
-{
-    public required bool Succeeded { get; init; }
-    public TError Error { get; init; }
-    public string? Detail { get; init; }
-    public T? Value { get; init; }
-
-    public static Result<TError, T> Ok(T value) => new() { Succeeded = true, Value = value };
-
-    public static Result<TError, T> Fail(TError error, string? detail = null) =>
-        new() { Succeeded = false, Error = error, Detail = detail };
-}

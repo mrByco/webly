@@ -17,6 +17,11 @@
           @case ('assistant') {
             <p class="max-w-[95%] text-sm whitespace-pre-wrap">{{ entry.text }}</p>
           }
+          @case ('notice') {
+            <!-- The app's own voice, not the agent's: what happened to the site when no reply did.
+                 Quiet and centred so it reads as the thread's stage direction rather than a turn. -->
+            <p class="px-3 text-center text-xs font-semibold text-base-content/55">{{ entry.text }}</p>
+          }
           @case ('waking') {
             <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
               <span class="loading loading-spinner loading-xs"></span>

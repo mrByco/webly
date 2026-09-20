@@ -20,24 +20,11 @@ public class SiteVersionRepository(WeblyDbContext dbContext) : ISiteVersionRepos
             .ThenByDescending(x => x.Id)
             .Skip(skip)
             .Take(take)
-            // The document is the one column a history list never needs, and the only large one.
-            // Projected away rather than trusted to laziness: the property is non-nullable, so the
-            // projection builds the entity with an empty document and the entities are untracked.
+            // Untracked: a history list is read and drawn, never edited, and the change tracker would
+            // hold every page anybody scrolled through for the life of the request. There is nothing to
+            // project away — this row is the index into the repository, so its largest column is a
+            // sentence; the file contents live in git.
             .AsNoTracking()
-            .Select(x => new SiteVersion
-            {
-                Id = x.Id,
-                Nanoid = x.Nanoid,
-                CreatedAt = x.CreatedAt,
-                SiteId = x.SiteId,
-                ParentVersionId = x.ParentVersionId,
-                Summary = x.Summary,
-                Origin = x.Origin,
-                CreatedByUserId = x.CreatedByUserId,
-                SourceMessageId = x.SourceMessageId,
-                RestoredFromVersionId = x.RestoredFromVersionId,
-                Document = new()
-            })
             .ToListAsync(cancellationToken);
 
     public Task<int> CountForSiteAsync(int siteId, CancellationToken cancellationToken = default) =>

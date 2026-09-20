@@ -124,8 +124,18 @@ public class WeblyDbContextTests : PostgresTestBase
 
         await db.SaveChangesAsync();
 
-        db.Users.Remove(user);
-        await db.SaveChangesAsync();
+        // One statement, not a tracked Remove, and this is the assertion rather than an implementation detail
+        // of the test: **deleting an account is the database's cascade.** EF cannot perform this one. Its
+        // client-side cascade orders the deletes it generates topologically, and this graph has a genuine cycle
+        // — a message points at the version it produced, that version points back at the message that asked for
+        // it — so it gives up with "a circular dependency was detected" before sending anything. The deferred
+        // constraints in the migration are exactly what makes the cycle harmless in Postgres: inside one
+        // statement the order does not matter, because nothing is checked until COMMIT.
+        //
+        // So an account deletion, when the product grows one, is a single DELETE and not a loaded object graph.
+        // That is also the cheaper shape: the alternative reads every version of every site into memory in
+        // order to delete rows the database is about to delete anyway.
+        await db.Users.Where(x => x.Id == user.Id).ExecuteDeleteAsync();
 
         // MultipleAsync rather than Multiple: an async lambda handed to Multiple returns before its
         // awaits finish, so the assertions would run outside the block that collects them.
