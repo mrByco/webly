@@ -22,6 +22,6 @@ public class ListSiteVersions(ISiteRepository siteRepository, ISiteVersionReposi
         var versions = await versionRepository.ListForSiteAsync(site.Id, skip, Math.Clamp(take, 1, 100), cancellationToken);
 
         return Result<SiteError, IReadOnlyList<SiteVersionResponse>>.Ok(
-            [.. versions.Select(x => SiteMapper.ToVersion(x, site, includeDocument: false))]);
+            [.. versions.Select(x => SiteMapper.ToVersion(x, site))]);
     }
 }

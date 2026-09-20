@@ -8,31 +8,52 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 on their own domain, published to the internet, without touching a line of code. Product UI and generated
 sites are English; code and comments are English.
 
+**A site is a real Next.js project**, one bare git repository per site, edited by a coding agent (Claude
+Code or OpenCode) running in a sandbox. Webly's own code never writes a page: it owns the repository, the
+versions, the sandbox, the preview proxy and the publish. `docs/domain-plan.md` §1 is the argument for that
+and what it costs; the structured-document model it replaced is in git history, not in this tree.
+
 `PROJECT.md` is the product and the lineage: what Webly is, which two projects its architecture comes from
-(**cookta-rework** for the layering, the auth and the dev stack; **auto-grader** for the agent framework
-and the run substrate), and the decisions that are settled. `MASTER_PLAN.md` is the plan of record,
-`whats_next.md` says where work actually stopped, and `docs/` holds the long-form reasoning:
-`domain-plan.md` (sites, documents, versions), `agent-plan.md` (the chat and its substrate),
-`deploy-plan.md` (publishing, domains, Vercel). Read the relevant one before designing in that area — the
-"why" is written down there rather than re-derived.
+(**cookta-rework** for the layering, the auth and the dev stack; **auto-grader** for the run substrate),
+and the decisions that are settled. `MASTER_PLAN.md` is the plan of record, `whats_next.md` says where work
+actually stopped, and `docs/` holds the long-form reasoning: `domain-plan.md` (sites, source, versions),
+`agent-plan.md` (the agent, the sandbox, the run substrate), `deploy-plan.md` (publishing, domains,
+Vercel). Read the relevant one before designing in that area — the "why" is written down there rather than
+re-derived.
 
 ## Status: written, not run
 
 **The repository was initialized in an environment with no .NET SDK.** Nothing in the backend has been
-compiled, no migration has been generated, and the generated Angular API client
-(`client/src/app/api/`) does not exist yet — so the client does not type-check against real DTOs either,
-although it builds and its templates type-check against the shapes the services declare.
+compiled, no migration has been generated, and the generated Angular API client (`client/src/app/api/`)
+does not exist yet — so the client does not type-check against real DTOs either, although it builds and
+its templates type-check against the shapes the services declare.
+
+Four things *were* verified by hand, because they are the ones where being wrong is expensive and none of
+them needs .NET:
+
+- **The git plumbing sequence** — `hash-object`, `update-index`, `write-tree`, `commit-tree`,
+  `update-ref`, `ls-tree`, `diff-tree`, and a restore by tree — driven against a real temporary bare
+  repository. `GitSiteRepositoryStoreTests` is the same ground as a test suite.
+- **The sandbox agent contract** (`tools/sandbox-agent`): auth, tar in and out with the excludes, NDJSON
+  exec, the HTTP proxy, and a WebSocket upgrade.
+- **The site template builds** (`templates/next-site`, `npm run build`).
+- **The Angular client builds and prerenders**, against throwaway stand-ins for the generated client.
+
+Three things are written against another product's documented interface and have **never been run**:
+`ClaudeCodeAgent`'s stream-json parsing, `OpenCodeAgent`, and `VercelDeploymentTarget` (both its REST half
+and its CLI half). Treat their shapes as the plan.
 
 Do not treat a green anything as evidence yet. `MASTER_PLAN.md` P1 and `whats_next.md` list the exact
-first steps, in order. Until they are done, the honest summary of this repository is "a complete design,
-expressed as code".
+first steps, in order.
 
 ## Work philosophy
 
 Hobby project; **clean, maintainable code is the point**. No deadline pressure to trade against it. Prefer
 the clear solution over the clever one and the small diff that fits the surrounding code over a rewrite.
 **Every feature gets validated in the running app** (`https://localhost:5000`), not just in tests — and for
-this product that means looking at a real published page, not only the editor.
+this product that means a real turn on a real site: the agent writing files, the preview updating by
+itself, and a published page on the internet. The editor looking right proves the least interesting third
+of it.
 
 Write the decision down next to the code, not only the behaviour. Both reference projects are still
 readable because of that habit, and a comment explaining why something is *not* the obvious shape is worth
@@ -55,6 +76,9 @@ more than one restating what the line does.
 | Angular typecheck / build | `client_typecheck`, `client_build` | `yarn typecheck`, `yarn build` in `client/` |
 | Migrations | — | `dotnet ef migrations add <Name> --project Webly.Data --startup-project Webly.Data` |
 | Read a sent email | — | open the newest file in `.run/mail/` (dev sends nothing; it logs and saves) |
+| Build the sandbox image | — | `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` |
+| Inspect a live sandbox | — | `docker ps --filter name=webly-sandbox`, then `docker exec -it <name> sh` |
+| Look at a site's repository | — | `git --git-dir .run/repositories/<nanoid>.git log --stat` |
 
 ### Running-the-stack facts that cost time if unknown
 
@@ -75,6 +99,16 @@ more than one restating what the line does.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
 - Logs and pidfiles live in `.run/` (gitignored). `Webly.Api` locks its build output while running —
   `app_build` handles stop/build/start.
+- **Editing a site needs Docker and the sandbox image.** In development `Sandbox:Provider` is `docker`, so
+  a turn starts a container from `Sandbox:Image` — build it first (see the table above) or the first
+  message fails with "the sandbox container never became reachable". Idle sandboxes are reaped after ten
+  minutes; `docker ps --filter name=webly-sandbox` is how to see what is warm.
+- **Editing a site also needs `git` on PATH.** `GitSiteRepositoryStore` drives the real binary. A site's
+  repository is `.run/repositories/{nanoid}.git` locally, which is gitignored: a developer's test sites are
+  their own, and they are not backed up.
+- **An agent turn needs a model key.** `Agent:ClaudeCode:ApiKey` in user secrets, or nothing happens —
+  `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the client hides the chat rather than
+  failing inside it.
 - The solution file is `Webly.slnx` (the new .NET 10 format).
 - Package manager for `client/` is **yarn** (classic). Central Package Management for .NET: versions live
   in `Directory.Packages.props`, csproj files carry bare `<PackageReference>`s, and transitive pinning is
@@ -87,18 +121,22 @@ more than one restating what the line does.
 `Webly.Api` (controllers, the hub, middleware, DI, the reverse proxy) → `Webly.Services` (all business
 logic) → `Webly.Data` (EF Core `WeblyDbContext`, entities, repositories, migrations). Strict and
 one-directional: `Webly.Api` never references `Webly.Data` directly, and EF entities never leak above
-`Webly.Data` — with one deliberate exception, `SiteDocument`, which is the *content* of a jsonb column
-rather than a row and crosses the API surface as itself. `Webly.Tests` is NUnit + Testcontainers.
+`Webly.Data`. `Webly.Tests` is NUnit + Testcontainers, except `GitSiteRepositoryStoreTests`, which needs
+only git and a temporary directory.
 
 Controllers are thin: no business logic, no `object` in return types. `Webly.Services` splits into
-`Services/` (stateful/infrastructure), `UseCases/` (single-operation classes with an `Execute`) and
-`Agent/` (the agent, its args and its toolkits). DTOs live one-per-file under `Webly.Services/DTO/`.
-Entities are addressed by nanoid strings across the API surface; integer `Id`s stay internal to
-`Webly.Data`.
+`Services/` (stateful/infrastructure — `Repositories/` for git, `Sandboxes/`, `Workspaces/`, `Realtime/`,
+`Deployments/`), `UseCases/` (single-operation classes with an `Execute`) and `Agent/` (the coding-agent
+interface and its two implementations). DTOs live one-per-file under `Webly.Services/DTO/`. Entities are
+addressed by nanoid strings across the API surface; integer `Id`s stay internal to `Webly.Data`.
+
+**There is no model SDK anywhere in the solution** — no `Microsoft.Extensions.AI`, no Anthropic or OpenAI
+package. The agent is another product's CLI, running in a sandbox. `Directory.Packages.props` says so where
+the entries used to be, and adding one back is a decision to argue for in `docs/agent-plan.md` §1 first.
 
 **`Webly.Data/Models/` is organized by domain**, one folder per area, plus `Interfaces/` for the
-cross-cutting entity contracts: `Authentication/`, `Sites/` (with `Sites/Document/` for the document
-model), `Deployments/`, `Chat/`. Namespaces follow the folders.
+cross-cutting entity contracts: `Authentication/`, `Sites/`, `Deployments/`, `Chat/`. Namespaces follow the
+folders.
 
 `WeblyDbContext.SaveChanges` fills in `Nanoid` on insert and stamps `CreatedAt`/`UpdatedAt` for anything
 implementing those interfaces, so no use case, seeder or test builder has to remember. `SiteVersion` and
@@ -156,62 +194,71 @@ neither. Collaboration, when it lands, is a membership table plus one clause ins
 `ISiteRepository.FindForOwnerAsync`.
 
 - **`FindForOwnerAsync` is the one place the ownership check lives.** Every use case starts from what it
-  returns, so none of them can express the check wrongly or forget it. Its light variant skips the two
-  jsonb documents for the operations that only touch the site row.
+  returns, so none of them can express the check wrongly or forget it. Its light variant skips the version
+  rows for the operations that only touch the site row — and it is the one the **preview proxy** calls on
+  every single request, including every chunk and the hot-reload socket, so it has to stay cheap.
 - **Not yours reads as 404, never 403.** A 403 would confirm that a guessed nanoid names a real site.
   `SiteController.Failure` is the one place that mapping lives.
-- **A site never exists without a version.** `CreateSite` writes the row, the starter document and the
-  draft pointer together, so no code anywhere else has to handle a site with nothing to render.
+- **A site never exists without a version.** `CreateSite` writes the row, initializes the bare repository
+  from the template, commits it, and points `HeadVersionId` at that commit — so no code anywhere else has to
+  handle a site with no source. It saves the row first, because the repository is keyed by the nanoid the
+  context stamps on insert.
 - **`User.CurrentSiteId` is which site the editor opens on**, the reference project's `CurrentFamilyId` in
   the same role. Read it **before** deleting anything: the FK nulls it on cascade, so a check afterwards
   can no longer tell "was looking at this site" from "was looking at nothing".
 - **The slug does not follow the name.** A rename leaves the address alone, because the address may already
   be published, linked to and indexed.
 
-### The site document
+### A site's source
 
-The whole of a site's content is one `SiteDocument` — theme, navigation, pages, sections — stored as jsonb
-inside a `SiteVersion`. There is no HTML, JSX or template source anywhere that a person or the agent edits.
-`docs/domain-plan.md` §1 is the argument; the short version is that generated source cannot be validated,
-cannot be edited in a form, and turns every deploy into "did the model break the build".
+The whole of a site's content is a **Next.js project in a bare git repository**, one per site, under
+`Repositories:Root`. There is no document, no section catalogue and no renderer in this codebase; the agent
+writes `.tsx` files and Next.js renders them. `docs/domain-plan.md` §1 is the argument, including what the
+structured-document model it replaced was better at.
 
-- **`SectionCatalogue` is the single registration point.** One declaration per section type drives
-  validation, the agent's tool description (generated, never written out in the prompt), the client's
-  property editor, and the renderer's template. The reference project uses typed payload classes and
-  records the result in its own notes: five registration points, where missing one is a blank space on a
-  page. Adding a section type here is **four edits in one place each** — the `SectionType` enum, the schema,
-  a renderer, a preview thumbnail — and `SectionCatalogueTests` fails until three of them are done.
-- **Nothing in the document is duplicated.** The home page is the one whose path is `/` (no `isHome` flag);
-  a section's position is its index (no sort field); a navigation link names a page id **or** a URL, with
-  the validator enforcing exactly one. A link naming a *path* is refused outright, which is what makes
-  renaming a page's URL safe.
-- **`SiteDocumentValidator` holds every rule Postgres cannot.** A jsonb column has no unique index and no
-  check constraint over its contents. Its messages are written for the model to read, because a failed tool
-  call hands them straight back.
-- **`SiteDraft` is the only way a document changes** — the agent, the property editor and a restore all go
-  through it. Two invariants: a draft is **always valid** (each operation validates the whole document and
-  keeps it only if it still passes, so a failed edit changes nothing), and a draft is **never the persisted
-  document** (it starts as a deep clone, so an abandoned or cancelled turn leaves the stored version
-  untouched). `SiteDocument.Clone()` round-trips through JSON on purpose: a `JsonNode` remembers its parent,
-  so a member-wise copy would either throw or hand two versions the same mutable props.
+- **`ISiteRepositoryStore` is the only thing that touches git**, and it drives the real binary with
+  plumbing commands, never a working copy: blobs are hashed into a per-call `GIT_INDEX_FILE`, a tree is
+  written from it, and `commit-tree` + `update-ref` move the branch. So two sites cannot collide over a
+  checkout and the API needs no disk beyond the bare repositories.
+- **Arguments, never a shell.** Every git call goes through `ProcessStartInfo.ArgumentList`. A nanoid
+  reaches a path, and a path concatenated into a command line is an injection waiting for its first
+  customer.
+- **A tree coming back from a sandbox is untrusted input.** `PathFor` refuses a site id that is not
+  `[A-Za-z0-9-_]{1,40}`; tree writes refuse absolute paths, `..` segments, and anything over the configured
+  file-count and byte limits. It was assembled by a language model on a machine we do not own.
+- **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
+  `npm run build`. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the
+  standing rules (never invent a fact, never write a testimonial nobody gave you, keep the build working,
+  stay in the stack) and **`content/brand.md`** is where the agent records facts it learns, because its
+  session does not outlive the workspace. `CLAUDE.md` in the template just points at `AGENTS.md`, so both
+  CLIs read one file.
+- **The agent may read the source and so may the customer** — `GET /api/sites/{nanoid}/files` and
+  `/file?path=` — because "you never have to touch the code" is not "you are not allowed to see it". The
+  path is a query parameter, not a route catch-all, so `src/app/page.tsx` cannot be ambiguous against the
+  routes beside it.
 
 ### Versions
 
-**Every accepted change appends an immutable version.** `Site.DraftVersionId` is what the editor edits;
-`Site.PublishedVersionId` is what the world sees. Whole-document snapshots, not diffs — a diff chain has to
-be replayed before anything renders, and one bad entry poisons everything after it.
+**A version is a commit.** `Site.HeadVersionId` is what the editor is changing; `Site.PublishedVersionId` is
+what the world sees. The `SiteVersion` row is the *index* into the repository — commit sha, summary, origin,
+changed-file count, who and which message — and duplicates nothing git already stores.
 
 - **`CommitSiteVersion` is the only writer.** A second write path would be a second definition of history.
-- **A draft with no changes commits nothing.** A history of "no changes" entries is not a history.
+- **A turn that changed nothing commits nothing.** The tree is compared against the parent's and an
+  identical one returns null. A history of "no changes" entries is not a history.
+- **The agent never sees git.** The sandbox gets a working tree; Webly commits what comes back, with the
+  person as author. So the agent cannot rewrite history and needs no credential that could.
 - **`HasUnpublishedChanges` is computed** from the two pointers. A boolean beside them is a third fact that
   can disagree with both.
-- **Restore copies forward**, never repoints backwards: the intervening history stays reachable, the restore
-  itself appears in the history, and undoing an undo is the same operation again. The restored document is
-  **re-validated**, because a document written under an older catalogue can be invalid today.
+- **Restore writes the old tree forward** as a new commit, never repoints the branch backwards: the
+  intervening history stays reachable, the restore itself appears in the history, and undoing an undo is the
+  same operation again.
 - **A version links to the chat message that produced it** and the message links back, which is what makes
   the history read as the conversation that caused it.
-- **One version per hand edit**, which is why the client debounces: a version per keystroke is a history
-  nobody can read.
+- **`(SiteId, CommitSha)` is unique**, which is what stops a second row claiming the same commit and making
+  the history show a change that is not one.
+- **The history shows a diff, not a preview.** There is one dev server per site and it runs the working
+  tree, so there is nothing to point an iframe at for a commit from last Tuesday.
 
 ### Deferred foreign keys
 
@@ -227,23 +274,44 @@ second loses, and an account that had ever published could not be deleted.
 change these behaviours without running it. `DeleteSite` also clears the site's own pointers before
 removing the row, so the ordinary delete does not depend on the deferral at all.
 
-### The chat and the run substrate
+### The agent, the sandbox and the run substrate
 
 `docs/agent-plan.md` is the full write-up. What matters when touching it:
 
-- **One agent**, `site-editor`, keyed, built by a static `Create(sp, key)` factory. A second agent is one
-  registration and one `ResolveAgentKey` case; nothing in the substrate changes.
-- **The tool list is the permission model.** No publishing, no domains, no billing, no deleting a site.
-  Adding one is a method plus a review, and the diff shows it.
-- **The agent never invents a fact.** `AskUser` blocks the run until the person answers, and a timeout comes
-  back as *"The person did not answer"* — a tool result, so the model wraps up instead of the turn dying. A
-  plausible invention published on a real website is the worst thing this product can do.
-- **A turn is one version.** `SiteEditSession` holds the draft, `AgentTurnService` commits once at the end:
-  atomic, readable in the history, and free to cancel.
+- **The agent is another product's CLI**, run inside the sandbox: `claude -p --output-format stream-json`,
+  or `opencode run`. `ICodingAgent` has two implementations and `CodingAgentRegistry` picks one. Do not
+  reach for a model SDK — §1 of the plan is why, and it is the decision most likely to be re-derived
+  wrongly.
+- **The permission model is where it runs, not a tool list.** The sandbox has the site's files, node, git,
+  the CLIs and one model key. No connection string, no Vercel token, no session cookie, no git remote.
+  Publishing, domains, billing and deleting a site are not tools it lacks — they are unreachable from
+  there.
+- **`AGENTS.md` in the site's repository is the other half of it.** A tool list cannot say "never write a
+  testimonial nobody gave you", and a plausible invention published on a real business's website is the
+  worst thing this product can do. The agent asks in its reply and the turn ends; the answer is the
+  person's next message. (The old blocking `AskUser` tool is gone — a CLI in a sandbox cannot wait on this
+  app. The MCP bridge that would bring it back is in the plan, §1.3.)
+- **A turn is one version.** `AgentTurnService` runs the agent, then commits once from the tree the sandbox
+  hands back: atomic, readable in the history, and free to cancel.
+- **Build errors are surfaced, not swallowed.** After a turn the dev server's log is scanned for
+  `Failed to compile`, `Module not found` and `Type error:`, and a `BuildFailed` event puts it on screen —
+  because the person's next message is what fixes it. The publish path does not depend on this: `vercel
+  build` runs there and a failure blocks the deployment.
+- **One warm workspace per site**, shared by the chat and the preview. `SiteWorkspaceRegistry` leases it
+  with a semaphore so two turns queue rather than interleave, re-seeds it when the head has moved under it
+  (clearing the agent's session id, because a resumed session would remember a different tree), and
+  `WorkspaceReaper` closes it when idle — a warm sandbox bills by the second.
+- **The preview is the site's own `next dev`, proxied.** `PreviewController` forwards with YARP's
+  `IHttpForwarder`: same origin, ownership re-checked per request, WebSockets forwarded (hot reload is one),
+  our cookie stripped on the way out. A cold site answers 503 with a sentence rather than starting a
+  workspace on a GET, because tens of seconds of a hanging iframe looks broken.
+- **The sandbox contract is ours** (`tools/sandbox-agent`, zero dependencies, baked into the image). A
+  provider's job is "start this image, give me a URL"; files, exec and preview all go through one HTTP
+  contract we can test. That is what makes E2B → Fly → Daytona a class nobody else has to know about.
 - **Run lifetime lives in `RunRegistry`, not on an `HttpContext`.** A closed tab must not cancel a turn
-  halfway through rewriting somebody's home page. Only an explicit `Cancel` stops a run —
-  which is why `OrphanRunReaper` is mandatory rather than nice to have (two minutes unwatched, thirty
-  minutes absolute, five minutes to keep a finished handle for a late reconnect).
+  halfway through rewriting somebody's home page. Only an explicit `Cancel` stops a run — which is why
+  `OrphanRunReaper` is mandatory rather than nice to have (two minutes unwatched, thirty minutes absolute,
+  five minutes to keep a finished handle for a late reconnect).
 - **Events are appended to the run's log first, then published.** Publishing first loses anything emitted
   between a late subscriber's replay and its group join, which is the reconnect case. Every envelope carries
   a `Seq`, which is both the resume point and the duplicate filter, and that is what makes the hub's
@@ -252,51 +320,42 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   waits forever, which is indistinguishable from the product being broken.
 - **The log is in memory, not a table.** A chat run cannot outlive its process and the log exists only to
   serve a reconnect. `IRunEventSink` is the seam if that changes.
-- **`RunWriter` flushes before any non-text event**, or a tool chip arrives before the sentence that
+- **`RunWriter` flushes before any non-text event**, or a file chip arrives before the sentence that
   introduced it.
 - **`RunKind.Deploy` is the durable one**: its state is the `Deployment` row and its run id *is* the
   deployment's nanoid, so a page that reloads mid-publish can re-attach to something that outlived the
   process.
 - **`AgentBudget`, not `[EnableRateLimiting]`.** The rate-limiting middleware only sees HTTP endpoints, so
-  an attribute on a hub would look like a fence and be none.
-- **No provider key means the agent is absent, not broken**: nothing is registered,
-  `/api/sites/{nanoid}/chat/status` reports `enabled: false`, the client hides the chat, and the tests need
-  no secrets. Same discipline as Google sign-in.
+  an attribute on a hub would look like a fence and be none. It matters more here than in the reference
+  project: a turn costs a model call *and* a machine.
+- **No agent key means the agent is absent, not broken**: `/api/sites/{nanoid}/chat/status` reports
+  `enabled: false`, the client hides the chat, and the tests need no secrets. Same discipline as Google
+  sign-in and publishing.
 
-### Rendering and publishing
+### Publishing
 
-- **Webly renders; the provider serves.** `ISiteRenderer` turns a document into exact bytes with no build
-  step anywhere. A build on the provider's side can fail for reasons the site's owner cannot see, and there
-  is no code for them to fix it in. It also makes a render a pure function of (document, context), which is
-  what makes a failed deployment safe to retry — so the renderer may not read a clock or a random number.
-  `SiteRendererTests.Rendering_is_deterministic` is the guard.
-- **The preview is the renderer.** The editor's pane is an iframe over `GET /api/sites/{nanoid}/preview`,
-  which renders the same files publishing uploads. There is no client-side renderer and there must not be:
-  two descriptions of what a site looks like means the wrong one is what the customer saw. The one
-  concession is `RenderContext.StylesheetUrl`, because every page is previewed from one URL and a deployed
-  page's relative `../styles.css` would not resolve there.
-- **Section renderers emit class names, never inline styles.** `ThemeCss` derives the whole stylesheet from
-  the theme, so "make it warmer" is one edit that changes every page, and a section added next month
-  inherits a design rather than needing one. Colour variants are computed in OKLCH by the browser
-  (`oklch(from var(--brand) …)`) rather than stored — four colours that can drift apart is four ways for a
-  site to look wrong.
-- **Everything from a document is escaped** through `SectionMarkup`. The values were written by a language
-  model and typed by a member of the public, and neither is a reason to trust a string into markup. The one
-  exception is `RichTextHtml`, which is **currently escaping rather than sanitizing** — the real allowlist
-  lands with the rich-text editor, and sanitizing HTML properly is a library's job, not thirty lines here.
-- **One page per directory** (`/about/index.html`), so a static host serves clean URLs with no rewrite
-  rules — the part of static hosting that differs per provider, avoided.
+- **Webly builds; the provider serves.** `vercel build` then `vercel deploy --prebuilt`, both in a sandbox,
+  rather than pushing source for the provider to build. The build failure is then *ours*: a site that does
+  not compile is never published, and the reason is a log we can show rather than a page on somebody else's
+  dashboard. It also needs no git remote, which is what lets Webly own the repositories.
+- **A publish uses a fresh sandbox**, not the warm editing one, seeded from the version being published and
+  `npm ci`'d against its lockfile. A build must not inherit whatever an editing session left behind, and
+  that is also what makes a retry mean something.
 - **`Site.PublishedVersionId` moves in exactly one place**, in `DeploymentJobRunner` after the provider
   reports success. A failed publish leaves the previous version live, and the email says so in its first
-  line.
+  line. The build log's tail goes to `Deployment.ErrorDetail`, which the settings screen shows folded away.
+- **The CLIs are pinned in the image**, and the deployment target calls `vercel` rather than `npx vercel`:
+  a publish that works on Tuesday and not on Wednesday, with no diff to blame, is the failure that costs
+  the most to diagnose.
 - **One platform-owned Vercel account.** "Self-service" cannot begin with "create a Vercel account". The
   bring-your-own upgrade is a nullable token on `Site` and nothing else — see `docs/deploy-plan.md` §3.
 - **A `Domain` row mirrors the provider**, which owns verification and the certificate. A local "verified"
   flag it disagrees with is a site that is live according to us and 404 according to the internet. Checking
   is a button, never a timer. Exactly one primary hostname per site, by partial unique index; only a
   verified domain may be promoted.
-- **`VercelDeploymentTarget` has never run against the live API.** Treat its endpoint and payload shapes as
-  the plan — `docs/deploy-plan.md` §6 says what to reconcile first.
+- **`VercelDeploymentTarget` has never run**, in either half — the REST calls or the CLI in the sandbox.
+  Treat its endpoints, payloads and output parsing as the plan; `docs/deploy-plan.md` §6 says what to
+  reconcile first.
 
 ### Frontend (`client/`, Angular 22 with SSR)
 
@@ -323,9 +382,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
 - **The editor shell owns the site.** One load, one signal (`SiteService.current`), so the header, the chat,
   the preview and whichever child route is showing cannot disagree about what is open. History, domains and
   settings render **in place of the preview**, not over the whole page, so the chat stays available.
-- **A committed version reaches the screen by bumping `previewKey`.** Changing the iframe's URL is the only
-  way to make a browser re-fetch a document it thinks it already has; the key is a counter rather than a
-  timestamp, so unrelated renders do not make it flicker.
+- **The preview updates itself.** It is an iframe over `/api/sites/{nanoid}/preview/`, which is the site's
+  own dev server, so hot reload puts the agent's edits on screen with nothing on this side asking. Bumping
+  `previewKey` reloads the frame and is for the case where the whole tree moved — a commit or a restore;
+  it is a counter rather than a timestamp so unrelated renders do not make it flicker.
+- **A cold preview is a sentence, not a frame.** Only a turn starts a workspace, so the pane shows "your
+  preview is asleep" until `SiteDetailResponse.workspaceReady` or a `WorkspaceProgress` event says
+  otherwise. An iframe pointed at the 503 would render the browser's own error page.
 - **The chat's hard part is disagreement between the page and the run.** A turn is started, then watched, as
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on
@@ -333,26 +396,46 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
 - **Hub DTOs are declared by hand in `realtime.service.ts`**, with a comment saying so: `ng-openapi-gen`
   deletes them, because Swagger describes HTTP only. Pinning them into the OpenAPI document with a
   Swashbuckle document filter is the fix, and it is a P2 task.
+- **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
+  single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
+  line that is replaced rather than appended while the workspace starts, and a `build` block carrying the
+  compiler's own words.
 - **The app's own colours are quiet on purpose.** This app is a frame around somebody else's website, and
-  the accents on screen should be the preview's. Its icons (`shared/icon.ts`) and the published sites'
-  feature icons (`Icons` in the renderer) are two separate closed sets — the second has to be inlined into
-  rendered HTML, where the component cannot reach.
+  the accents on screen should be the preview's.
+- **`shared/icon.ts` writes its whole `<svg>` into the host element's `innerHTML`**, rather than binding the
+  paths inside an `<svg>` in its own template. That looks like the long way round and is the only way that
+  prerenders: SSR's DOM has no `innerHTML` setter on an `SVGElement`, so the shorter version throws
+  `NotYetImplemented` during the build and the prerendered login, register and forgot-password pages come
+  out unrendered — with an exit code of 0. The reference project has the shorter version and the same
+  defect.
 - `models/problem-details.ts` holds the one `messageOf`. The generated client asks for
   `responseType: 'text'` on endpoints that answer 204, so a failure from one of those hands back the problem
   body as a *string* — reading only `error.title` there silently shows the generic message.
 
 ## Deployment
 
-Three images on Docker Hub under one repository, told apart by tag — `byc0/margareta:webly_dev_api` and
-`webly_dev_frontend` from master, `<branch>_webly_api` / `_webly_frontend` from `release/**`.
-`.github/workflows/webly-dev-deploy.yaml` builds, pushes and then POSTs to a Portainer stack webhook; the
-prod workflow builds and pushes only, so cutting a release branch and restarting production stay two
-decisions. `ci.yml` is the only thing that runs tests, and the deploy workflows deliberately do not gate on
-it.
+Images on Docker Hub under one repository, told apart by tag — `byc0/margareta:webly_dev_api` and
+`webly_dev_frontend` from master, `<branch>_webly_api` / `_webly_frontend` from `release/**`, plus
+**`webly_sandbox`**, which has one tag and no dev/prod split because it contains nothing of Webly's.
+`.github/workflows/webly-dev-deploy.yaml` builds all three, pushes, and then POSTs to a Portainer stack
+webhook; the prod workflow builds and pushes the two app images only, so cutting a release branch and
+restarting production stay two decisions. `ci.yml` is the only thing that runs tests, and the deploy
+workflows deliberately do not gate on it.
 
 `deploy/portainer-stack.yml` is the stack: Postgres, the API, the SSR client and a Caddy container that
 terminates TLS with `caddy reverse-proxy` rather than a Caddyfile, so the whole deployment is one pasteable
 file. Only Caddy publishes ports. Its header comment lists every environment variable.
+
+**The sandbox image is not a service in that file**, and that is not an omission: the sandbox provider starts
+one per open site, so compose never sees it. `deploy/sandbox/Dockerfile` explains what is in it and why —
+node, git, tar, the two agent CLIs and the Vercel CLI all pinned, the sandbox agent, and the site template's
+dependencies pre-installed so a cold workspace is a tree copy rather than an `npm install`.
+
+**`webly-repositories` is the volume whose loss cannot be recovered from anywhere else.** Every site's
+content and history is a bare git repository on it; the database holds the index of the commits, not the
+commits, and a published site on Vercel is built output rather than source. Back it up at least as often as
+Postgres. Its path is agreed by three files: `Repositories:Root` in `appsettings.Production.json`, the
+`mkdir`/`chown` in `Webly.Api/Dockerfile`, and the mount in the stack.
 
 **Three things about this stack are load-bearing and easy to break:**
 
@@ -371,8 +454,12 @@ file. Only Caddy publishes ports. Its header comment lists every environment var
 
 Smaller notes: the API image copies a static `busybox` purely so the healthcheck can reach `/health` (the
 runtime image ships neither curl nor wget, and a healthcheck that cannot run reports failure, not
-"unknown"). It runs as non-root `app`, and the Data Protection key directory is created and chowned in the
-image because Docker seeds a named volume from the path it covers. The SSR runtime stage carries **no
+"unknown"), and it `apt-get install`s **git**, which is not optional — the repository store drives the real
+binary, so an image without it boots, serves the login page, and fails the moment anybody creates a site. It
+also carries `templates/` beside the published app, because `dotnet publish` does not: the template is not
+part of any project, and `CreateSite` reads it to write a site's first commit. It runs as non-root `app`,
+and both the Data Protection key directory and the repository root are created and chowned in the image
+because Docker seeds a named volume from the path it covers. The SSR runtime stage carries **no
 `node_modules`**: the Angular builder bundles the server output down to a few `node:` built-ins — recheck
 that before adding a dependency that resists bundling, because a missing one is a crash loop at container
 start, not a build error.
@@ -393,9 +480,9 @@ start, not a build error.
   ```
 
 - **Enums cross the API as names, not numbers** (`JsonStringEnumConverter` in `Program.cs`, `.AddJsonProtocol`
-  on SignalR, and `HasConversion<string>()` in the context). `SectionType` is the load-bearing one: it is a
-  document discriminator, a generated TypeScript union and the key the renderer switches on, so a numbered
-  enum would make inserting a value in the middle a silent data migration.
+  on SignalR, and `HasConversion<string>()` in the context). `RunEventType` is the load-bearing one: it is a
+  generated TypeScript union the client switches on *and* a value in the hub's payloads, so a numbered enum
+  would make inserting a value in the middle a silent breaking change in two places at once.
 - **Administrators are configuration, not a column.** `IAdminPolicy` reads `Administrators:Emails` and
   `AuthSessionService.Describe` folds the role into the profile, so the client keeps one source. Deliberately
   not a token claim: a claim goes stale exactly like `email_verified` did, and recovering from that needed
@@ -406,13 +493,18 @@ start, not a build error.
 - New endpoints are protected by default. Add `[AllowAnonymous]` deliberately, never reflexively.
 - Add the `[Route("api/...")]` prefix to every real controller. `HealthController` deliberately sits at
   `/health` (no prefix) so it is a proxy-bypass canary — leave it there.
-- Per-site routes live **under** the site (`/api/sites/{nanoid}/versions/...`, `/domains`, `/deployments`,
-  `/chat`). A flat route would invite a lookup by the child's nanoid alone, which is exactly the shape that
-  lets somebody read another account's data by guessing.
+- Per-site routes live **under** the site (`/api/sites/{nanoid}/versions/...`, `/files`, `/domains`,
+  `/deployments`, `/chat`, `/preview`). A flat route would invite a lookup by the child's nanoid alone, which
+  is exactly the shape that lets somebody read another account's data by guessing.
 - Debug/dev-only scaffolding (the Testcontainers fallback, swagger UI) is gated on
   `Environment.IsDevelopment()`; keep it out of Release behaviour.
 - `dotnet ef` uses `WeblyDbContextDesignTimeFactory`, not the API host — scaffolding a migration needs the
   provider, not a running server. Migrations are applied by the API at startup (`MigrateAsync`).
-- **Three things are per-process and commented as such**: `IAccessTokenBlacklist`, `RunRegistry` and
-  `AgentBudget`. Plus `DeploymentJobRunner`, which polls rather than leasing. Scaling out means addressing
-  all four, and each one says so where it is.
+- **Anything that shells out passes its arguments as arguments.** `ProcessStartInfo.ArgumentList`, never a
+  composed command line — that goes for git, for docker, and for a command sent into a sandbox. Customer
+  input reaches all three.
+- **Four things are per-process and commented as such**: `IAccessTokenBlacklist`, `RunRegistry`,
+  `AgentBudget` and `SiteWorkspaceRegistry`. The last one is the newest and the sharpest: two instances
+  would each hold a warm sandbox for the same site, editing two working trees and committing over each
+  other. Plus `DeploymentJobRunner`, which polls rather than leasing. Scaling out means addressing all five,
+  and each one says so where it is.

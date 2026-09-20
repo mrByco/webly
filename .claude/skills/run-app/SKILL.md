@@ -41,6 +41,26 @@ Fallback without MCP: `./run-app.ps1 start|stop|status|logs` and `./regen-api.ps
 
 To work with data that survives restarts: `db_compose_up`, then `app_restart`.
 
+## Editing a site needs three more things
+
+An agent turn does not run on the backend — it runs in a sandbox, so the chat is the one feature that needs
+more than the stack above:
+
+1. **The sandbox image.** `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from
+   the repository root (the context is the root, not `deploy/sandbox`). Without it the first message fails
+   with "the sandbox container never became reachable".
+2. **Docker running**, because `Sandbox:Provider` is `docker` in development. `docker ps --filter
+   name=webly-sandbox` shows what is warm; idle ones are reaped after ten minutes.
+3. **A model key**: `dotnet user-secrets set "Agent:ClaudeCode:ApiKey" "<key>" --project Webly.Api`. Without
+   it the chat is *absent* rather than broken — `/api/sites/{nanoid}/chat/status` reports `enabled: false`
+   and the client hides it, which is easy to mistake for a bug in the client.
+
+The preview is that sandbox's own `next dev`, proxied through `https://localhost:5000/api/sites/{nanoid}/preview/`.
+So an empty preview pane usually means no workspace, not a broken renderer — there is no renderer.
+
+Site repositories live in `.run/repositories/{nanoid}.git` (gitignored). To see what a turn actually did:
+`git --git-dir .run/repositories/<nanoid>.git log --stat`.
+
 ## Things that cost time if unknown
 
 - The dev HTTPS cert must be trusted once: `dotnet dev-certs https --trust`.

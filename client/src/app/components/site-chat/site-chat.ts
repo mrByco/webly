@@ -8,12 +8,10 @@ import { ChatMessageResponse } from '../../api/models/chat-message-response';
 
 /** A line in the transcript. One shape for everything the stream can produce. */
 export interface ChatEntry {
-  kind: 'user' | 'assistant' | 'tool' | 'question' | 'version' | 'error';
+  kind: 'user' | 'assistant' | 'activity' | 'files' | 'waking' | 'version' | 'build' | 'error';
   text: string;
-  /** Tool chips and questions carry a little more. */
-  options?: string[];
-  questionId?: string;
-  answered?: string;
+  /** `files` entries collect the paths the turn has written so far, rather than one chip per write. */
+  paths?: string[];
   versionNanoid?: string;
 }
 
@@ -28,7 +26,12 @@ export interface ChatEntry {
  *   it is watched from sequence zero and the stream replays into the transcript.
  * - Stop cancels the run rather than closing anything: a closed tab does not stop a turn, so neither
  *   does navigating away.
- * - A question blocks the run. The card stays in the transcript, answered, so a replay shows it resolved.
+ *
+ * <b>The agent asks its questions in prose and the turn ends.</b> There is no blocking question card any
+ * more: a coding agent runs as a process of its own, so a tool that waited for an answer would have to
+ * reach back into this app from inside a sandbox. The answer is the person's next message, which is also
+ * what the transcript reads like afterwards. See `docs/agent-plan.md` for the MCP bridge that would make
+ * it a tool again.
  */
 @Component({
   selector: 'app-site-chat',
@@ -40,6 +43,15 @@ export class SiteChat {
 
   /** Raised when a turn commits a version, so the editor can refresh its preview and its header. */
   readonly versionCommitted = output<string>();
+
+  /** Raised while a workspace is starting, so the preview can say so instead of showing a dead frame. */
+  readonly workspaceProgress = output<string>();
+
+  /**
+   * Raised when a turn ends, however it ended. The editor re-reads the site on it — a turn that wrote
+   * nothing still left a warm workspace behind, and that is what the preview needs to know.
+   */
+  readonly turnFinished = output<void>();
 
   private readonly chat = inject(ChatService);
   private readonly realtime = inject(RealtimeService);
@@ -120,18 +132,6 @@ export class SiteChat {
     }
   }
 
-  protected async answer(entry: ChatEntry, answer: string): Promise<void> {
-    if (!this.runId || !entry.questionId) {
-      return;
-    }
-
-    await this.realtime.answer(this.runId, entry.questionId, answer);
-
-    // Marked here as well as on the stream's own QuestionAnswered event: the person who just clicked
-    // should see it take effect now, not after a round trip.
-    this.patch(entry, { answered: answer });
-  }
-
   private async attach(runId: string): Promise<void> {
     this.runId = runId;
     this.running.set(true);
@@ -152,31 +152,36 @@ export class SiteChat {
         this.replaceAssistant(event.text ?? '');
         break;
 
-      case 'ToolCall':
-        this.append({ kind: 'tool', text: event.detail ?? 'Working' });
+      case 'WorkspaceProgress':
+        // Replaced rather than appended: this is one step with several stages, and a line per stage reads
+        // like something going wrong.
+        this.replaceLatest('waking', event.detail ?? 'Waking up your site');
+        this.workspaceProgress.emit(event.detail ?? '');
         break;
 
-      case 'ToolResult':
-        // Deliberately not shown. A result line per call turns the chat into a log; the chip that is
-        // already there is what the person needs, and the outcome is visible in the preview.
+      case 'Activity':
+        this.append({ kind: 'activity', text: event.detail ?? 'Working' });
         break;
 
-      case 'QuestionAsked':
-        this.append({
-          kind: 'question',
-          text: event.text ?? '',
-          options: event.options ?? [],
-          questionId: event.questionId ?? undefined,
-        });
-        break;
-
-      case 'QuestionAnswered':
-        this.answerById(event.questionId, event.text ?? '');
+      case 'FileChanged':
+        // Collected into one growing entry. A turn touches a dozen files and a chip each would bury the
+        // sentence that explains them.
+        this.addPath(event.detail ?? '');
         break;
 
       case 'VersionCommitted':
-        this.append({ kind: 'version', text: event.detail ?? 'Site updated', versionNanoid: event.versionNanoid ?? undefined });
+        this.append({
+          kind: 'version',
+          text: event.detail ?? 'Site updated',
+          versionNanoid: event.versionNanoid ?? undefined,
+        });
         this.versionCommitted.emit(event.versionNanoid ?? '');
+        break;
+
+      case 'BuildFailed':
+        // Shown, not swallowed. The person's next message is what fixes it, and they can only write that
+        // message if they can see what broke.
+        this.append({ kind: 'build', text: event.detail ?? 'The site is not compiling.' });
         break;
 
       case 'Failed':
@@ -194,6 +199,7 @@ export class SiteChat {
 
   private finish(): void {
     this.running.set(false);
+    this.turnFinished.emit();
 
     if (this.runId) {
       void this.realtime.unwatch(this.runId);
@@ -228,18 +234,35 @@ export class SiteChat {
     });
   }
 
-  private answerById(questionId: string | null | undefined, answer: string): void {
-    if (!questionId) {
+  /** Updates the trailing entry of a kind, or adds one. For the two entries that are a status, not a line. */
+  private replaceLatest(kind: ChatEntry['kind'], text: string): void {
+    this.entries.update(entries => {
+      const last = entries.at(-1);
+
+      return last?.kind === kind
+        ? [...entries.slice(0, -1), { ...last, text }]
+        : [...entries, { kind, text }];
+    });
+  }
+
+  private addPath(path: string): void {
+    if (!path) {
       return;
     }
 
-    this.entries.update(entries =>
-      entries.map(entry => (entry.questionId === questionId ? { ...entry, answered: answer } : entry)),
-    );
-  }
+    this.entries.update(entries => {
+      const last = entries.at(-1);
 
-  private patch(target: ChatEntry, changes: Partial<ChatEntry>): void {
-    this.entries.update(entries => entries.map(entry => (entry === target ? { ...entry, ...changes } : entry)));
+      if (last?.kind === 'files') {
+        const paths = last.paths ?? [];
+
+        return paths.includes(path)
+          ? entries
+          : [...entries.slice(0, -1), { ...last, paths: [...paths, path] }];
+      }
+
+      return [...entries, { kind: 'files', text: '', paths: [path] }];
+    });
   }
 
   private scrollToEnd(): void {

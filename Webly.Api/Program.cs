@@ -5,6 +5,8 @@ using Webly.Api.Middleware;
 using Webly.Data;
 using Webly.Services;
 using Webly.Services.Services.Realtime;
+using Webly.Services.Services.Repositories;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -16,10 +18,10 @@ if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets<Program>(optional: true);
 
 builder.Services.AddControllers()
-    // Enums travel as their names, not their positions, and the database stores them as text for
-    // the same reason. SectionType is the load-bearing one: it is the discriminator for every
-    // section in a site document, a generated TypeScript union, and the key the renderer switches
-    // on — a numbered enum would make inserting a value in the middle a silent data migration.
+    // Enums travel as their names, not their positions, and the database stores them as text for the
+    // same reason. The load-bearing ones are SiteVersionOrigin, DeploymentStatus and RunEventType:
+    // each is a generated TypeScript union the client switches on, so a numbered enum would make
+    // inserting a value in the middle a silent breaking change in two places at once.
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
@@ -59,10 +61,9 @@ builder.Services.AddDbContext<WeblyDbContext>(options => options.UseNpgsql(resol
 builder.Services.AddWeblyServices();
 builder.Services.AddWeblyEmail(builder.Configuration);
 builder.Services.AddWeblyAuthentication(builder.Configuration);
-builder.Services.AddWeblyDeployment(builder.Configuration);
+builder.Services.AddWeblySites(builder.Configuration);
 builder.Services.AddWeblyRealtime();
-builder.Services.AddWeblyAgent();
-builder.Services.AddWeblyAgentClients(builder.Configuration);
+builder.Services.AddWeblyAgents();
 
 // The publisher lives up here because it is the only piece of the run substrate that knows about the transport.
 builder.Services.AddSingleton<IRunPublisher, SignalRRunPublisher>();
@@ -73,6 +74,12 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<WeblyDbContext>();
     await db.Database.MigrateAsync();
+
+    // Created here rather than on first use: a missing repository root is a deployment mistake (an
+    // unmounted volume), and finding that out at boot beats finding it out when somebody creates
+    // their first site.
+    Directory.CreateDirectory(
+        scope.ServiceProvider.GetRequiredService<IOptions<RepositoryOptions>>().Value.Root);
 }
 
 if (app.Environment.IsDevelopment())

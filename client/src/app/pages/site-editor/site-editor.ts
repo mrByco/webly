@@ -48,8 +48,16 @@ export class SiteEditorPage {
   protected readonly site = this.sites.current;
   protected readonly error = signal<string | undefined>(undefined);
 
-  /** Bumped whenever the document changes, which is what re-fetches the preview iframe. */
+  /** Bumped when the whole tree changed under the preview — a commit or a restore. Hot reload does the rest. */
   protected readonly previewKey = signal(0);
+
+  /**
+   * Whether the site's workspace is warm, and what it is doing if it is still starting. Two signals rather
+   * than one nullable, because "asleep" and "starting" are different sentences on screen and only the
+   * second one has a spinner.
+   */
+  protected readonly workspaceReady = signal(false);
+  protected readonly workspaceProgress = signal<string | undefined>(undefined);
 
   protected readonly publishing = signal(false);
   protected readonly publishStatus = signal<string | undefined>(undefined);
@@ -63,7 +71,25 @@ export class SiteEditorPage {
   /** What the chat's `versionCommitted` output lands on: refresh the header, re-fetch the preview. */
   protected onVersionCommitted(): void {
     void this.sites.reload();
+
+    // The dev server has already hot-reloaded the edits; this is for the case where the tree moved as a
+    // whole, which a reload of the frame is the only way to be sure of.
     this.previewKey.update(key => key + 1);
+  }
+
+  /** The workspace is starting. Shown in the preview pane, because that is the thing that is missing. */
+  protected onWorkspaceProgress(detail: string): void {
+    this.workspaceProgress.set(detail);
+  }
+
+  /**
+   * A turn ended. The workspace it warmed up outlives it, so the preview can load now — and the site row
+   * is re-read for the same reason the header needs it: publishing state may have moved.
+   */
+  protected onTurnFinished(): void {
+    this.workspaceProgress.set(undefined);
+    this.workspaceReady.set(true);
+    void this.sites.reload();
   }
 
   constructor() {
@@ -85,7 +111,9 @@ export class SiteEditorPage {
 
   private async load(nanoid: string): Promise<void> {
     try {
-      await this.sites.load(nanoid);
+      const site = await this.sites.load(nanoid);
+      this.workspaceReady.set(site.workspaceReady);
+      this.workspaceProgress.set(undefined);
       this.previewKey.update(key => key + 1);
       this.error.set(undefined);
     } catch (failure) {

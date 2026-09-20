@@ -7,29 +7,38 @@ namespace Webly.Services.DTO.Realtime;
 /// </summary>
 public enum RunEventType
 {
-    /// <summary>A chunk of the assistant's answer. Coalesced by <c>ChatRunWriter</c>, never one per token.</summary>
+    /// <summary>A chunk of the agent's answer. Coalesced by <c>RunWriter</c>, never one per token.</summary>
     TextDelta,
 
-    /// <summary>The assistant's message is complete. <c>Text</c> is the whole of it.</summary>
+    /// <summary>The agent's message is complete. <c>Text</c> is the whole of it.</summary>
     MessageCompleted,
 
-    /// <summary>A tool is being called. <c>Tool</c> names it, <c>Detail</c> is a human phrase for the chip.</summary>
-    ToolCall,
+    /// <summary>
+    /// The agent did something worth a chip: read a file, ran a command. <c>Detail</c> is already a phrase in
+    /// the person's language — an internal tool name on screen makes the product look like a debugger.
+    /// </summary>
+    Activity,
 
-    /// <summary>A tool answered. <c>Detail</c> is what to show; failures are results too, not errors.</summary>
-    ToolResult,
-
-    /// <summary>The agent is asking the person something and the run is now waiting. See <c>QuestionToolkit</c>.</summary>
-    QuestionAsked,
-
-    /// <summary>The question was answered — emitted so a replay shows it resolved rather than pending.</summary>
-    QuestionAnswered,
+    /// <summary>A file was written. <c>Detail</c> is its path, relative to the site's root.</summary>
+    FileChanged,
 
     /// <summary>
-    /// The turn committed a new version. Carries the version nanoid, so the editor can refresh the preview
-    /// and the history without polling.
+    /// A slow step before the agent can start: starting a sandbox, installing dependencies, waiting for the
+    /// dev server. The one place this product makes somebody wait, so it says what it is doing.
+    /// </summary>
+    WorkspaceProgress,
+
+    /// <summary>
+    /// The turn committed a new version. Carries the version nanoid, so the editor can refresh the preview and
+    /// the history without polling.
     /// </summary>
     VersionCommitted,
+
+    /// <summary>
+    /// The dev server is not compiling after the turn. <c>Detail</c> is the error, as Next.js wrote it: this is
+    /// what the person shows the agent in the next message, and it is why it is surfaced rather than logged.
+    /// </summary>
+    BuildFailed,
 
     /// <summary>A deployment changed status. <c>Detail</c> is the status name.</summary>
     DeploymentProgress,
@@ -50,18 +59,14 @@ public record RunEvent
     public required RunEventType Type { get; init; }
 
     public string? Text { get; init; }
-    public string? Tool { get; init; }
+
+    /// <summary>A phrase, a path, a status — whatever the event type says it is.</summary>
     public string? Detail { get; init; }
+
     public string? Error { get; init; }
 
     /// <summary>Set on <see cref="RunEventType.VersionCommitted"/>.</summary>
     public string? VersionNanoid { get; init; }
-
-    /// <summary>Set on the question events, so an answer can be routed back to the tool that is waiting.</summary>
-    public string? QuestionId { get; init; }
-
-    /// <summary>The options offered with a question, when it has any.</summary>
-    public IReadOnlyList<string> Options { get; init; } = [];
 
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }

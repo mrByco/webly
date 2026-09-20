@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between gap-2 border-b border-base-300 px-3 py-2">
     <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
       <app-icon class="size-3.5" name="eye" />
-      Preview{{ version() ? ' · earlier version' : '' }}
+      Preview
     </p>
 
     <div class="join">
@@ -36,11 +36,30 @@
     the wrong points and the preview would be lying about the one thing people check it for.
   -->
   <div class="flex min-h-0 flex-1 justify-center overflow-hidden p-3">
-    <iframe
-      class="h-full w-full rounded-box border border-base-300 bg-base-100 shadow-sm"
-      title="Site preview"
-      [class.max-w-96]="width() === 'phone'"
-      [class.max-w-3xl]="width() === 'tablet'"
-      [src]="url()"></iframe>
+    @if (ready()) {
+      <iframe
+        class="h-full w-full rounded-box border border-base-300 bg-base-100 shadow-sm"
+        title="Site preview"
+        [class.max-w-96]="width() === 'phone'"
+        [class.max-w-3xl]="width() === 'tablet'"
+        [src]="url()"></iframe>
+    } @else {
+      <!-- Cold, or starting. Said in a sentence rather than left as a frame that cannot load. -->
+      <div class="flex flex-col items-center justify-center gap-2 px-6 text-center">
+        @if (progress()) {
+          <span class="loading loading-spinner loading-md text-primary"></span>
+          <p class="text-sm font-semibold">{{ progress() }}</p>
+          <p class="max-w-xs text-xs text-base-content/60">
+            Your site runs on its own machine. Starting one takes a moment; it stays warm while you work.
+          </p>
+        } @else {
+          <app-icon class="size-7 text-base-content/40" name="eye" />
+          <p class="text-sm font-semibold">Your preview is asleep</p>
+          <p class="max-w-xs text-xs text-base-content/60">
+            Send a message and it wakes up with your site running in it.
+          </p>
+        }
+      </div>
+    }
   </div>
 </div>

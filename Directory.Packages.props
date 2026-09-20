@@ -8,16 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The agent framework. Pinned to the versions the reference project (auto-grader) runs, so that the two speak the
-         same API surface and a lesson learned in one transfers to the other. The Anthropic adapter is a preview
-         package; that is upstream's state, not a choice. -->
-    <PackageVersion Include="Microsoft.Agents.AI" Version="1.9.0" />
-    <PackageVersion Include="Microsoft.Agents.AI.Anthropic" Version="1.9.0-preview.260603.1" />
-    <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.9.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.6.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.6.0" />
-    <PackageVersion Include="Anthropic" Version="12.24.1" />
-    <PackageVersion Include="OpenAI" Version="2.10.0" />
+    <!-- No model SDK, on purpose. Webly runs coding agents as CLIs inside sandboxes (see docs/agent-plan.md), so
+         nothing in this solution calls a model API: the agent's harness is the agent's own, and the only thing
+         crossing our boundary is its stdout. -->
 
     <PackageVersion Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.11" />

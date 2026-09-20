@@ -11,11 +11,14 @@ public enum DeploymentStatus
     /// <summary>Written, not yet leased by the job runner.</summary>
     Queued,
 
-    /// <summary>The document is being rendered to files, before anything is uploaded.</summary>
-    Rendering,
+    /// <summary>A sandbox is starting and the commit's tree is being installed into it.</summary>
+    Preparing,
 
-    /// <summary>Files handed to the provider; the provider is finishing the deployment.</summary>
-    Uploading,
+    /// <summary>
+    /// <c>next build</c> is running, and then the upload. One status for both because they are one command's
+    /// worth of waiting from the person's point of view, and splitting them would mean a status that flickers.
+    /// </summary>
+    Building,
 
     /// <summary>Live. This is the only status that moves <c>Site.PublishedVersionId</c>.</summary>
     Ready,

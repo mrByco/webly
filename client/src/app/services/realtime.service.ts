@@ -12,11 +12,11 @@ export type RunKind = 'Chat' | 'Deploy';
 export type RunEventType =
   | 'TextDelta'
   | 'MessageCompleted'
-  | 'ToolCall'
-  | 'ToolResult'
-  | 'QuestionAsked'
-  | 'QuestionAnswered'
+  | 'Activity'
+  | 'FileChanged'
+  | 'WorkspaceProgress'
   | 'VersionCommitted'
+  | 'BuildFailed'
   | 'DeploymentProgress'
   | 'Completed'
   | 'Failed';
@@ -24,12 +24,10 @@ export type RunEventType =
 export interface RunEvent {
   type: RunEventType;
   text?: string | null;
-  tool?: string | null;
+  /** A phrase, a path or a status — whatever the event type says it is. */
   detail?: string | null;
   error?: string | null;
   versionNanoid?: string | null;
-  questionId?: string | null;
-  options?: string[];
   createdAt: string;
 }
 
@@ -87,8 +85,8 @@ export class RealtimeService {
     const hub = await this.ensureConnected();
 
     const started = await hub.invoke<{ runId: string; conversationNanoid?: string | null }>('StartChat', {
+      siteNanoid,
       message,
-      args: { __type: 'SiteEditorAgentArgs', siteNanoid },
     });
 
     return started.runId;
@@ -134,12 +132,6 @@ export class RealtimeService {
   async cancel(runId: string): Promise<void> {
     const hub = await this.ensureConnected();
     await hub.invoke('Cancel', runId);
-  }
-
-  /** Answers a question the agent asked. See `QuestionToolkit` on the backend. */
-  async answer(runId: string, questionId: string, answer: string): Promise<void> {
-    const hub = await this.ensureConnected();
-    await hub.invoke('Answer', runId, questionId, answer);
   }
 
   /** The live run for a conversation or deployment, for a page that has lost the run id to a reload. */

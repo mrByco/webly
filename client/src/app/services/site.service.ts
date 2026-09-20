@@ -8,25 +8,26 @@ import { apiSitesNanoidOpenPost } from '../api/fn/site/api-sites-nanoid-open-pos
 import { apiSitesNanoidDelete } from '../api/fn/site/api-sites-nanoid-delete';
 import { apiSitesNanoidVersionsGet$Json } from '../api/fn/site/api-sites-nanoid-versions-get-json';
 import { apiSitesNanoidVersionsVersionNanoidGet$Json } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-get-json';
+import { apiSitesNanoidVersionsVersionNanoidDiffGet$Plain } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-diff-get-plain';
 import { apiSitesNanoidVersionsVersionNanoidRestorePost$Json } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-restore-post-json';
-import { apiSitesNanoidSectionsPost$Json } from '../api/fn/site/api-sites-nanoid-sections-post-json';
-import { apiSitesCatalogueGet$Json } from '../api/fn/site/api-sites-catalogue-get-json';
-import { SectionSchemaResponse } from '../api/models/section-schema-response';
+import { apiSitesNanoidFilesGet$Json } from '../api/fn/site/api-sites-nanoid-files-get-json';
+import { apiSitesNanoidFileGet$Json } from '../api/fn/site/api-sites-nanoid-file-get-json';
 import { SiteDetailResponse } from '../api/models/site-detail-response';
+import { SiteFileEntryResponse } from '../api/models/site-file-entry-response';
+import { SiteFileResponse } from '../api/models/site-file-response';
 import { SiteSummaryResponse } from '../api/models/site-summary-response';
 import { SiteVersionResponse } from '../api/models/site-version-response';
 
 /**
- * Sites, their versions and their sections.
+ * Sites, their history and their source.
  *
- * The section catalogue is cached for the lifetime of the tab: it changes when Webly is deployed, not
- * while somebody is editing, and the property editor asks for it every time a section is selected.
+ * There is no "edit" method here and there is not meant to be one. A site's content is source code in a git
+ * repository, and the only thing that writes it is an agent turn over the hub — so this service reads: the
+ * site, its commits, a diff, a file. See `docs/domain-plan.md`.
  */
 @Injectable({ providedIn: 'root' })
 export class SiteService {
   private readonly api = inject(Api);
-
-  private catalogue?: Promise<SectionSchemaResponse[]>;
 
   /**
    * The site the editor is showing. Held here rather than in the page so that the chat, the preview
@@ -81,6 +82,11 @@ export class SiteService {
     return this.api.invoke(apiSitesNanoidVersionsVersionNanoidGet$Json, { nanoid, versionNanoid });
   }
 
+  /** What one version changed, as a unified diff. Text, because that is what a diff is. */
+  diff(nanoid: string, versionNanoid: string): Promise<string> {
+    return this.api.invoke(apiSitesNanoidVersionsVersionNanoidDiffGet$Plain, { nanoid, versionNanoid });
+  }
+
   async restore(nanoid: string, versionNanoid: string): Promise<SiteVersionResponse> {
     const version = await this.api.invoke(apiSitesNanoidVersionsVersionNanoidRestorePost$Json, {
       nanoid,
@@ -92,44 +98,24 @@ export class SiteService {
     return version;
   }
 
-  /**
-   * A hand edit. `props` is a patch: only the fields it names change, which is what lets the property
-   * editor send one field on blur without resending a document it may have read before the agent's
-   * last turn.
-   */
-  async editSection(
-    nanoid: string,
-    sectionId: string,
-    props: Record<string, unknown>,
-  ): Promise<SiteVersionResponse> {
-    const version = await this.api.invoke(apiSitesNanoidSectionsPost$Json, {
-      nanoid,
-      body: { sectionId, props },
-    });
-
-    await this.reload();
-
-    return version;
+  /** The site's files at a commit, or at the head when no version is named. */
+  files(nanoid: string, version?: string): Promise<SiteFileEntryResponse[]> {
+    return this.api.invoke(apiSitesNanoidFilesGet$Json, { nanoid, version });
   }
 
-  sectionCatalogue(): Promise<SectionSchemaResponse[]> {
-    return (this.catalogue ??= this.api.invoke(apiSitesCatalogueGet$Json));
+  file(nanoid: string, path: string, version?: string): Promise<SiteFileResponse> {
+    return this.api.invoke(apiSitesNanoidFileGet$Json, { nanoid, path, version });
   }
 
   /**
-   * The preview URL for a page of a version, or of the draft when no version is named.
+   * The preview's base URL — this origin, proxied to the site's own `next dev`.
    *
-   * Built here because it is the one URL in the app that is not a call through the generated client:
-   * the iframe loads it itself, and it is served by the same renderer that publishes the site — see
-   * `PreviewSite` on the backend. Same origin, so the session cookie goes with it.
+   * Built here rather than through the generated client because the iframe loads it itself, and because
+   * everything under it is loaded by the page inside the frame: its chunks, its fonts and its hot-reload
+   * socket all resolve relative to this path. The trailing slash is therefore load-bearing. Same origin,
+   * so the session cookie goes with it and the sandbox's own address never reaches the browser.
    */
-  previewUrl(nanoid: string, page = '/', version?: string): string {
-    const query = new URLSearchParams({ page });
-
-    if (version) {
-      query.set('version', version);
-    }
-
-    return `/api/sites/${encodeURIComponent(nanoid)}/preview?${query.toString()}`;
+  previewUrl(nanoid: string): string {
+    return `/api/sites/${encodeURIComponent(nanoid)}/preview/`;
   }
 }

@@ -21,6 +21,6 @@ public class GetSiteVersion(ISiteRepository siteRepository, ISiteVersionReposito
 
         if (version is null) return Result<SiteError, SiteVersionResponse>.Fail(SiteError.VersionNotFound);
 
-        return Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(version, site, includeDocument: true));
+        return Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(version, site));
     }
 }

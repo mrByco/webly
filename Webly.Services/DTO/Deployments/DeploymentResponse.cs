@@ -16,6 +16,9 @@ public record DeploymentResponse
 
     public string? Error { get; init; }
 
+    /// <summary>The build log's tail, for the disclosure under a failed deployment.</summary>
+    public string? ErrorDetail { get; init; }
+
     public required DateTime CreatedAt { get; init; }
     public DateTime? FinishedAt { get; init; }
 }

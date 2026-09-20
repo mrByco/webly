@@ -14,9 +14,18 @@ public enum SiteError
     /// <summary>A name that is only whitespace, or longer than a name should be.</summary>
     InvalidName,
 
-    /// <summary>The version named for a restore does not belong to this site.</summary>
+    /// <summary>The version named does not belong to this site.</summary>
     VersionNotFound,
 
-    /// <summary>The edit would have produced an invalid document; the problems say why.</summary>
-    InvalidDocument
+    /// <summary>The file named is not in that commit.</summary>
+    FileNotFound,
+
+    /// <summary>The repository refused — a tree too large, a git failure. The detail says which.</summary>
+    RepositoryFailed,
+
+    /// <summary>
+    /// No workspace could be started, so nothing can be edited or previewed right now. A capacity or
+    /// configuration problem, never the person's fault, and the message says so.
+    /// </summary>
+    WorkspaceUnavailable
 }

@@ -7,7 +7,14 @@ client/
 sample-projects/
 design/
 ds-bundle/
-tools/
+
+# tools/ is not excluded wholesale: deploy/sandbox/Dockerfile builds from this same context and the
+# sandbox agent lives in tools/sandbox-agent. Only the dev-only MCP server is dropped.
+tools/dev-mcp/
+
+# templates/ is deliberately NOT excluded. Both images need it: the API creates a site's first commit
+# from the template's files, and the sandbox image pre-installs its dependencies. The 370 MB of
+# node_modules under it is handled by the **/node_modules/ rule below.
 
 **/bin/
 **/obj/

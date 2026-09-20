@@ -23,7 +23,7 @@
               <span class="flex items-center gap-2">
                 <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ version.summary }}</span>
 
-                @if (version.isDraft) {
+                @if (version.isHead) {
                   <span class="badge badge-sm badge-primary">Current</span>
                 } @else if (version.isPublished) {
                   <span class="badge badge-sm badge-success">Live</span>
@@ -34,14 +34,18 @@
                 {{ version.createdAt | date: 'd MMM, HH:mm' }} ·
                 @switch (version.origin) {
                   @case ('Agent') { asked for }
-                  @case ('Manual') { edited by hand }
                   @case ('Restore') { restored }
                   @default { created }
                 }
+                ·
+                {{ version.changedFileCount }}
+                {{ version.changedFileCount === 1 ? 'file' : 'files' }}
+                ·
+                <span class="font-mono">{{ shortSha(version.commitSha) }}</span>
               </span>
             </button>
 
-            @if (!version.isDraft) {
+            @if (!version.isHead) {
               <button class="btn btn-xs mt-2" type="button" [disabled]="restoring()" (click)="restore(version)">
                 <app-icon class="size-3.5" name="restore" />
                 Bring this back
@@ -53,13 +57,30 @@
     }
   </div>
 
-  <!-- The same renderer the deployment uses, pointed at an older version. See SitePreview. -->
-  <div class="flex min-h-0 flex-1 flex-col">
+  <!-- What the selected version changed. See the class comment for why this is a diff and not a preview. -->
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-base-200">
     @if (selected(); as version) {
-      <app-site-preview
-        [siteNanoid]="siteNanoid"
-        [version]="version.isDraft ? undefined : version.nanoid"
-        [reloadKey]="0" />
+      <div class="flex flex-col gap-1 border-b border-base-300 px-4 py-3">
+        <p class="flex items-center gap-2 text-sm font-semibold">
+          <app-icon class="size-4 text-base-content/55" name="code" />
+          {{ version.summary }}
+        </p>
+
+        @if (version.details) {
+          <p class="text-xs whitespace-pre-wrap text-base-content/65">{{ version.details }}</p>
+        }
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
+        @if (loadingDiff()) {
+          <p class="text-sm text-base-content/60">Loading what changed…</p>
+        } @else if (diffLines().length) {
+          <pre class="font-mono text-[0.7rem] leading-relaxed"><code>@for (line of diffLines(); track $index) {<span
+            class="block" [class]="classOf(line)">{{ line }}</span>}</code></pre>
+        } @else if (diff() !== undefined) {
+          <p class="text-sm text-base-content/60">This is where the site started.</p>
+        }
+      </div>
     }
   </div>
 </div>

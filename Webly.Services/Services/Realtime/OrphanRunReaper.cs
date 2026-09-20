@@ -22,8 +22,9 @@ public class OrphanRunReaper(RunRegistry registry, ILogger<OrphanRunReaper> logg
     private static readonly TimeSpan OrphanGrace = TimeSpan.FromMinutes(2);
 
     /// <summary>
-    /// Generous, because a turn may sit waiting for an answer to a question — a person reading a question is a
-    /// subscriber, so the orphan clock does not cover them and only this cap does.
+    /// Generous, because a turn is a coding agent working through a real project: installing a package, waiting for
+    /// a dev server to compile, reading its own mistake and fixing it. A watched run of that shape is not orphaned,
+    /// so the grace above does not cover it and only this cap does.
     /// </summary>
     private static readonly TimeSpan MaxLifetime = TimeSpan.FromMinutes(30);
 

@@ -84,12 +84,6 @@ public sealed class RunHandle
         }
     }
 
-    /// <summary>
-    /// Questions the agent is waiting on answers to, by question id. On the handle rather than in a service,
-    /// because a pending question belongs to exactly one run and dies with it — see <c>QuestionToolkit</c>.
-    /// </summary>
-    internal ConcurrentDictionary<string, TaskCompletionSource<string>> PendingQuestions { get; } = new();
-
     /// <summary>When the run finished, if it has. A completed handle lingers so that a client which reconnects
     /// a few seconds late still gets the whole story instead of "no such run".</summary>
     public DateTime? FinishedAt { get; internal set; }
@@ -166,18 +160,5 @@ public sealed class RunRegistry
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Routes an answer to the question a run is waiting on. Returns false for an unknown run, an unknown
-    /// question, or somebody else's — again, one answer for all three.
-    /// </summary>
-    public bool TryAnswer(string runId, string questionId, string answer, int byUserId)
-    {
-        if (!_runs.TryGetValue(runId, out var handle)) return false;
-        if (handle.UserId != byUserId) return false;
-
-        return handle.PendingQuestions.TryRemove(questionId, out var pending)
-            && pending.TrySetResult(answer);
     }
 }

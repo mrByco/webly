@@ -17,6 +17,11 @@ obj/
 # Node (client/ and tools/dev-mcp/ have their own, this catches the rest)
 node_modules/
 
+# Build output of the site template. The template's own lockfile IS committed: every site installs from it,
+# and the sandbox image prebakes exactly those dependencies so a cold workspace does not npm install.
+templates/*/.next/
+templates/*/out/
+
 # Playwright MCP scratch output (snapshots, console logs, screenshots)
 .playwright-mcp/
 

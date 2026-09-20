@@ -12,11 +12,6 @@
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <PackageReference Include="Nanoid" />
     <PackageReference Include="System.Threading.RateLimiting" />
-    <!-- The agent's own surface. The provider SDKs are deliberately *not* here: the keyed IChatClient registrations
-         live in Webly.Api, so this assembly knows how to build an agent and nothing about who serves it. -->
-    <PackageReference Include="Microsoft.Agents.AI" />
-    <PackageReference Include="Microsoft.Extensions.AI" />
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

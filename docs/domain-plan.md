@@ -1,110 +1,145 @@
-# The domain: sites, documents, versions
+# The domain: sites, source, versions
 
-The long form of the decisions `CLAUDE.md` states in a paragraph each. Read this before changing the
-shape of a site, a version or a section.
+The long form of the decisions `CLAUDE.md` states in a paragraph each. Read this before changing the shape
+of a site, a version or the repository layer.
 
-## 1. Why a structured document rather than generated source
+## 1. Why real source rather than a structured document
 
-The obvious build of "an AI that makes websites" is an agent that writes HTML — or Astro, or JSX — into
-files, and a provider that builds them. Webly does not, and this is the decision everything else hangs
-off.
+There are two ways to build "an AI that makes websites", and Webly has been both.
 
-What a pile of model-written source costs:
+The first is a **structured document**: a closed catalogue of section types, a jsonb document validated
+against it, a renderer that turns it into HTML. Everything is validatable, nothing can fail to build, and a
+property editor can be generated from the same schema the agent writes against. It was built here first,
+and the argument for it is still a good one.
 
-- **Nobody can edit it but the model.** The product promises "without touching a single line of code",
-  which means a person must be able to change a headline in a form. A form over arbitrary HTML is a
-  rich-text editor that loses the layout, or a code editor with a different promise.
-- **Nothing can be validated.** A missing closing tag, a broken class name, an image URL that 404s, a
-  page that no longer fits a phone — all of them are discovered by a visitor. A schema-checked document
-  is refused at the write.
-- **Every deploy becomes "did the model break the build".** A build log is exactly the artefact this
-  product exists to hide.
-- **Diffs are unreadable.** "Version 12 changed 400 lines" is not a history a shop owner can use.
+The second — what Webly is now — is **a real Next.js project per site**, edited by a coding agent. The
+trade is deliberate and it is worth stating both halves.
 
-What the structured document costs instead: a closed catalogue. The agent can only build from sections
-that exist. That is a real limit, and it is the right one — a catalogue entry is designed once, is
-responsive, is accessible, renders in both themes, and is editable by hand afterwards. Nothing the model
-produces can be less good than the catalogue.
+What the document model gave up, and why it mattered more than the safety:
+
+- **The catalogue is the ceiling.** "Can you put the menu in two columns with the prices right-aligned" is
+  either a section type somebody designs and ships, or a no. Every customer request that is not in the
+  catalogue is a feature request against Webly, and a product whose extension point is our sprint is not
+  self-service.
+- **The agent's best skill was unused.** A coding agent that can write a React component was reduced to
+  filling in props on a hero. The model that makes this product possible is a model that writes code, and
+  the document model was there to stop it doing that.
+- **Nobody could leave.** A site expressed only in our jsonb is a site that exists only while Webly does.
+  A git repository full of Next.js is a thing a customer can be handed.
+- **It was a renderer to maintain for ever.** Six section renderers, a theme-to-CSS compiler, an escaping
+  layer, and a rule that the renderer may not read a clock. All of it our code, all of it in the path of
+  every page anybody ever sees.
+
+What real source costs, and how each cost is paid:
+
+| Cost | How it is handled |
+|---|---|
+| The model can break the build | The dev server compiles while the agent works and the errors go into the turn; `vercel build` runs before a publish and a failure blocks it (`DeploymentJobRunner`). A broken site cannot go live. |
+| Nobody can edit it in a form | Nobody is asked to. The chat is the editor; the source is readable (`GET /api/sites/{id}/files`) but never something the customer has to touch. |
+| A diff is not a history a shop owner reads | The history shows the agent's own sentence per version, with the file count. The diff is there for the person who wants it. |
+| The agent needs a filesystem, node and a network | One sandbox per open site, warm while somebody is editing. This is the real price: a warm machine per active editor, billed by the second. `docs/agent-plan.md` §3. |
+| An agent could write anything anywhere | It writes in a sandbox with the site's files and a model key, and nothing else — no database, no provider token, no git credential. The commit is made on our side from the tree that comes back. |
+
+**The section catalogue, the renderer, `SiteDraft` and the document model are gone from the repository,
+not deprecated in it.** If the argument in this section is ever reversed, the reversal starts from git
+history rather than from dead code, and the pivot commit is where to look.
 
 ## 2. The shape
 
-```
-SiteDocument
-├── schemaVersion        so a future restructure has something to switch on
-├── theme                one brand colour, mode, font pairing, radius, density
-├── navigation           header, footer, one primary action, footer note
-└── pages[]
-    ├── id               stable across renames, so links survive them
-    ├── path             "/", "/about" — unique per document
-    ├── title, seo
-    └── sections[]
-        ├── id           stable, so a tool call can name it after its neighbours moved
-        ├── type         SectionType, a closed enum
-        ├── props        a JSON object, validated against the type's schema
-        └── hidden
-```
-
-Three things to notice, each of which is a rule stated once in code:
-
-- **Nothing is duplicated.** The home page is the one whose path is `/` (no `isHome` flag). A page's
-  order in the array is its order (no sort field). A link names a page by id *or* a URL, never both.
-- **Props are untyped C# and schema-checked.** `SectionCatalogue` declares the fields; the validator, the
-  agent's instructions, the client's property editor and the renderer's template all read that one
-  declaration. The reference project (auto-grader) has typed payload classes instead and records the
-  result in its own notes: a block type spanning five registration points, where missing one is a blank
-  space on a page.
-- **Images are URLs in this slice.** `SectionFieldKind.Image` validates an https URL, and the renderer
-  resolves every image through one method so that an owned asset store (MASTER_PLAN P5) is one method
-  body rather than a change to six templates.
-
-## 3. Versioning
+A site is three things: a row, a bare git repository, and — while somebody is editing — a sandbox.
 
 ```
-Site ──DraftVersionId──────► SiteVersion ──ParentVersionId──► SiteVersion ──► … ──► (first)
-     └─PublishedVersionId──► SiteVersion
+Site (row)                          .run/repositories/{nanoid}.git      sandbox (ephemeral)
+├── Nanoid, Name, Slug              refs/heads/main ──► commit ──► …    /workspace  (the tree)
+├── DefaultBranch  "main"                                               next dev    (the preview)
+├── HeadVersionId ─────► SiteVersion (CommitSha, Summary, Origin, …)     claude/opencode (the turn)
+├── PublishedVersionId ► SiteVersion
+└── ProviderProjectId
 ```
 
-- **Every accepted change appends a version.** There is no mutable working copy. One agent turn is one
-  version; one hand edit is one version; a restore is one version.
-- **A version holds the whole document**, not a diff. A diff chain has to be replayed before anything can
-  be rendered, one bad entry poisons everything after it, and the thing a person wants ("what did my site
-  look like on Tuesday") is the snapshot. A document is a few kilobytes of jsonb.
-- **Two pointers, not a snapshot plus a flag.** `HasUnpublishedChanges` is `PublishedVersionId !=
-  DraftVersionId`, computed in the mapper. A boolean beside the pointers is a third fact that can
-  disagree with both.
-- **`PublishedVersionId` moves only when a deployment succeeds.** A failed publish leaves the previous
-  version live and says so.
-- **Restore copies forward.** Repointing the draft at an older version would make the intervening history
-  unreachable, which is the one thing a version-control feature must never do. Restoring is itself an
-  edit: it appears in the history, and undoing an undo is the same operation again.
+The repository's contents are the template's shape, and the agent works inside it:
+
+```
+package.json, next.config.ts, tsconfig.json, postcss.config.mjs
+AGENTS.md          the standing rules: never invent a fact, keep the build working, stay in the stack
+CLAUDE.md          points at AGENTS.md, so both CLIs read the same instructions
+content/brand.md   facts about this business that somebody actually confirmed
+src/app/           layout.tsx, page.tsx, globals.css
+src/components/    header, hero, features, cta, footer
+```
+
+Two of those files are the product, not scaffolding:
+
+- **`AGENTS.md` is the permission model's other half.** The tool list cannot express "do not write a
+  testimonial nobody gave you", and that is the rule this product most needs. It lives in the site's own
+  repository so both CLIs read it as part of the workspace, and so a rule added next month applies to
+  every existing site without a migration.
+- **`content/brand.md` is the memory.** A coding agent's session does not outlive a workspace, so a fact
+  the person mentioned in March has to be written down somewhere the next session reads. Rule 7 in
+  `AGENTS.md` is what makes that happen, and it is why the file is committed rather than kept in a table:
+  the agent can read and edit it with the same tools it uses for everything else.
+
+## 3. Versioning: a version is a commit
+
+```
+Site ──HeadVersionId───────► SiteVersion(sha=b) ──ParentVersionId──► SiteVersion(sha=a) ──► (first)
+     └─PublishedVersionId──► SiteVersion(sha=a)
+```
+
+Git already does immutable snapshots, parents, deduplicated storage and diffs better than a table can, so
+**nothing in the database duplicates the repository**: no file contents, no tree, no diff. The
+`SiteVersion` row is the index — a nanoid the API can address, which chat message asked for it, whether it
+was a restore, how many files it touched, and whether it is the head or the published one.
+
+- **Every accepted change appends a commit.** `CommitSiteVersion` is the only writer, and a second write
+  path would be a second definition of history.
+- **A turn that changed nothing commits nothing.** `GitSiteRepositoryStore.WriteTreeAndCommitAsync`
+  compares the tree it built against the parent's and returns null when they are identical, so a turn that
+  answered a question in prose leaves no version behind. A history of "no changes" entries is not a
+  history.
+- **The agent never sees git.** The sandbox gets a working tree, not a clone. So it cannot rewrite history,
+  cannot force-push, cannot commit something Webly did not see, and needs no credential that could do any
+  of those. What comes back is a tar of the tree; Webly writes it as a commit with the person as author.
+- **Restore writes forward.** `RestoreSiteVersion` reads the old commit's tree and commits it as a new
+  commit on the branch. Moving the branch back would orphan the intervening history, which is the one
+  thing a version-control feature must never do; and undoing an undo is then the same operation again.
+- **`HasUnpublishedChanges` is computed** from the two pointers. A boolean beside them is a third fact that
+  can disagree with both.
+- **`PublishedVersionId` moves in exactly one place**, in `DeploymentJobRunner` after the provider reports
+  success. A failed publish leaves the previous version live and the email says so in its first line.
 - **A version links to the message that produced it** (`SourceMessageId`), and the message links back
   (`ProducedVersionId`). That pair is what makes the history read as the conversation that caused it.
 
+### The repository layer
+
+`ISiteRepositoryStore` is the only thing that touches git, and it drives the real binary — `hash-object`,
+`update-index`, `write-tree`, `commit-tree`, `update-ref`, `ls-tree`, `diff-tree` — rather than a managed
+reimplementation of the object format. Three things about it are deliberate:
+
+- **Plumbing, not porcelain.** There is no working copy on the API's side at all: a commit is built by
+  hashing blobs into a temporary index (`GIT_INDEX_FILE` per call) and writing a tree from it. So two
+  turns on two sites cannot collide over a checkout, and the API needs no disk beyond the bare repository.
+- **Arguments, never a shell.** Every call goes through `ProcessStartInfo.ArgumentList`. A site's nanoid
+  reaches a path, and a path that is concatenated into a command line is an injection waiting for the
+  first customer who tries.
+- **Paths are validated, not trusted.** `PathFor` refuses anything that is not `[A-Za-z0-9-_]{1,40}`, and
+  tree writes refuse absolute paths, `..` segments, and trees over the configured file-count and byte
+  limits. The tar arriving from a sandbox was assembled by a language model on a machine we do not own.
+
+`GitSiteRepositoryStoreTests` covers all of that against real git in a temporary directory — no Postgres,
+no Docker — because it is the one layer where being wrong loses somebody's website.
+
 ### What is deliberately absent
 
-- **Branches and merges.** A solo owner does not branch, and merging two documents needs conflict UX
-  nobody has asked for. If it ever lands, the chain is already a DAG in everything but enforcement.
-- **A version limit or pruning.** A thousand versions is smaller than one hero image.
+- **Branches and merges.** A solo owner does not branch. `Site.DefaultBranch` exists so that the day a
+  staging branch is wanted, the column is not a migration.
+- **Giving the customer the git URL.** It is their code and they should be able to have it, but a
+  read-write remote means somebody pushes a commit Webly never validated and the next agent turn starts
+  from it. An export (a tarball, or a push to their own GitHub) is the shape that lands first.
+- **A version limit or pruning.** Git deduplicates; a thousand versions of a text project is nothing.
 - **Tags or labels beyond `Summary` and `Origin`.** The history is read by scrolling, not by querying.
 
-## 4. Editing: one path for the agent and the person
-
-`SiteDraft` is the only way a document changes, whoever is changing it. It holds a clone, exposes the
-operations, and validates the whole document after each one — keeping the result only if it is still
-valid. Two invariants follow:
-
-1. **A draft is always valid.** A failed edit changes nothing and reports why, so the agent can fix its
-   own mistake on the next tool call rather than losing nine good edits at commit time.
-2. **A draft is never the persisted document.** It starts as a clone (deep, via JSON — `JsonNode`
-   remembers its parent, so a member-wise copy would either throw or alias the stored version's props),
-   so an abandoned turn, a cancelled run or a failed commit leaves the stored version untouched. Nothing
-   rolls back because nothing was written.
-
-`CommitSiteVersion` is the only writer. `EditSection` (hand edit), `RestoreSiteVersion` and
-`SiteEditSession` (the agent's turn) all end there, which is why a hand edit, an agent edit and a restore
-are validated by the same rules and appear in the same history.
-
-## 5. Ownership
+## 4. Ownership
 
 A `Site` has one `OwnerId`. There are no memberships, no roles and no owner column beside a role enum —
 the reference project spent real effort keeping `ownerSub` in step with an owner role and found families
@@ -112,32 +147,42 @@ with neither. `ISiteRepository.FindForOwnerAsync` is the single place the owners
 case starts from an already-authorised site and cannot express the check wrongly. Not yours reads as
 **404**, never 403: a 403 would confirm that a guessed nanoid names a real site.
 
-When collaboration lands, it is a membership table plus one clause inside `FindForOwnerAsync`, and
-nothing above it changes. That is the whole reason the check is in one query.
+That rule reaches further now than it did: the preview is a proxy into a running machine, so
+`PreviewController` re-checks ownership **per request** through the same method. A preview is not a public
+URL with a guessable id, and the sandbox's own address and token never leave the server.
 
-## 6. Publishing and hosting
+When collaboration lands, it is a membership table plus one clause inside `FindForOwnerAsync`, and nothing
+above it changes. That is the whole reason the check is in one query.
 
-- **Webly renders to bytes; the provider serves them.** No build step on the provider's side: a build can
-  fail for reasons the site's owner cannot see, and there is no code for them to fix it in. It also makes
-  a deployment reproducible, which is what makes a failed one safe to retry.
-- **One page per directory** (`/about/index.html`), so a static host serves clean URLs with no rewrite
-  rules — the part of static hosting that differs per provider, avoided.
-- **A deployment is a durable job**, unlike an agent turn: it changes the outside world and must survive
-  a restart, so its state is a row (`Deployment`) and that row is its own progress log.
-- **Domains are mirrored, never decided locally.** The provider owns DNS verification and the
-  certificate; a local "verified" flag it disagrees with is a site that is live according to us and 404
-  according to the internet.
+## 5. Publishing and hosting
+
+- **Webly builds; the provider serves.** `vercel build` runs in a sandbox and `vercel deploy --prebuilt`
+  uploads the result, so the build happens where we can read its log and hand it to the person — rather
+  than on the provider's side, where a failure is a page the site's owner cannot act on. It also means the
+  publish gate is real: a site that does not compile does not go live.
+- **A publish uses a fresh sandbox**, not the warm editing one. A build must not depend on whatever the
+  editing session left in `node_modules`, and `npm ci` against the committed lockfile is what makes a
+  failed deployment safe to retry.
+- **A deployment is a durable job**, unlike an agent turn: it changes the outside world and must survive a
+  restart, so its state is a row (`Deployment`) and its run id *is* that row's nanoid, which is what lets
+  a page reloaded mid-publish re-attach to something that outlived the process.
+- **Domains are mirrored, never decided locally.** The provider owns DNS verification and the certificate;
+  a local "verified" flag it disagrees with is a site that is live according to us and 404 according to the
+  internet.
 - **One primary hostname per site**, kept by a partial unique index. Two canonical hostnames split a
   site's search ranking in half.
 
-## 7. The next domain questions, in the order they will be asked
+## 6. The next domain questions, in the order they will be asked
 
-1. **Forms.** A contact section needs somewhere for submissions to go: a `FormSubmission` table, an
-   email, and spam handling. It is a slice, not a section type.
-2. **Assets.** Uploads, a blob store, image conversion and a resolver that tells a blob name from a URL.
-   `SectionFieldKind.Image` and the renderer's `ResolveImage` are the two seams it lands in.
-3. **More section types.** Gallery, Pricing, LogoCloud, Stats, Steps, Team, LocationMap — each four
-   edits, in one place each.
-4. **A second locale per site.** The document is a tree of text; a locale is a second tree, which is a
-   decision about whether pages or documents multiply. Do not guess it early.
-5. **Collaboration**, as above.
+1. **Export.** "It is your code" is only true if there is a button. A tarball of the head commit is an
+   afternoon; a push to the customer's own GitHub is the version people will actually want.
+2. **Forms.** A contact page needs somewhere for submissions to go. With real source this is no longer a
+   section type: it is a route handler the agent can write, plus a `FormSubmission` table and spam
+   handling on our side. Decide whether the submission endpoint is the site's or Webly's before writing
+   either.
+3. **Assets.** Uploads, a blob store, image conversion. The agent writes `<Image>` tags today against URLs
+   somebody pasted; a customer photographing their shop front is the next step, and the seam is a URL the
+   sandbox can fetch.
+4. **A second locale per site.** With real source this is the App Router's `[locale]` segment rather than
+   a second document tree, which is a much smaller decision than it was. Still do not guess it early.
+5. **Collaboration**, as in §4.

@@ -1,5 +1,3 @@
-using Webly.Services.Agent.Args;
-
 namespace Webly.Services.DTO.Chat;
 
 /// <summary>
@@ -8,8 +6,14 @@ namespace Webly.Services.DTO.Chat;
 /// </summary>
 public record SendMessageRequest
 {
+    public required string SiteNanoid { get; init; }
+
     public required string Message { get; init; }
 
-    /// <summary>Which agent, and in what scope. Polymorphic — see <see cref="BaseAgentArgs"/>.</summary>
-    public required BaseAgentArgs Args { get; init; }
+    /// <summary>
+    /// Which coding agent, when the person has a preference (<c>claude-code</c>, <c>opencode</c>). Null means
+    /// the deployment's default — which is the normal case: the product does not put this choice on screen, and
+    /// the field exists so that trying the other one is a request parameter rather than a deployment.
+    /// </summary>
+    public string? Agent { get; init; }
 }

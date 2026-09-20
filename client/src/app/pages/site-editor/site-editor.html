@@ -63,7 +63,11 @@
       -->
       <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
         <section class="flex min-h-0 basis-2/5 flex-col border-base-300 lg:max-w-md lg:border-r">
-          <app-site-chat [siteNanoid]="detail.summary.nanoid" (versionCommitted)="onVersionCommitted()" />
+          <app-site-chat
+            [siteNanoid]="detail.summary.nanoid"
+            (versionCommitted)="onVersionCommitted()"
+            (workspaceProgress)="onWorkspaceProgress($event)"
+            (turnFinished)="onTurnFinished()" />
         </section>
 
         <section class="flex min-h-0 flex-1 flex-col">
@@ -79,7 +83,11 @@
           <router-outlet #outlet="outlet" />
 
           @if (!outlet.isActivated) {
-            <app-site-preview [siteNanoid]="detail.summary.nanoid" [reloadKey]="previewKey()" />
+            <app-site-preview
+              [siteNanoid]="detail.summary.nanoid"
+              [ready]="workspaceReady()"
+              [progress]="workspaceProgress()"
+              [reloadKey]="previewKey()" />
           }
         </section>
       </div>

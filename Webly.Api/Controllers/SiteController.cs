@@ -1,17 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
 using Webly.Api.Extensions;
-using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
 using Webly.Services.UseCases.Sites;
 
 namespace Webly.Api.Controllers;
 
 /// <summary>
-/// Sites, their versions and their sections.
+/// Sites, their versions and their source.
 ///
-/// Versions live under a site rather than at their own root (<c>/api/sites/{nanoid}/versions/...</c>): a version has
-/// no meaning apart from its site, and a flat route would invite a lookup by version nanoid alone — which is exactly
-/// the shape that lets somebody read another account's history by guessing.
+/// Versions and files live under a site (<c>/api/sites/{nanoid}/versions/…</c>) rather than at their own root: a
+/// version has no meaning apart from its site, and a flat route would invite a lookup by version nanoid alone —
+/// which is exactly the shape that lets somebody read another account's history by guessing.
 /// </summary>
 [ApiController]
 [Route("api/sites")]
@@ -25,8 +24,7 @@ public class SiteController(
     ListSiteVersions listSiteVersions,
     GetSiteVersion getSiteVersion,
     RestoreSiteVersion restoreSiteVersion,
-    EditSection editSection,
-    PreviewSite previewSite) : ControllerBase
+    ReadSiteFiles readSiteFiles) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SiteSummaryResponse>>> List(CancellationToken cancellationToken) =>
@@ -85,7 +83,8 @@ public class SiteController(
         [FromQuery] int take,
         CancellationToken cancellationToken)
     {
-        var result = await listSiteVersions.ExecuteAsync(this.GetUserId(), nanoid, skip, take == 0 ? 50 : take, cancellationToken);
+        var result = await listSiteVersions.ExecuteAsync(
+            this.GetUserId(), nanoid, skip, take == 0 ? 50 : take, cancellationToken);
 
         return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
     }
@@ -102,8 +101,23 @@ public class SiteController(
     }
 
     /// <summary>
-    /// Restores an earlier version by copying it forward. A POST rather than a PUT on the site: it creates a version,
-    /// and the thing it creates is what it returns.
+    /// What one version changed, as a unified diff. Text rather than JSON: it is a diff, every client already
+    /// knows how to colour one, and wrapping it in a string field only to unwrap it costs a copy of it.
+    /// </summary>
+    [HttpGet("{nanoid}/versions/{versionNanoid}/diff")]
+    [Produces("text/plain")]
+    public async Task<IActionResult> Diff(string nanoid, string versionNanoid, CancellationToken cancellationToken)
+    {
+        var result = await readSiteFiles.DiffAsync(this.GetUserId(), nanoid, versionNanoid, cancellationToken);
+
+        return result.Succeeded
+            ? Content(result.Value!, "text/plain; charset=utf-8")
+            : Failure(result.Error, result.Detail);
+    }
+
+    /// <summary>
+    /// Restores an earlier version by writing its tree forward. A POST rather than a PUT on the site: it creates
+    /// a version, and the thing it creates is what it returns.
     /// </summary>
     [HttpPost("{nanoid}/versions/{versionNanoid}/restore")]
     public async Task<ActionResult<SiteVersionResponse>> Restore(
@@ -117,88 +131,63 @@ public class SiteController(
     }
 
     /// <summary>
-    /// A hand edit from the property editor. Returns the version it created, so the client's next edit patches the
-    /// document it can see rather than one it assumed.
+    /// The site's files at a commit — the head by default. The editor's code view reads this, because "you never
+    /// have to touch the code" is not "you are not allowed to see it".
     /// </summary>
-    [HttpPost("{nanoid}/sections")]
-    public async Task<ActionResult<SiteVersionResponse>> EditSection(
+    [HttpGet("{nanoid}/files")]
+    public async Task<ActionResult<IReadOnlyList<SiteFileEntryResponse>>> Files(
         string nanoid,
-        EditSectionRequest request,
+        [FromQuery] string? version,
         CancellationToken cancellationToken)
     {
-        var result = await editSection.ExecuteAsync(this.GetUserId(), nanoid, request, cancellationToken);
+        var result = await readSiteFiles.ListAsync(this.GetUserId(), nanoid, version, cancellationToken);
 
         return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
     }
 
     /// <summary>
-    /// The rendered HTML of one page, for the editor's preview iframe. Text rather than JSON, because the iframe loads
-    /// it directly — wrapping the page in a JSON string only to unwrap it into <c>srcdoc</c> would cost a copy of the
-    /// whole document and lose the browser's own caching.
-    ///
-    /// The stylesheet is linked absolutely here rather than relatively, because every page of a site is previewed from
-    /// this one URL — see <c>RenderContext.StylesheetUrl</c> — and <see cref="PreviewStylesheet"/> serves it.
+    /// One file. The path is a query parameter rather than part of the route, because a route with a
+    /// <c>{**path}</c> catch-all makes <c>src/app/page.tsx</c> ambiguous against the routes above it, and
+    /// escaping it per client is the kind of thing that works until somebody's file has a hash in its name.
     /// </summary>
-    [HttpGet("{nanoid}/preview")]
-    [Produces("text/html")]
-    public async Task<IActionResult> Preview(
+    [HttpGet("{nanoid}/file")]
+    public async Task<ActionResult<SiteFileResponse>> File(
         string nanoid,
-        [FromQuery] string? version,
-        [FromQuery] string? page,
-        CancellationToken cancellationToken)
-    {
-        var stylesheetUrl = Url.Action(nameof(PreviewStylesheet), new { nanoid, version });
-
-        var result = await previewSite.ExecuteAsync(
-            this.GetUserId(), nanoid, version, page ?? "/", stylesheetUrl, cancellationToken);
-
-        return result.Succeeded
-            ? Content(result.Value!, "text/html; charset=utf-8")
-            : Failure(result.Error, result.Detail);
-    }
-
-    /// <summary>The preview's stylesheet. See <see cref="Preview"/>.</summary>
-    [HttpGet("{nanoid}/preview.css")]
-    [Produces("text/css")]
-    public async Task<IActionResult> PreviewStylesheet(
-        string nanoid,
+        [FromQuery] string path,
         [FromQuery] string? version,
         CancellationToken cancellationToken)
     {
-        var result = await previewSite.StylesheetAsync(this.GetUserId(), nanoid, version, cancellationToken);
+        var result = await readSiteFiles.ReadAsync(this.GetUserId(), nanoid, path, version, cancellationToken);
 
-        return result.Succeeded
-            ? Content(result.Value!, "text/css; charset=utf-8")
-            : Failure(result.Error, result.Detail);
+        return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
     }
-
-    /// <summary>
-    /// The section catalogue. Anonymous would be harmless, but it is not public information either — it is the shape
-    /// of the product's editor, and there is no screen that needs it before sign-in.
-    /// </summary>
-    [HttpGet("catalogue")]
-    public ActionResult<IReadOnlyList<SectionSchemaResponse>> Catalogue() => Ok(SiteMapper.Catalogue());
 
     /// <summary>
     /// The one place a <see cref="SiteError"/> becomes a status code.
     ///
-    /// <c>NotFound</c> answers 404 for both "no such site" and "not yours" — a 403 would confirm that a guessed nanoid
-    /// names a real site, and a site's existence is its owner's business.
+    /// <c>NotFound</c> answers 404 for both "no such site" and "not yours" — a 403 would confirm that a guessed
+    /// nanoid names a real site, and a site's existence is its owner's business.
     /// </summary>
     private ActionResult Failure(SiteError error, string? detail = null) => error switch
     {
         SiteError.NotFound => NotFound(new ProblemDetails { Title = "That site could not be found." }),
         SiteError.VersionNotFound => NotFound(new ProblemDetails { Title = "That version could not be found." }),
+        SiteError.FileNotFound => NotFound(new ProblemDetails { Title = "That file is not in this version." }),
         SiteError.LimitReached => Conflict(new ProblemDetails
         {
             Title = "You have reached the number of sites your plan includes.",
             Detail = "Delete one you no longer need, or upgrade."
         }),
         SiteError.InvalidName => BadRequest(new ProblemDetails { Title = "A site needs a name of at most 80 characters." }),
-        SiteError.InvalidDocument => BadRequest(new ProblemDetails
+        SiteError.RepositoryFailed => StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
         {
-            Title = "That change would leave the site in a state it cannot be published from.",
+            Title = "Your site's history could not be read.",
             Detail = detail
+        }),
+        SiteError.WorkspaceUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
+        {
+            Title = "No build machine is available right now.",
+            Detail = "Your site is safe — try again in a moment."
         }),
         _ => BadRequest(new ProblemDetails { Title = "That request could not be completed." })
     };

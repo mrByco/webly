@@ -14,7 +14,10 @@ public enum DeployError
     /// </summary>
     PublishingUnavailable,
 
-    /// <summary>The site's document no longer renders. Should be impossible: the draft is validated on every
-    /// edit. It exists so that if it ever happens, the publish refuses instead of putting a broken page live.</summary>
-    InvalidDocument
+    /// <summary>
+    /// The site does not build. Discovered by the runner rather than here — the build is the gate, and it takes
+    /// minutes — so a publish reaches this only through a failed <c>Deployment</c> row, never as the answer to
+    /// the request.
+    /// </summary>
+    BuildFailed
 }

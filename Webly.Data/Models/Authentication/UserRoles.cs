@@ -10,10 +10,9 @@ namespace Webly.Data.Models.Authentication;
 public static class UserRoles
 {
     /// <summary>
-    /// Administers the platform: curates the starter templates and the section catalogue's
-    /// documentation, and may read a failed deployment's provider-side logs. Granted by
-    /// configuration (<c>Administrators:Emails</c>), never written by the app — see
-    /// <c>IAdminPolicy</c>.
+    /// Administers the platform: curates the site templates and the standing agent instructions they
+    /// carry, and may read a failed deployment's provider-side logs. Granted by configuration
+    /// (<c>Administrators:Emails</c>), never written by the app — see <c>IAdminPolicy</c>.
     /// </summary>
     public const string Admin = "admin";
 }

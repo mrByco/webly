@@ -40,10 +40,10 @@ public class PublishSite(
 
         if (site is null) return Result<DeployError, DeploymentResponse>.Fail(DeployError.SiteNotFound);
 
-        if (site.DraftVersionId is not { } draftVersionId || site.DraftVersion is null)
-            return Result<DeployError, DeploymentResponse>.Fail(DeployError.InvalidDocument);
+        if (site.HeadVersionId is not { } headVersionId || site.HeadVersion is null)
+            return Result<DeployError, DeploymentResponse>.Fail(DeployError.NothingToPublish);
 
-        if (site.PublishedVersionId == draftVersionId)
+        if (site.PublishedVersionId == headVersionId)
             return Result<DeployError, DeploymentResponse>.Fail(DeployError.NothingToPublish);
 
         if (await deployments.FindInFlightAsync(site.Id, cancellationToken) is { } inFlight)
@@ -56,7 +56,7 @@ public class PublishSite(
         var deployment = new Deployment
         {
             SiteId = site.Id,
-            SiteVersionId = draftVersionId,
+            SiteVersionId = headVersionId,
             Status = DeploymentStatus.Queued,
             TriggeredByUserId = userId
         };
@@ -65,6 +65,6 @@ public class PublishSite(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Result<DeployError, DeploymentResponse>.Ok(
-            DeploymentMapper.ToResponse(deployment, site.DraftVersion));
+            DeploymentMapper.ToResponse(deployment, site.HeadVersion));
     }
 }

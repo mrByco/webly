@@ -4,22 +4,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Webly.Services.Services.Rendering;
+using Webly.Services.Services.Sandboxes;
 
 namespace Webly.Services.Services.Deployments;
 
 /// <summary>
-/// Vercel, over its REST API.
+/// Vercel: its REST API for projects and domains, its CLI in the sandbox for builds and uploads.
 ///
-/// Files are uploaded <b>inline with the deployment</b> (base64 in the create call) rather than through the
-/// separate upload-and-reference flow. A rendered Webly site is a handful of HTML files and a stylesheet —
-/// tens of kilobytes — and the two-step flow exists for large build outputs. One call is one thing that can
-/// fail, and it makes a retry genuinely idempotent.
-///
-/// No framework and no build command: <c>projectSettings.framework = null</c> with an empty build step, so
-/// Vercel serves exactly the bytes we sent. That is the whole reason the renderer is ours — see
-/// <see cref="ISiteRenderer"/>. If a build ever runs on the provider's side, a deployment can fail for a
-/// reason the site's owner cannot see, and there is no code for them to fix it in.
+/// The split is the design. Projects and domains belong to Webly's account, so they are REST calls from this
+/// process with Webly's token. A build belongs to the site, so it happens in the sandbox the site was edited in
+/// — see <see cref="BuildAndDeployAsync"/>.
 ///
 /// <b>Unverified against the live API.</b> The endpoints and payload shapes below follow Vercel's documented
 /// v13/v10/v9 REST API, but nothing here has been run against the real service yet — see whats_next.md. The
@@ -47,8 +41,10 @@ public class VercelDeploymentTarget(
         var created = await SendAsync(HttpMethod.Post, "/v11/projects", new JsonObject
         {
             ["name"] = name,
-            // Explicitly null: with a framework set, Vercel infers a build, and there is nothing to build.
-            ["framework"] = null
+            // Named, although we build it ourselves: the project *is* a Next.js app, and a provider whose
+            // settings say otherwise is what makes a later support conversation — or a "deploy from git"
+            // migration — confusing for no reason.
+            ["framework"] = "nextjs"
         }, cancellationToken);
 
         return created?["id"]?.GetValue<string>()
@@ -57,54 +53,87 @@ public class VercelDeploymentTarget(
                 created?.ToJsonString());
     }
 
-    public async Task<DeploymentHandle> DeployAsync(
+    /// <summary>
+    /// Builds in the sandbox and uploads the output, both through the provider's CLI.
+    ///
+    /// <c>vercel build</c> then <c>vercel deploy --prebuilt</c>, rather than pushing source for the provider to
+    /// build. Three reasons, in order of how much they matter: the build failure is <b>ours</b>, so a site that
+    /// does not compile is never published and the log is something we can show; it builds in the same sandbox
+    /// the editing happened in, with the same dependencies, so a deploy cannot fail for an environment reason
+    /// the preview did not have; and it needs no git remote, which is the whole reason Webly can own the
+    /// repositories.
+    ///
+    /// The project link is written to <c>.vercel/project.json</c> rather than passed as flags: the CLI wants it
+    /// there, it is not secret (two ids), and it keeps the token out of an argument list that ends up in a
+    /// process table.
+    /// </summary>
+    public async Task<DeploymentHandle> BuildAndDeployAsync(
+        ISandbox sandbox,
         string projectId,
-        RenderedSite site,
+        Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
-        var files = new JsonArray();
+        var environment = new Dictionary<string, string> { ["VERCEL_TOKEN"] = _vercel.Token };
 
-        foreach (var file in site.Files)
-        {
-            files.Add(new JsonObject
-            {
-                ["file"] = file.Path,
-                ["data"] = Convert.ToBase64String(file.Content),
-                ["encoding"] = "base64"
-            });
-        }
+        if (_vercel.TeamId.Length > 0) environment["VERCEL_ORG_ID"] = _vercel.TeamId;
 
-        var payload = new JsonObject
-        {
-            ["name"] = projectId,
-            ["project"] = projectId,
-            ["target"] = "production",
-            ["files"] = files,
-            ["projectSettings"] = new JsonObject
-            {
-                ["framework"] = null,
-                ["buildCommand"] = null,
-                ["installCommand"] = null,
-                // The rendered files are already the output, so the output directory is the root.
-                ["outputDirectory"] = null
-            }
-        };
+        environment["VERCEL_PROJECT_ID"] = projectId;
 
-        var response = await SendAsync(HttpMethod.Post, "/v13/deployments", payload, cancellationToken)
-            ?? throw new DeploymentFailedException("Publishing failed before it started. Please try again.");
+        var link = await sandbox.RunAsync(
+            new SandboxCommand("sh", ["-c", "mkdir -p .vercel && printf '%s' \"$LINK\" > .vercel/project.json"],
+                TimeSpan.FromSeconds(30),
+                new Dictionary<string, string>
+                {
+                    ["LINK"] = $$"""{"projectId":"{{projectId}}","orgId":"{{_vercel.TeamId}}"}"""
+                }),
+            cancellationToken: cancellationToken);
 
-        var id = response["id"]?.GetValue<string>();
-        var url = response["url"]?.GetValue<string>();
+        if (!link.Succeeded)
+            throw new DeploymentFailedException("Publishing could not be prepared. Please try again.", link.Output);
 
-        if (id is null || url is null)
+        // `vercel`, not `npx vercel`: the sandbox image installs the CLI at a pinned version
+        // (deploy/sandbox/Dockerfile), and npx would either find that same binary on PATH or quietly fetch
+        // whatever is newest — a publish that works on Tuesday and not on Wednesday, with no diff to blame.
+        var build = await sandbox.RunAsync(
+            new SandboxCommand("vercel", ["build", "--prod", "--yes", "--token", _vercel.Token],
+                TimeSpan.FromMinutes(10), environment),
+            output => onOutput?.Invoke(output.Text) ?? Task.CompletedTask,
+            cancellationToken);
+
+        if (!build.Succeeded)
+            // The tail, not the whole log: the last lines are where the error is, and the whole thing is a
+            // megabyte of webpack. It reaches the deployment row, which is what the person is shown.
             throw new DeploymentFailedException(
-                "The hosting provider accepted the site but did not say where it is. Publishing again is safe.",
-                response.ToJsonString());
+                "Your site did not build, so nothing was published. The error is below — ask the assistant to fix it.",
+                Tail(build.Output));
 
-        // The API returns a bare hostname; everything downstream — the email, the history, the "open your
-        // site" link — wants something clickable.
-        return new DeploymentHandle(id, url.StartsWith("http") ? url : $"https://{url}");
+        var deploy = await sandbox.RunAsync(
+            new SandboxCommand("vercel",
+                ["deploy", "--prebuilt", "--prod", "--yes", "--token", _vercel.Token],
+                TimeSpan.FromMinutes(10), environment),
+            output => onOutput?.Invoke(output.Text) ?? Task.CompletedTask,
+            cancellationToken);
+
+        if (!deploy.Succeeded)
+            throw new DeploymentFailedException(
+                "Publishing failed on our hosting provider. Your live site is unchanged — please try again.",
+                Tail(deploy.Output));
+
+        // The CLI prints the deployment URL on its own line; the last URL it printed is the one it made.
+        var url = deploy.Output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .LastOrDefault(line => line.StartsWith("https://", StringComparison.Ordinal))
+            ?? throw new DeploymentFailedException(
+                "The site was uploaded but the provider did not say where. Publishing again is safe.",
+                Tail(deploy.Output));
+
+        // There is no deployment id in the CLI's output, and the URL identifies it well enough for everything
+        // Webly does with it: it is what "preview this old version" opens.
+        return new DeploymentHandle(url, url);
     }
+
+    private static string Tail(string output) => output.Length <= 4000 ? output : output[^4000..];
 
     public Task<DomainAttachment> AttachDomainAsync(
         string projectId,

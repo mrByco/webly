@@ -2,14 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NanoidDotNet;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Interfaces;
 using Webly.Data.Models.Sites;
-using Webly.Data.Models.Sites.Document;
 
 namespace Webly.Data;
 
@@ -93,8 +91,8 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.OwnerId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // The two pointers into the version chain. NoAction, and made DEFERRABLE INITIALLY
-            // DEFERRED by raw SQL in the migration — EF cannot express that.
+            // The two pointers into the commit index. NoAction, and made DEFERRABLE INITIALLY DEFERRED
+            // by raw SQL in the migration — EF cannot express that.
             //
             // They have to refuse a version that is still pointed at, and they do. But deleting a site
             // cascades its versions away *and* deletes the row holding these pointers, and Postgres
@@ -102,9 +100,9 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
             // whichever half ran second lost, and no site that had ever been published could be
             // deleted. WeblyDbContextTests.Deleting_a_user_removes_their_sites_and_everything_under_them
             // is the canary for this; do not change these behaviours without running it.
-            site.HasOne(x => x.DraftVersion)
+            site.HasOne(x => x.HeadVersion)
                 .WithMany()
-                .HasForeignKey(x => x.DraftVersionId)
+                .HasForeignKey(x => x.HeadVersionId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             site.HasOne(x => x.PublishedVersion)
@@ -120,18 +118,21 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
             // The history list: a site's versions, newest first.
             version.HasIndex(x => new { x.SiteId, x.CreatedAt });
 
-            version.Property(x => x.Origin).HasConversion<string>();
+            // One row per commit. Git guarantees the sha globally; this says so per site, which is the
+            // scope every query has — and it is what makes "record this commit" idempotent if a turn is
+            // retried after its commit landed but before its row did.
+            version.HasIndex(x => new { x.SiteId, x.CommitSha }).IsUnique();
 
-            version.Property(x => x.Document)
-                .HasColumnType("jsonb")
-                .HasConversion(DocumentConverter, DocumentComparer);
+            version.Property(x => x.CommitSha).HasMaxLength(40);
+
+            version.Property(x => x.Origin).HasConversion<string>();
 
             version.HasOne(x => x.Site)
                 .WithMany(x => x.Versions)
                 .HasForeignKey(x => x.SiteId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Deferred for the same reason as the site's pointers: the whole chain is deleted in one
+            // Deferred for the same reason as the site's pointers: the whole index is deleted in one
             // statement when a site goes, and a self-reference is checked per row.
             version.HasOne(x => x.ParentVersion)
                 .WithMany()
@@ -256,31 +257,6 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.NoAction);
         });
     }
-
-    /// <summary>
-    /// The site document, as jsonb. A value converter rather than <c>OwnsMany(...).ToJson()</c>: the
-    /// document is always read and written whole, its section props are deliberately an open JSON
-    /// object rather than a fixed shape, and one serializer configuration
-    /// (<see cref="SiteDocument.SerializerOptions"/>) shared with the renderer and the API is the whole
-    /// point — owned-entity JSON mapping would give EF its own opinion about the same bytes.
-    /// </summary>
-    private static readonly ValueConverter<SiteDocument, string> DocumentConverter = new(
-        document => JsonSerializer.Serialize(document, SiteDocument.SerializerOptions),
-        json => JsonSerializer.Deserialize<SiteDocument>(json, SiteDocument.SerializerOptions)!);
-
-    /// <summary>
-    /// Compares documents by their serialized form and snapshots them with a deep clone.
-    ///
-    /// Without a comparer EF compares the reference, so a mutation inside a loaded document would be
-    /// invisible to <c>SaveChanges</c>. Versions are insert-only, so that never matters for them today —
-    /// but the seam is exactly where the next person changes a draft in place and loses it silently,
-    /// which is a bug worth a few lines to make impossible.
-    /// </summary>
-    private static readonly ValueComparer<SiteDocument> DocumentComparer = new(
-        (left, right) => JsonSerializer.Serialize(left, SiteDocument.SerializerOptions)
-            == JsonSerializer.Serialize(right, SiteDocument.SerializerOptions),
-        document => JsonSerializer.Serialize(document, SiteDocument.SerializerOptions).GetHashCode(),
-        document => document.Clone());
 
     private static readonly ValueConverter<JsonArray?, string?> PartsConverter = new(
         parts => parts == null ? null : parts.ToJsonString(),

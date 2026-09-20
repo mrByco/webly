@@ -92,6 +92,47 @@ jobs:
           cache-from: type=gha,scope=webly-client
           cache-to: type=gha,mode=max,scope=webly-client
 
+  push_to_registry_sandbox:
+    name: Push Webly Sandbox Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: byc0/margareta
+
+      # One tag, not a dev one: this image contains nothing of Webly's — node, git, the agent CLIs,
+      # the sandbox agent and the template's dependencies — so there is no dev build of it to tell
+      # apart from a production build. The prod workflow deliberately does not rebuild it either.
+      #
+      # Context is the repository root because it carries two things from there: tools/sandbox-agent
+      # and templates/next-site's lockfile. See the Dockerfile.
+      - name: Build and push Webly Sandbox Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deploy/sandbox/Dockerfile
+          push: true
+          tags: byc0/margareta:webly_sandbox
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=webly-sandbox
+          cache-to: type=gha,mode=max,scope=webly-sandbox
+
   # Deploy to Portainer
   deployment_all:
     runs-on: ubuntu-latest
@@ -99,6 +140,10 @@ jobs:
     needs:
       - push_to_registry_api
       - push_to_registry_frontend
+      # The sandbox image is not in the stack — the sandbox provider starts it, not compose — but the
+      # deploy still waits for it: an API that has just learned a new agent flag must not be live
+      # before the image whose CLI understands it.
+      - push_to_registry_sandbox
     steps:
       # The webhook URL is a secret rather than a literal. It carries no authentication of its own,
       # so anyone holding it can redeploy the stack at will.

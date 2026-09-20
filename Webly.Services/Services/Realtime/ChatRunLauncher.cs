@@ -3,8 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NanoidDotNet;
 using Webly.Services.Agent;
-using Webly.Services.Agent.Args;
-using Webly.Services.Agent.Tools;
+using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
 
 namespace Webly.Services.Services.Realtime;
@@ -14,7 +13,7 @@ public record RunStarted(string RunId, string? ConversationNanoid);
 
 public interface IChatRunLauncher
 {
-    RunStarted Start(BaseAgentArgs args, string message, int userId);
+    RunStarted Start(SendMessageRequest request, int userId);
 }
 
 /// <summary>
@@ -22,9 +21,8 @@ public interface IChatRunLauncher
 /// for it: a scoped service would be disposed the moment <c>StartChat</c> returned, taking the DbContext the agent
 /// is still using with it.
 ///
-/// Each run therefore gets <b>its own DI scope</b>, which is also what makes the scoped
-/// <see cref="RunWriter"/>, <see cref="AgentRunContext"/> and <see cref="SiteEditSession"/> one-per-run rather than
-/// one-per-request — and what lets the turn keep a draft in memory across a dozen tool calls.
+/// Each run therefore gets <b>its own DI scope</b>, which is what makes the scoped <see cref="RunWriter"/> one per
+/// run rather than one per request, and what lets the turn hold a workspace lease for its whole length.
 ///
 /// It emits <b>exactly one terminal event on every exit path</b>, and nothing else in the codebase emits a terminal.
 /// A client that never receives one waits for ever with a spinner, and that is indistinguishable from the product
@@ -36,7 +34,7 @@ public class ChatRunLauncher(
     IHostApplicationLifetime lifetime,
     ILogger<ChatRunLauncher> logger) : IChatRunLauncher
 {
-    public RunStarted Start(BaseAgentArgs args, string message, int userId)
+    public RunStarted Start(SendMessageRequest request, int userId)
     {
         var runId = $"run_{Nanoid.Generate(size: 12)}";
 
@@ -44,12 +42,12 @@ public class ChatRunLauncher(
         // leave the client waiting for a terminal event that will never come.
         var handle = registry.Register(RunKind.Chat, runId, correlationId: null, userId, lifetime.ApplicationStopping);
 
-        _ = Task.Run(() => ExecuteAsync(runId, handle, args, message, userId));
+        _ = Task.Run(() => ExecuteAsync(runId, handle, request, userId));
 
         return new RunStarted(runId, null);
     }
 
-    private async Task ExecuteAsync(string runId, RunHandle handle, BaseAgentArgs args, string message, int userId)
+    private async Task ExecuteAsync(string runId, RunHandle handle, SendMessageRequest request, int userId)
     {
         using var scope = scopeFactory.CreateScope();
         var serviceProvider = scope.ServiceProvider;
@@ -60,11 +58,6 @@ public class ChatRunLauncher(
 
         writer.Bind(runId);
 
-        var context = serviceProvider.GetRequiredService<AgentRunContext>();
-        context.UserId = userId;
-        context.RunId = runId;
-        args.SetupScope(serviceProvider);
-
         var terminal = RunEventType.Completed;
         string? error = null;
 
@@ -73,13 +66,13 @@ public class ChatRunLauncher(
             // The conversation may not exist yet, so the run is registered without a correlation id and gets one
             // as soon as the turn knows it. Without this, a client that reloads mid-turn on a brand-new thread can
             // never re-attach — which is the whole reason the run outlives the socket.
-            handle.CorrelationId = await turn.RunAsync(args, message, userId, handle.Token);
+            handle.CorrelationId = await turn.RunAsync(request, userId, handle.Token);
         }
         catch (OperationCanceledException)
         {
             // Stop, the orphan reaper, or a shutdown. All three are "the turn ended early", and the client needs a
-            // terminal either way. Not Failed: nothing went wrong, and nothing was written — the draft is discarded
-            // with the scope.
+            // terminal either way. Not Failed: nothing went wrong, and nothing was committed — the sandbox's tree
+            // is replaced the next time the workspace is seeded.
             terminal = RunEventType.Completed;
             error = null;
             logger.LogInformation("Run {RunId} was cancelled.", runId);

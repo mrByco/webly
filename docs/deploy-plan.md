@@ -5,30 +5,43 @@
 ```
 PublishSite (endpoint)          writes a Deployment row, status Queued, and returns 202
         │
-DeploymentJobRunner (hosted)    leases it, and:
-        ├── Rendering           ISiteRenderer turns the version's document into bytes
-        ├── Uploading           IDeploymentTarget hands the bytes to the provider
+DeploymentJobRunner (hosted)    picks it up, and:
+        ├── Preparing           starts a FRESH sandbox, seeds the version's tree, `npm ci`
+        ├── Building            `vercel build --prod`, then `vercel deploy --prebuilt --prod`
         ├── Ready               Site.PublishedVersionId := the deployed version   ← the only place
-        └── Failed              Deployment.Error, previous version still live
+        └── Failed              Deployment.Error + ErrorDetail (the log's tail), previous version still live
 ```
 
 Progress is published on the realtime hub as a `Deploy` run **and** written to the row. The stream is for
-the person watching; the row is for the one who closed the tab, which is the case that makes a deployment
-a job rather than a request.
+the person watching; the row is for the one who closed the tab, which is the case that makes a deployment a
+job rather than a request.
 
-## 2. Why Webly renders
+## 2. Why Webly builds, in its own sandbox
 
-The alternative is pushing a repository and letting the provider build it. Rejected because:
+There are three places the build could happen, and the choice matters more than it looks.
 
-- A build on somebody else's machine can fail for reasons the site's owner cannot see, and there is no
-  code for them to fix it in. "Without touching a single line of code" has to mean there is no build log.
-- A render that is a pure function of (document, context) always produces the same bytes, which is what
-  makes a failed deployment safe to retry.
-- There is no repository to own, so there is no git account, no branch, no merge conflict and no
-  `.gitignore` in the product.
+**On the provider's side, from a pushed repository** — rejected. A build on somebody else's machine fails
+for reasons the site's owner cannot see, in a log we did not produce, on a page we do not control. It also
+means a git remote the provider can read, which is the one thing that would force Webly to hand a
+repository to a third party.
 
-So: `projectSettings.framework = null`, no build command, no install command, files uploaded inline with
-the deployment. Vercel serves exactly the bytes we sent.
+**In the warm editing sandbox** — rejected, though it is tempting. A build must not depend on whatever the
+editing session left behind: a package installed and then removed, a stale `.next`, a file the agent wrote
+after the commit. Building from the committed tree with `npm ci` against the committed lockfile is what
+makes a failed deployment safe to retry and a successful one reproducible.
+
+**In a fresh sandbox, seeded from the version being published** — what happens. It costs a machine start
+per publish, which is a minute somebody is watching a progress line for, and it buys the property the whole
+product rests on:
+
+> **A site that does not compile is never published.** The build failure is ours, before anything reaches
+> the provider, so the previous version keeps serving and the person is shown the error in words plus the
+> log's tail — and the next thing they do is ask the assistant to fix it, which is a conversation, not a
+> support ticket.
+
+`vercel build` then `vercel deploy --prebuilt` rather than uploading source, both through the CLI the image
+pins. The project link is written to `.vercel/project.json` rather than passed as flags, which keeps the
+token out of an argument list that ends up in a process table.
 
 ## 3. Why one platform-owned Vercel account
 
@@ -40,9 +53,11 @@ The costs, written down because they are real:
 
 - **Our quota is shared.** The `deploy` rate-limit policy (per user, 20/hour) exists so that one stuck
   client cannot get every other customer's publishing rate-limited.
-- **Our bill.** Metering is MASTER_PLAN P7.
+- **Our bill.** Metering is a later slice, and it now has two lines rather than one: provider hosting and
+  sandbox seconds.
 - **Our account is the blast radius.** The token is a single secret with rights over every customer's
-  hosting, which is an argument for the upgrade below rather than against the decision.
+  hosting, which is an argument for the upgrade below rather than against the decision. Note it never
+  reaches an editing sandbox — only the publishing one, and only as the CLI's argument for that one run.
 
 **Bring-your-own-account** is the additive upgrade when somebody asks: a nullable `ProviderToken` on
 `Site`, read by `VercelDeploymentTarget` in place of the configured one. `IDeploymentTarget` does not
@@ -88,20 +103,31 @@ one.
 
 ## 6. Unverified against the live API
 
-`VercelDeploymentTarget` follows Vercel's documented v9/v10/v11/v13 REST endpoints, and **has never been
-run against the real service** — no token existed in the environment where it was written. The endpoints
-and payload shapes are the plan, not tested code. The first task with a real token is:
+`VercelDeploymentTarget` is split in two, and both halves are unverified for different reasons.
 
-1. Create a site, publish it, and reconcile `EnsureProjectAsync` / `DeployAsync` with what comes back.
-2. Add a domain, and reconcile `DomainAttachment` with the real `verification` array.
-3. Check what a rate-limited response actually looks like, and whether `Translate` reads its code.
+The **REST half** (projects and domains, from this process with Webly's token) follows Vercel's documented
+v9/v10/v11/v13 endpoints and **has never been run against the real service** — no token existed in the
+environment where it was written. The **CLI half** (`vercel build`, `vercel deploy --prebuilt`, inside a
+sandbox) has never been run either, and its failure modes are the CLI's rather than an API's: a missing
+project link, an authentication prompt where a `--token` was expected, output that does not print the URL on
+its own line.
+
+The first tasks with a real token, in order:
+
+1. Create a site, publish it, and reconcile `EnsureProjectAsync` with what comes back.
+2. Watch a `vercel build` run in a sandbox and check that the output the runner streams is readable, that a
+   failure's tail is the useful part, and that `deploy --prebuilt` prints a URL this code can find.
+3. Add a domain, and reconcile `DomainAttachment` with the real `verification` array.
+4. Check what a rate-limited response actually looks like, and whether `Translate` reads its code.
 
 Until then, treat a green build as saying nothing about whether publishing works. See `whats_next.md`.
 
 ## 7. Local development
 
 Publishing is absent locally unless `Deployment:Vercel:Token` is in user secrets, and that is deliberate:
-a fresh clone has to run without a hosting account. `PublishSite` answers
+a fresh clone has to run without a hosting account. It also needs a sandbox provider, which locally means
+Docker — a publish starts its own container, so `Sandbox:Provider` has to be `docker` and Docker has to be
+running. `PublishSite` answers
 `DeployError.PublishingUnavailable` → 503 with a sentence, and the client disables the button.
 
 To try it for real, point a dev stack at a throwaway Vercel project:

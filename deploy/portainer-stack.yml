@@ -18,8 +18,16 @@
 #   WEBLY_RESEND_API_KEY  unset means mail is written to the API's log instead of being sent
 #   WEBLY_GOOGLE_CLIENT_ID / WEBLY_GOOGLE_CLIENT_SECRET  unset hides the Google button
 #   WEBLY_VERCEL_TEAM_ID  set when the token belongs to a team rather than a personal account
-#   WEBLY_ANTHROPIC_API_KEY / WEBLY_OPENAI_API_KEY  the editor agent. With neither, the chat is
-#                         absent rather than broken: /api/agent/status reports disabled and the
+#   WEBLY_E2B_API_KEY     the sandbox provider. Without it nobody can edit a site: a turn needs a
+#                         machine with node and a filesystem on it, and E2B is where production gets
+#                         one. Set it before announcing the product to anybody.
+#   WEBLY_SANDBOX_IMAGE   the sandbox image, if it is not the default byc0/margareta:webly_sandbox —
+#                         built from deploy/sandbox/Dockerfile, which is where its contents are
+#                         explained. Note it is not a service in this file: the sandbox provider
+#                         starts it per open site, not compose, so this is a name the API passes on.
+#   WEBLY_CLAUDE_API_KEY / WEBLY_OPENCODE_API_KEY  the editor agent's model access, passed into a
+#                         sandbox per turn and stored nowhere. With neither, the chat is absent
+#                         rather than broken: /api/sites/{id}/chat/status reports disabled and the
 #                         client hides it. The rest of the product still works.
 #   WEBLY_ADMIN_EMAIL     who administers the platform (see UserRoles.Admin)
 #   WEBLY_ACME_EMAIL      where Let's Encrypt sends expiry warnings
@@ -96,8 +104,18 @@ services:
       Deployment__Vercel__Token: ${WEBLY_VERCEL_TOKEN}
       Deployment__Vercel__TeamId: ${WEBLY_VERCEL_TEAM_ID:-}
 
-      Agent__Anthropic__ApiKey: ${WEBLY_ANTHROPIC_API_KEY:-}
-      Agent__OpenAi__ApiKey: ${WEBLY_OPENAI_API_KEY:-}
+      # Where the coding agent runs. The provider is pinned to e2b in appsettings.Production.json —
+      # this is only its credential and the image it starts. A sandbox is billed by the second, so
+      # Sandbox__IdleTimeout is the number that decides what an open editor tab costs; the default
+      # of ten minutes is in appsettings.json with the reasoning.
+      Sandbox__E2b__ApiKey: ${WEBLY_E2B_API_KEY:-}
+      Sandbox__Image: ${WEBLY_SANDBOX_IMAGE:-byc0/margareta:webly_sandbox}
+
+      # The agents' own model keys. These are the only credentials that ever leave this network for a
+      # sandbox, and they go per run as environment variables on the command rather than being written
+      # into the machine — see ClaudeCodeAgent and OpenCodeAgent.
+      Agent__ClaudeCode__ApiKey: ${WEBLY_CLAUDE_API_KEY:-}
+      Agent__OpenCode__ApiKey: ${WEBLY_OPENCODE_API_KEY:-}
 
       # An array element, because Administrators:Emails is a list. Add __1, __2 for more.
       Administrators__Emails__0: ${WEBLY_ADMIN_EMAIL:-}
@@ -110,6 +128,15 @@ services:
       # See the Dockerfile: the Data Protection key ring, which is only load-bearing for an
       # in-flight Google handshake. Cheap to keep, and it silences a warning on every start.
       - webly-dataprotection:/home/app/.aspnet/DataProtection-Keys
+
+      # Every site's entire content and history, as one bare git repository each. This is the only
+      # volume in this stack whose loss cannot be recovered from anywhere else: the database holds
+      # the index of the commits, not the commits, and a published site on Vercel is built output
+      # rather than source. Back it up on the same schedule as Postgres, or more often.
+      #
+      # The path matches Repositories:Root in appsettings.Production.json and the directory the
+      # Dockerfile creates and chowns — three files that have to agree.
+      - webly-repositories:/var/lib/webly/repositories
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8080/health || exit 1"]
       interval: 30s
@@ -165,5 +192,6 @@ services:
 volumes:
   webly-postgres-data:
   webly-dataprotection:
+  webly-repositories:
   webly-caddy-data:
   webly-caddy-config:

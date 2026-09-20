@@ -3,7 +3,6 @@ using Webly.Data.Models.Sites;
 using Webly.Services.DTO.Domains;
 using Webly.Services.DTO.Sites;
 using Webly.Services.Services.Deployments;
-using Webly.Services.Services.Sites;
 
 namespace Webly.Services.UseCases.Sites;
 
@@ -27,20 +26,22 @@ public class SiteMapper(IOptions<SitesOptions> sites)
         Url = UrlFor(site, primaryDomain),
         PublishedAt = publishedAt,
         // Two pointers, one question. Equal means the world is looking at what the editor is editing.
-        HasUnpublishedChanges = site.PublishedVersionId != site.DraftVersionId,
+        HasUnpublishedChanges = site.PublishedVersionId != site.HeadVersionId,
         UpdatedAt = site.UpdatedAt
     };
 
-    public static SiteVersionResponse ToVersion(SiteVersion version, Site site, bool includeDocument) => new()
+    public static SiteVersionResponse ToVersion(SiteVersion version, Site site) => new()
     {
         Nanoid = version.Nanoid,
+        CommitSha = version.CommitSha,
         Summary = version.Summary,
+        Details = version.Details,
         Origin = version.Origin,
+        ChangedFileCount = version.ChangedFileCount,
         CreatedAt = version.CreatedAt,
         RestoredFromNanoid = version.RestoredFromVersion?.Nanoid,
-        IsDraft = site.DraftVersionId == version.Id,
-        IsPublished = site.PublishedVersionId == version.Id,
-        Document = includeDocument ? version.Document : null
+        IsHead = site.HeadVersionId == version.Id,
+        IsPublished = site.PublishedVersionId == version.Id
     };
 
     public static DomainResponse ToDomain(Domain domain) => new()
@@ -54,29 +55,5 @@ public class SiteMapper(IOptions<SitesOptions> sites)
         DnsRecordValue = domain.DnsRecordValue,
         VerifiedAt = domain.VerifiedAt,
         LastError = domain.LastError
-    };
-
-    /// <summary>The catalogue, flattened for the client's property editor.</summary>
-    public static IReadOnlyList<SectionSchemaResponse> Catalogue() =>
-    [
-        .. SectionCatalogue.All.Select(schema => new SectionSchemaResponse
-        {
-            Type = schema.Type.ToString(),
-            Label = schema.Label,
-            Purpose = schema.Purpose,
-            Fields = [.. schema.Fields.Select(ToField)]
-        })
-    ];
-
-    private static SectionFieldResponse ToField(SectionFieldSchema field) => new()
-    {
-        Name = field.Name,
-        Kind = field.Kind.ToString(),
-        Description = field.Description,
-        Required = field.Required,
-        MaxLength = field.MaxLength,
-        MaxItems = field.MaxItems,
-        Choices = field.Choices ?? [],
-        ItemFields = [.. (field.ItemFields ?? []).Select(ToField)]
     };
 }

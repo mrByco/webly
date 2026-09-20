@@ -53,10 +53,10 @@ public class DeploymentController(PublishSite publishSite, ListDeployments listD
             Title = "Publishing is not set up in this environment.",
             Detail = "Your changes are saved; ask an administrator to configure hosting."
         }),
-        DeployError.InvalidDocument => BadRequest(new ProblemDetails
+        DeployError.BuildFailed => BadRequest(new ProblemDetails
         {
-            Title = "This site cannot be published as it is.",
-            Detail = "Open the editor and check the page for anything incomplete."
+            Title = "This site does not build as it is.",
+            Detail = "Open the editor and ask the assistant to fix the error it reports."
         }),
         _ => BadRequest(new ProblemDetails { Title = "That request could not be completed." })
     };

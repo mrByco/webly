@@ -26,6 +26,17 @@ EXPOSE 8080
 COPY --from=busybox:uclibc /bin/busybox /usr/bin/busybox
 RUN ln -s /usr/bin/busybox /usr/bin/wget
 
+# git, and it is not optional: a site's content lives in a bare repository per site and
+# GitSiteRepositoryStore drives the real binary rather than a managed reimplementation of the object
+# format. Without it the API boots, serves the login page, and fails the moment anybody creates a site.
+#
+# Installed with apt despite the paragraph above about how expensive that is, because busybox has no git
+# and there is no single static binary to copy instead. --no-install-recommends is what keeps it to git
+# and its own libraries rather than dragging in perl and a mail transport agent for `git send-email`.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # ---------------------------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------------------------
@@ -60,6 +71,12 @@ FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# The site template's source, which `dotnet publish` does not carry because it is not part of any
+# project. CreateSite reads these files to write a new site's first commit, so an image without them
+# boots fine and then cannot create a site. Copied from the build context rather than the build stage
+# so it is not also sitting in the SDK layer; appsettings.Production.json points Templates:SitePath here.
+COPY templates/ ./templates/
+
 # Plain HTTP on 8080. TLS is terminated by the proxy in front of the stack, and the app reads the
 # X-Forwarded-* headers it sets (see Program.cs) so it still knows the request arrived over HTTPS.
 ENV ASPNETCORE_URLS=http://+:8080
@@ -72,6 +89,12 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # a permission error, rather than as anything that names the mount.
 RUN mkdir -p /home/app/.aspnet/DataProtection-Keys \
     && chown -R $APP_UID:$APP_UID /home/app/.aspnet
+
+# The same argument for the sites' repositories, and for the same Docker behaviour: the stack mounts a
+# named volume here, Docker seeds it from this path, and a path that does not exist arrives root-owned.
+# Losing this one is worse than losing the key ring — it is every site's entire history.
+RUN mkdir -p /var/lib/webly/repositories \
+    && chown -R $APP_UID:$APP_UID /var/lib/webly
 
 # The non-root account the .NET base images define. Its home is where ASP.NET Data Protection puts
 # its key ring, which the stack mounts a volume over — nothing in Webly's own auth depends on that

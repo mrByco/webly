@@ -10,7 +10,10 @@ public record ChatMessageResponse
     public required string Text { get; init; }
     public required DateTime CreatedAt { get; init; }
 
-    /// <summary>Tool chips and answered questions, so a reload redraws the stream the person watched arrive.</summary>
+    /// <summary>
+    /// The turn's activity as it happened — the files it wrote, the commands it ran — so a reload redraws the
+    /// stream the person watched arrive instead of a bare paragraph.
+    /// </summary>
     public JsonArray? Parts { get; init; }
 
     /// <summary>The version this turn produced, when it produced one. The link from the chat into the history.</summary>

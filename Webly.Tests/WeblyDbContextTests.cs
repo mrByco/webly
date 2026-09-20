@@ -3,7 +3,6 @@ using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Sites;
-using Webly.Services.Services.Sites;
 
 namespace Webly.Tests;
 
@@ -85,9 +84,10 @@ public class WeblyDbContextTests : PostgresTestBase
         var first = new SiteVersion
         {
             SiteId = site.Id,
-            Document = StarterTemplate.For("Bakery"),
+            CommitSha = new string('a', 40),
             Summary = "Created from the starter template",
             Origin = SiteVersionOrigin.Template,
+            ChangedFileCount = 12,
             CreatedByUserId = user.Id
         };
 
@@ -98,9 +98,10 @@ public class WeblyDbContextTests : PostgresTestBase
         {
             SiteId = site.Id,
             ParentVersionId = first.Id,
-            Document = StarterTemplate.For("Bakery"),
+            CommitSha = new string('b', 40),
             Summary = "Rewrote the hero",
             Origin = SiteVersionOrigin.Agent,
+            ChangedFileCount = 2,
             CreatedByUserId = user.Id,
             SourceMessageId = message.Id
         };
@@ -109,7 +110,7 @@ public class WeblyDbContextTests : PostgresTestBase
         await db.SaveChangesAsync();
 
         message.ProducedVersionId = second.Id;
-        site.DraftVersionId = second.Id;
+        site.HeadVersionId = second.Id;
         site.PublishedVersionId = first.Id;
 
         db.Domains.Add(new Domain { SiteId = site.Id, Hostname = "bakery.example.com", IsPrimary = true });
@@ -186,11 +187,16 @@ public class WeblyDbContextTests : PostgresTestBase
     }
 
     /// <summary>
-    /// A document survives the round trip through jsonb with its section props intact — the value
-    /// converter and the serializer options are the only thing between a site and a blank page.
+    /// One commit, one version row.
+    ///
+    /// There is no jsonb document any more — the content is a commit in the site's repository, and this row
+    /// is the index into it. That makes the <c>(SiteId, CommitSha)</c> index load-bearing rather than
+    /// tidy: <c>CommitSiteVersion</c> refuses to write a version when the tree did not change, and if a
+    /// second row for the same commit could exist anyway, the history would show a change that is not one
+    /// and a restore could pick the wrong row to copy forward.
     /// </summary>
     [Test]
-    public async Task A_document_round_trips_through_jsonb()
+    public async Task A_commit_appears_once_in_a_site_s_history()
     {
         await using var db = CreateContext();
 
@@ -202,27 +208,28 @@ public class WeblyDbContextTests : PostgresTestBase
         db.Sites.Add(site);
         await db.SaveChangesAsync();
 
-        var version = new SiteVersion
+        var sha = new string('c', 40);
+
+        db.SiteVersions.Add(new SiteVersion
         {
             SiteId = site.Id,
-            Document = StarterTemplate.For("Round"),
+            CommitSha = sha,
             Summary = "Created from the starter template",
             Origin = SiteVersionOrigin.Template,
             CreatedByUserId = user.Id
-        };
-
-        db.SiteVersions.Add(version);
-        await db.SaveChangesAsync();
-        db.ChangeTracker.Clear();
-
-        var loaded = await db.SiteVersions.FirstAsync(x => x.Id == version.Id);
-        var hero = loaded.Document.Pages[0].Sections[0];
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(loaded.Document.Pages, Has.Count.EqualTo(1));
-            Assert.That(hero.Props["headline"]!.GetValue<string>(), Is.EqualTo("Round"));
-            Assert.That(loaded.Document.Theme.Mode, Is.EqualTo(Webly.Data.Models.Sites.Document.ThemeMode.Light));
         });
+
+        await db.SaveChangesAsync();
+
+        db.SiteVersions.Add(new SiteVersion
+        {
+            SiteId = site.Id,
+            CommitSha = sha,
+            Summary = "The same commit again",
+            Origin = SiteVersionOrigin.Agent,
+            CreatedByUserId = user.Id
+        });
+
+        Assert.That(async () => await db.SaveChangesAsync(), Throws.TypeOf<DbUpdateException>());
     }
 }

@@ -1,0 +1,10 @@
+{
+  "name": "webly-sandbox-agent",
+  "private": true,
+  "version": "1.0.0",
+  "description": "The HTTP contract Webly speaks to a sandbox: files in, files out, commands streamed, dev server proxied.",
+  "type": "module",
+  "main": "index.js",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node index.js" }
+}

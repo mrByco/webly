@@ -6,6 +6,8 @@ using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
 using Webly.Services.Services.Deployments;
+using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Workspaces;
 
 namespace Webly.Services.UseCases.Sites;
 
@@ -27,6 +29,8 @@ public class DeleteSite(
     IDomainRepository domainRepository,
     IUserRepository userRepository,
     IDeploymentTarget deploymentTarget,
+    ISiteWorkspaceRegistry workspaces,
+    ISiteRepositoryStore repositories,
     WeblyDbContext dbContext,
     ILogger<DeleteSite> logger)
 {
@@ -44,7 +48,11 @@ public class DeleteSite(
 
         var domains = await domainRepository.ListForSiteAsync(site.Id, cancellationToken);
 
-        site.DraftVersionId = null;
+        // The live workspace first: a sandbox editing a site that is being deleted is a turn that will fail
+        // confusingly, and stopping it costs a second.
+        await workspaces.ReleaseAsync(site.Nanoid);
+
+        site.HeadVersionId = null;
         site.PublishedVersionId = null;
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -61,9 +69,19 @@ public class DeleteSite(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        // Last, and best-effort. The provider cleanup is not what makes the delete true — the rows are — and a
-        // provider outage must not leave somebody unable to delete their own site. An orphaned project costs us a
-        // little money and is visible in the provider's dashboard; a site that will not delete costs trust.
+        // The source, then the hosting: both last, both best-effort. Deleting the rows is what makes the delete
+        // true, and a provider outage — or a repository that is already gone — must not leave somebody unable to
+        // delete their own site. An orphaned directory or project is visible and cheap; a site that will not
+        // delete costs trust.
+        try
+        {
+            await repositories.DeleteAsync(nanoid, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not delete the repository of site {Site}.", nanoid);
+        }
+
         if (site.ProviderProjectId is { } projectId)
         {
             foreach (var domain in domains)

@@ -55,11 +55,18 @@ public class Deployment : IHasNanoid, IHasTimestamps
     public string? ProviderUrl { get; set; }
 
     /// <summary>
-    /// Why it failed, in language meant for the site's owner rather than for us. Provider errors are
-    /// translated once, in <c>VercelDeploymentTarget</c>; a raw API body reaching this column reaches
-    /// the screen.
+    /// Why it failed, in language meant for the site's owner rather than for us. Translated once, in
+    /// <c>VercelDeploymentTarget</c> and the runner; a raw API body or a webpack trace reaching this column
+    /// reaches the screen.
     /// </summary>
     public string? Error { get; set; }
+
+    /// <summary>
+    /// The build log's tail, when there is one. Kept because it is the one thing that makes a failed publish
+    /// actionable: the person pastes it back into the chat and the agent fixes what it says. Shown behind a
+    /// disclosure rather than in the message, since it is four hundred lines of somebody else's output.
+    /// </summary>
+    public string? ErrorDetail { get; set; }
 
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }

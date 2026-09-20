@@ -1,26 +1,29 @@
 using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Sites;
+using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
-using Webly.Services.Services.Sites;
+using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Workspaces;
 
 namespace Webly.Services.UseCases.Sites;
 
 /// <summary>
-/// Goes back to an earlier version — by <b>copying it forward</b>, never by moving the draft pointer backwards.
+/// Goes back to an earlier version — by <b>writing its tree forward as a new commit</b>, never by moving the
+/// branch backwards.
 ///
-/// That is the decision that makes the history trustworthy. A restore is itself an edit, so it appears in the
-/// history as one ("Restored the version from Tuesday"), the versions it stepped over are still there, and undoing
-/// an undo is the same operation again. Repointing at an old version would instead make the intervening history
-/// unreachable — the one thing a version control feature must never do.
-///
-/// The restored document is re-validated on the way in. A document written under an older catalogue can be invalid
-/// today — a section type removed, a field's bounds tightened — and a restore is exactly when that surfaces. Better
-/// a refusal that names the problem than a published page that no longer renders.
+/// That is the decision that makes the history trustworthy. A restore is itself a change: it appears in the
+/// history ("Restored the version from Tuesday"), the versions it stepped over are still there, and undoing an
+/// undo is the same operation again. Resetting the branch would instead make the intervening history
+/// unreachable — the one thing a version-control feature must never do — and would leave any deployment that
+/// named one of those commits pointing at nothing.
 /// </summary>
 public class RestoreSiteVersion(
     ISiteRepository siteRepository,
     ISiteVersionRepository versionRepository,
+    IUserRepository users,
+    ISiteRepositoryStore repositories,
+    ISiteWorkspaceRegistry workspaces,
     CommitSiteVersion commitSiteVersion)
 {
     public async Task<Result<SiteError, SiteVersionResponse>> ExecuteAsync(
@@ -34,27 +37,38 @@ public class RestoreSiteVersion(
         if (site is null) return Result<SiteError, SiteVersionResponse>.Fail(SiteError.NotFound);
 
         var source = await versionRepository.FindForSiteAsync(versionNanoid, site.Id, cancellationToken);
+        var head = site.HeadVersion;
 
-        if (source is null) return Result<SiteError, SiteVersionResponse>.Fail(SiteError.VersionNotFound);
+        if (source is null || head is null)
+            return Result<SiteError, SiteVersionResponse>.Fail(SiteError.VersionNotFound);
 
-        var summary = $"Restored the version from {source.CreatedAt:d MMMM, HH:mm} — {source.Summary}";
+        var user = await users.FindByIdAsync(userId, cancellationToken);
 
-        // Built through a draft like every other edit, so the commit path is the same one — the draft starts from
-        // the current document and Replace puts the restored one in, which is what marks it dirty.
-        var draft = SiteDraft.From(site.DraftVersion!.Document);
-        var replaced = draft.Replace(source.Document, summary);
+        if (user is null) return Result<SiteError, SiteVersionResponse>.Fail(SiteError.NotFound);
 
-        if (!replaced.Succeeded)
-            return Result<SiteError, SiteVersionResponse>.Fail(SiteError.InvalidDocument, replaced.Message);
+        var summary = $"Restored the version from {source.CreatedAt:d MMMM, HH:mm}";
 
-        var version = await commitSiteVersion.ExecuteAsync(
-            site, draft, userId, SiteVersionOrigin.Restore,
+        var commit = await repositories.RestoreAsync(
+            site.Nanoid, site.DefaultBranch, head.CommitSha, source.CommitSha,
+            new CommitAuthor(user.DisplayName, user.Email), summary, cancellationToken);
+
+        // Identical tree: the version asked for is already what the site says. Not an error — somebody clicked
+        // "bring this back" on the thing that is already live, and the honest answer is the current version.
+        if (commit is null)
+            return Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(head, site));
+
+        var version = await commitSiteVersion.RecordAsync(
+            site, head, commit, userId, SiteVersionOrigin.Restore, summary,
+            details: $"Restored from {source.CommitSha[..7]} — {source.Summary}",
+            sourceMessageId: null,
             restoredFromVersionId: source.Id,
-            summary: summary,
-            cancellationToken: cancellationToken);
+            cancellationToken);
 
-        return version is null
-            ? Result<SiteError, SiteVersionResponse>.Fail(SiteError.InvalidDocument)
-            : Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(version, site, includeDocument: true));
+        // The live workspace is now a commit behind, and its sandbox holds the tree this restore just replaced.
+        // Releasing it is cheaper and safer than re-seeding here: the next turn starts a fresh one from the new
+        // head, and an agent session that remembers the old files is not something to keep.
+        await workspaces.ReleaseAsync(site.Nanoid);
+
+        return Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(version, site));
     }
 }

@@ -4,15 +4,21 @@ import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
 
 /**
- * The preview: an iframe over the backend's renderer.
+ * The preview: an iframe over the site's own `next dev`, proxied through this origin.
  *
- * <b>There is no client-side renderer, deliberately.</b> The pane loads the same output publishing
- * uploads, from the same code path (`PreviewSite` → `HtmlSiteRenderer`), so what somebody approves here
- * is byte-for-byte what goes live. A TypeScript viewer beside the C# renderer would be two descriptions
- * of what a site looks like, and the one that is wrong is always the one the customer saw.
+ * <b>It is the real dev server, not a re-render.</b> The same process the agent's edits land in, so what
+ * somebody approves here is what the next build produces — and hot reload means an edit appears without
+ * anything on this side asking for it. `PreviewController` is the proxy and explains why pointing a
+ * browser at a sandbox is safe; the sandbox's address never reaches the browser.
  *
- * `reloadKey` is how a committed version gets onto the screen: bumping it changes the iframe's URL, which
- * is the only way to make a browser re-fetch a document it thinks it already has.
+ * Two consequences shape this component:
+ *
+ * - <b>A preview can be cold.</b> A workspace takes tens of seconds to start and only a turn starts one,
+ *   so when `ready` is false this shows a sentence instead of an iframe. An iframe pointed at a 503 shows
+ *   the browser's own error page, which reads as the product being broken.
+ * - <b>`reloadKey` is a fallback, not the mechanism.</b> Hot reload already updates the frame; the key is
+ *   for a commit or a restore, where the whole tree changed underneath it. It is a counter rather than a
+ *   timestamp so unrelated change detection does not make the frame flicker.
  */
 @Component({
   selector: 'app-site-preview',
@@ -23,11 +29,11 @@ import { SiteService } from '../../services/site.service';
 export class SitePreview {
   readonly siteNanoid = input.required<string>();
 
-  /** Which page. The editor's page selector writes it; the default is the home page. */
-  readonly page = input<string>('/');
+  /** Whether a workspace is warm. False shows the cold state rather than a frame that cannot load. */
+  readonly ready = input<boolean>(false);
 
-  /** A version to look at instead of the draft — how the history previews the past. */
-  readonly version = input<string | undefined>(undefined);
+  /** What the workspace is doing while it starts, straight from the run's events. */
+  readonly progress = input<string | undefined>(undefined);
 
   /** Changing this re-fetches the iframe. See the class comment. */
   readonly reloadKey = input<number>(0);
@@ -39,11 +45,9 @@ export class SitePreview {
   protected readonly width = signal<'phone' | 'tablet' | 'full'>('full');
 
   protected readonly url = computed<SafeResourceUrl>(() => {
-    const url = this.sites.previewUrl(this.siteNanoid(), this.page(), this.version());
+    const url = this.sites.previewUrl(this.siteNanoid());
 
-    // The cache-buster is the reload key rather than a timestamp: a timestamp would make every change
-    // detection pass a new URL, and the iframe would flicker on unrelated renders.
-    return this.sanitizer.bypassSecurityTrustResourceUrl(`${url}&r=${this.reloadKey()}`);
+    return this.sanitizer.bypassSecurityTrustResourceUrl(`${url}?r=${this.reloadKey()}`);
   });
 
   protected setWidth(width: 'phone' | 'tablet' | 'full'): void {

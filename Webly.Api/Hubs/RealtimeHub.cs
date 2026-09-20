@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Webly.Api.Extensions;
 using Webly.Data.Repositories.Sites;
-using Webly.Services.Agent.Args;
 using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
 using Webly.Services.Services.Realtime;
@@ -23,8 +22,8 @@ public record RunSubscription(RunKind RunKind, string RunId, long LastSeq, bool 
 ///
 /// SignalR rather than a raw WebSocket for three things that would otherwise be most of the work: groups (one per
 /// run), automatic reconnect, and a backplane if this ever runs on more than one instance. And a socket rather than
-/// streaming over POST because the product needs the <i>other</i> direction too — Stop, and an answer to a question the
-/// agent asked. See docs/agent-plan.md.
+/// streaming over POST because the product needs the <i>other</i> direction too: Stop, which has to reach a run that
+/// no longer has a request. See docs/agent-plan.md.
 ///
 /// <b>The ordering inside <see cref="Subscribe"/> is load-bearing:</b> join the group first, then replay. The other
 /// order drops anything emitted between the replay and the join, which is precisely the reconnect case. The resulting
@@ -50,15 +49,12 @@ public class RealtimeHub(
     {
         var userId = Context.User.GetUserIdVerified();
 
-        if (request.Args is not SiteEditorAgentArgs siteArgs)
-            throw new HubException("That agent is not available.");
-
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new HubException("A message cannot be empty.");
 
         // Authorized here, on the way in, and never again inside the run: the run has no HttpContext and no
-        // ClaimsPrincipal, so this is the moment the scope is decided. AgentRunContext then carries it.
-        var site = await siteRepository.FindForOwnerLightAsync(siteArgs.SiteNanoid, userId, Context.ConnectionAborted)
+        // ClaimsPrincipal, so this is the one moment the scope is decided.
+        var site = await siteRepository.FindForOwnerLightAsync(request.SiteNanoid, userId, Context.ConnectionAborted)
             ?? throw new HubException("That site could not be found.");
 
         // Checked here rather than with an [EnableRateLimiting] attribute, which would not apply to a hub invocation
@@ -68,7 +64,7 @@ public class RealtimeHub(
 
         logger.LogInformation("User {User} started a turn on site {Site}.", userId, site.Nanoid);
 
-        return launcher.Start(request.Args, request.Message, userId);
+        return launcher.Start(request, userId);
     }
 
     /// <summary>
@@ -109,10 +105,6 @@ public class RealtimeHub(
 
     /// <summary>The only thing that stops a run. A dropped connection deliberately does not.</summary>
     public bool Cancel(string runId) => registry.TryCancel(runId, Context.User.GetUserIdVerified());
-
-    /// <summary>Answers a question the agent asked. See <c>QuestionToolkit</c>.</summary>
-    public bool Answer(string runId, string questionId, string answer) =>
-        registry.TryAnswer(runId, questionId, answer, Context.User.GetUserIdVerified());
 
     /// <summary>
     /// The live run for a conversation or a deployment, if there is one. What a reloading editor calls to re-attach to

@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/*
+ * The site's design tokens, in one place.
+ *
+ * Change a colour or the type here and the whole site follows. That is what keeps "make it warmer" a one-line
+ * edit instead of a class-name hunt across forty elements — and it is the first thing to read before styling
+ * anything new.
+ */
+@theme {
+  --color-brand: oklch(52% 0.19 268);
+  --color-brand-strong: oklch(44% 0.19 268);
+  --color-brand-soft: oklch(95% 0.03 268);
+
+  --color-ink: oklch(24% 0.012 268);
+  --color-ink-muted: oklch(48% 0.012 268);
+  --color-page: oklch(99.5% 0.002 268);
+  --color-edge: oklch(91% 0.008 268);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus, everywhere, without every component remembering. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

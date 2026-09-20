@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Webly.Api.Extensions;
 using Webly.Services.Agent;
 using Webly.Services.DTO.Chat;
@@ -17,7 +16,7 @@ namespace Webly.Api.Controllers;
 public class ChatController(
     GetChat getChat,
     ArchiveChat archiveChat,
-    IOptions<AgentOptions> agentOptions) : ControllerBase
+    CodingAgentRegistry agents) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<ConversationResponse>> Get(string siteNanoid, CancellationToken cancellationToken)
@@ -41,13 +40,14 @@ public class ChatController(
     }
 
     /// <summary>
-    /// Whether this deployment has an agent. The same shape as <c>/api/auth/providers</c>: an unconfigured feature is
-    /// absent rather than broken, and the client asks rather than inferring it from a failed call.
+    /// Whether this deployment has an agent, and which ones. The same shape as <c>/api/auth/providers</c>: an
+    /// unconfigured feature is absent rather than broken, and the client asks rather than inferring it from a
+    /// failed call.
     ///
     /// Route is <c>/api/sites/{siteNanoid}/chat/status</c> for consistency, although the answer is deployment-wide —
     /// the alternative is one endpoint at a different root for one boolean.
     /// </summary>
     [HttpGet("status")]
     public ActionResult<AgentStatusResponse> Status() =>
-        Ok(new AgentStatusResponse { Enabled = agentOptions.Value.IsConfigured });
+        Ok(new AgentStatusResponse { Enabled = agents.AnyConfigured, Agents = agents.Available });
 }

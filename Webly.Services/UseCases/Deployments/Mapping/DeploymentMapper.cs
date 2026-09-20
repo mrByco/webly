@@ -14,6 +14,7 @@ public static class DeploymentMapper
         SiteVersionSummary = version.Summary,
         ProviderUrl = deployment.ProviderUrl,
         Error = deployment.Error,
+        ErrorDetail = deployment.ErrorDetail,
         CreatedAt = deployment.CreatedAt,
         FinishedAt = deployment.FinishedAt
     };

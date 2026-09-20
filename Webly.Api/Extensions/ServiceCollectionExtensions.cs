@@ -1,7 +1,10 @@
 using Webly.Api.Infrastructure;
 using Webly.Api.Options;
 using Webly.Services.Services.Authentication;
+using Webly.Services.Agent;
 using Webly.Services.Services.Deployments;
+using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Sandboxes;
 using Webly.Services.Services.Email;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -192,11 +195,14 @@ public static class ServiceCollectionExtensions
         });
 
     /// <summary>
-    /// Deployment and hosting. <see cref="SitesOptions"/> and <see cref="DeploymentOptions"/> are validated at startup,
-    /// so a deployment that could never publish anything is a crash on boot rather than a failure the first time a
-    /// customer presses the button.
+    /// Everything a site's source and its hosting need: where repositories live, where the starter template is,
+    /// which sandbox provider runs the agents, and the deployment provider.
+    ///
+    /// The options classes that would make the app useless if wrong are validated at startup; the ones whose
+    /// absence is a legitimate deployment (a sandbox vendor's key, a Vercel token, an agent's key) are not — see
+    /// CLAUDE.md, "An unconfigured feature is absent, not broken".
     /// </summary>
-    public static IServiceCollection AddWeblyDeployment(
+    public static IServiceCollection AddWeblySites(
         this IServiceCollection services,
         IConfiguration configuration)
     {
@@ -205,18 +211,61 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddOptions<DeploymentOptions>()
-            .Bind(configuration.GetSection(DeploymentOptions.SectionName))
+        services.AddOptions<RepositoryOptions>()
+            .Bind(configuration.GetSection(RepositoryOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // A typed client, so the base address and the handler lifetime are configured once. The timeout is generous
-        // because a deployment upload carries every file of a site in one call.
+        services.AddOptions<TemplateOptions>()
+            .Bind(configuration.GetSection(TemplateOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<SandboxOptions>().Bind(configuration.GetSection(SandboxOptions.SectionName));
+        services.AddOptions<CodingAgentOptions>().Bind(configuration.GetSection(CodingAgentOptions.SectionName));
+        services.AddOptions<DeploymentOptions>().Bind(configuration.GetSection(DeploymentOptions.SectionName));
+
+        // One named client for every call into a sandbox — the provider's control API and, once one is running,
+        // the sandbox agent itself. Twenty minutes because `/exec` streams for as long as the command runs, and
+        // `npm install` in a cold workspace is minutes.
+        //
+        // Named rather than typed: the providers are singletons, and a typed client captured by a singleton is
+        // the documented way to keep one handler for the life of the process. They ask the factory per sandbox
+        // instead.
+        services.AddHttpClient(SandboxAgentClient.HttpClientName, client => client.Timeout = TimeSpan.FromMinutes(20));
+
+        // Both providers are registered as themselves so either can be resolved in a test; only the selected one
+        // is the ISandboxProvider the app uses.
+        services.AddSingleton<E2bSandboxProvider>();
+        services.AddSingleton<DockerSandboxProvider>();
+
+        var provider = configuration[$"{SandboxOptions.SectionName}:Provider"] ?? DockerSandboxProvider.ProviderName;
+
+        if (string.Equals(provider, E2bSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
+            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<E2bSandboxProvider>());
+        else
+            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<DockerSandboxProvider>());
+
         services.AddHttpClient<IDeploymentTarget, VercelDeploymentTarget>(client =>
         {
             client.BaseAddress = new Uri("https://api.vercel.com");
             client.Timeout = TimeSpan.FromMinutes(2);
         });
+
+        // The preview proxy's own client: no timeout of its own, because a dev server compiling a page on first
+        // request can take a minute and YARP's ActivityTimeout is what bounds it. AllowAutoRedirect off, so a
+        // redirect from the site is passed to the browser rather than followed server-side into the sandbox.
+        services.AddHttpClient(nameof(Controllers.PreviewController))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                UseProxy = false,
+                AllowAutoRedirect = false,
+                AutomaticDecompression = System.Net.DecompressionMethods.None,
+                ConnectTimeout = TimeSpan.FromSeconds(15)
+            })
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
+
+        services.AddHttpForwarder();
 
         return services;
     }

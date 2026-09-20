@@ -25,9 +25,11 @@ type IconName =
   | 'chevron-right'
   | 'circle-alert'
   | 'clock'
+  | 'code'
   | 'copy'
   | 'external'
   | 'eye'
+  | 'file'
   | 'globe'
   | 'layout'
   | 'link'
@@ -51,6 +53,7 @@ const PATHS: Record<IconName, string> = {
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',
   'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
   copy:
     '<rect width="14" height="14" x="8" y="8" rx="2"/>'
     + '<path d="M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2"/>',
@@ -58,6 +61,8 @@ const PATHS: Record<IconName, string> = {
     '<path d="M15 3h6v6"/><path d="M10 14 21 3"/>'
     + '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  file:
+    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h6"/>',
   globe:
     '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>'
     + '<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>',
@@ -92,17 +97,12 @@ const PATHS: Record<IconName, string> = {
   selector: 'app-icon',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'inline-block shrink-0 size-5', 'aria-hidden': 'true' },
-  template: `
-    <svg
-      class="size-full"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      [innerHTML]="body()"></svg>
-  `,
+  // The whole <svg> is written into the host element rather than bound as the body of an <svg> in this
+  // template. That looks like the long way round and is the only way that prerenders: SSR's DOM has no
+  // innerHTML setter on an SVGElement, so `[innerHTML]` on an <svg> throws NotYetImplemented during the
+  // build and the page comes out unrendered. On a plain element it is implemented, so this works on both
+  // sides and hydrates without a mismatch.
+  template: `<span class="contents" [innerHTML]="body()"></span>`,
 })
 export class Icon {
   readonly name = input.required<IconName>();
@@ -113,9 +113,16 @@ export class Icon {
    * Trusted because the markup is the constant above, never anything a user typed — `name` is a union
    * of literals and an unknown key draws nothing rather than falling back to a string.
    */
-  protected readonly body = computed<SafeHtml>(() =>
-    this.sanitizer.bypassSecurityTrustHtml(PATHS[this.name()] ?? ''),
-  );
+  protected readonly body = computed<SafeHtml>(() => {
+    const paths = PATHS[this.name()];
+
+    return this.sanitizer.bypassSecurityTrustHtml(
+      paths
+        ? '<svg class="size-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+          + ` stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`
+        : '',
+    );
+  });
 }
 
 export type { IconName };

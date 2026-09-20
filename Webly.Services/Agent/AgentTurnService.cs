@@ -1,16 +1,16 @@
-using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Webly.Data;
 using Webly.Data.Models.Chat;
+using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Chat;
 using Webly.Data.Repositories.Sites;
-using Webly.Services.Agent.Agents;
-using Webly.Services.Agent.Args;
-using Webly.Services.Agent.Tools;
+using Webly.Data.Repositories.Users;
+using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
 using Webly.Services.Services.Realtime;
+using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Workspaces;
+using Webly.Services.UseCases.Sites;
 
 namespace Webly.Services.Agent;
 
@@ -20,45 +20,56 @@ public interface IAgentTurnService
     /// Runs one turn and returns the conversation it happened in. Called on the run's own scope, by
     /// <see cref="ChatRunLauncher"/>, and never from a request thread.
     /// </summary>
-    Task<string> RunAsync(BaseAgentArgs args, string message, int userId, CancellationToken cancellationToken);
+    Task<string> RunAsync(SendMessageRequest request, int userId, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// One turn, end to end: find the thread, write the person's message, hydrate the history, stream the agent's
-/// answer, persist it, and commit whatever the turn changed as a single version.
+/// One turn, end to end: get the site's workspace, let a coding agent work in it, and commit whatever it
+/// changed as one version.
 ///
-/// The <b>order at the end</b> is the part worth reading. The assistant's message is written first so the version
-/// can point at it, then the version is written, then the message is pointed back at the version — two saves,
-/// because the pair of links is what makes the site's history readable as the conversation that produced it, and
-/// neither row can hold the other's id before it exists.
+/// <b>The agent edits; Webly commits.</b> The agent never sees a git history and has no credential that could
+/// write one — it changes files in a sandbox, and afterwards this service reads the tree back and asks the
+/// repository store to commit it. Three things follow, and they are why it is arranged this way:
+///
+/// <list type="bullet">
+/// <item>A turn is atomic and its history is honest. One turn is one commit with one subject line, and a turn
+/// that failed halfway leaves the branch where it was.</item>
+/// <item>History cannot be rewritten, by anyone. There is no amend, no force-push and no rebase available to
+/// an agent that does not have the repository.</item>
+/// <item>A cancelled turn costs nothing but tokens. Stop is honest: the sandbox's tree is discarded on the
+/// next seed, and nothing was committed.</item>
+/// </list>
+///
+/// The order at the end matters: the agent's message is written first so the version can point at it, then the
+/// version, then the message is pointed back at the version. Neither row can hold the other's id before it
+/// exists, and that pair of links is what makes the site's history read as the conversation that produced it.
 /// </summary>
 public class AgentTurnService(
-    IServiceProvider serviceProvider,
     ISiteRepository siteRepository,
     IConversationRepository conversations,
-    SiteEditSession session,
+    IUserRepository users,
+    ISiteWorkspaceRegistry workspaces,
+    ISiteRepositoryStore repositories,
+    CodingAgentRegistry agents,
+    CommitSiteVersion commitSiteVersion,
     RunWriter writer,
     WeblyDbContext dbContext,
     ILogger<AgentTurnService> logger) : IAgentTurnService
 {
     /// <summary>
-    /// How much of the thread the model sees. Enough to remember what the site is about and what was just asked
-    /// for; the document itself is re-read through <c>ReadSite</c> every turn, so old tool traffic has no value —
-    /// it describes a site that has since changed, which is worse than absent.
+    /// How much of the thread the agent is told about when it has no session of its own to resume. Short,
+    /// because the codebase is the context that matters and the agent reads that itself — old chat turns
+    /// describe a site that has since changed.
     /// </summary>
-    private const int HistoryMessages = 30;
+    private const int HistoryMessages = 8;
 
-    public async Task<string> RunAsync(
-        BaseAgentArgs args,
-        string message,
-        int userId,
-        CancellationToken cancellationToken)
+    public async Task<string> RunAsync(SendMessageRequest request, int userId, CancellationToken cancellationToken)
     {
-        if (args is not SiteEditorAgentArgs siteArgs)
-            throw new InvalidOperationException($"No agent handles arguments of type '{args.GetType().Name}'.");
+        var site = await siteRepository.FindForOwnerAsync(request.SiteNanoid, userId, cancellationToken)
+            ?? throw new InvalidOperationException($"Site '{request.SiteNanoid}' is not available to this user.");
 
-        var site = await siteRepository.FindForOwnerLightAsync(siteArgs.SiteNanoid, userId, cancellationToken)
-            ?? throw new InvalidOperationException($"Site '{siteArgs.SiteNanoid}' is not available to this user.");
+        var user = await users.FindByIdAsync(userId, cancellationToken)
+            ?? throw new InvalidOperationException($"User {userId} disappeared mid-turn.");
 
         var conversation = await conversations.FindActiveAsync(site.Id, cancellationToken);
 
@@ -70,7 +81,7 @@ public class AgentTurnService(
                 UserId = userId,
                 // Derived from the first message rather than asked of the model: a second provider call for a
                 // label nobody reads twice.
-                Title = message.Length <= 60 ? message : $"{message[..57]}..."
+                Title = request.Message.Length <= 60 ? request.Message : $"{request.Message[..57]}..."
             };
 
             conversations.Add(conversation);
@@ -84,41 +95,90 @@ public class AgentTurnService(
             ConversationId = conversation.Id,
             Role = MessageRole.User,
             Sequence = await conversations.NextSequenceAsync(conversation.Id, cancellationToken),
-            Text = message
+            Text = request.Message
         };
 
         conversations.AddMessage(userMessage);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var agentKey = ResolveAgentKey(siteArgs);
-        var agent = serviceProvider.GetKeyedService<AIAgent>(agentKey)
-            // Falls back to the unsuffixed key so that an unknown model override degrades to the default model
-            // rather than to an error — the person asked for an edit, not for a particular model.
-            ?? serviceProvider.GetKeyedService<AIAgent>(SiteEditorAgent.Key)
-            ?? throw new InvalidOperationException($"No agent is registered for key '{agentKey}'.");
+        var agent = agents.Resolve(request.Agent);
 
-        var answer = await StreamAsync(agent, history, message, cancellationToken);
+        await using var lease = await workspaces.AcquireAsync(
+            site,
+            progress => writer.WriteAsync(
+                new RunEvent { Type = RunEventType.WorkspaceProgress, Detail = progress }, cancellationToken),
+            cancellationToken);
+
+        var workspace = lease.Workspace;
+        var changedFiles = new HashSet<string>(StringComparer.Ordinal);
+
+        // The agent's own session is only resumable if it belongs to this agent: the person may have switched,
+        // and handing one agent another's session id is nonsense rather than an optimization.
+        var sessionId = workspace.AgentKey == agent.Key ? workspace.AgentSessionId : null;
+
+        var outcome = await agent.RunAsync(
+            workspace.Sandbox,
+            new CodingAgentRequest(
+                request.Message,
+                sessionId is null ? [.. history.Select(Describe)] : [],
+                sessionId),
+            async agentEvent =>
+            {
+                switch (agentEvent)
+                {
+                    case CodingAgentEvent.Text text:
+                        await writer.WriteTextAsync(text.Value, cancellationToken);
+                        break;
+
+                    case CodingAgentEvent.Activity activity:
+                        await writer.WriteAsync(new RunEvent
+                        {
+                            Type = RunEventType.Activity,
+                            Detail = activity.Phrase
+                        }, cancellationToken);
+                        break;
+
+                    case CodingAgentEvent.FileChanged file:
+                        // De-duplicated: an agent editing one file four times is one line in the UI, not four.
+                        if (changedFiles.Add(file.Path))
+                            await writer.WriteAsync(new RunEvent
+                            {
+                                Type = RunEventType.FileChanged,
+                                Detail = file.Path
+                            }, cancellationToken);
+
+                        break;
+                }
+            },
+            cancellationToken);
+
+        workspace.AgentSessionId = outcome.SessionId;
+        workspace.AgentKey = agent.Key;
+
+        var reply = await writer.CompleteMessageAsync(cancellationToken);
+
+        // The agent's own final text wins over the accumulated deltas: a stream can be partial, and the outcome
+        // is what the CLI says it said.
+        if (outcome.Reply.Length > 0) reply = outcome.Reply;
 
         var assistantMessage = new ConversationMessage
         {
             ConversationId = conversation.Id,
             Role = MessageRole.Assistant,
             Sequence = await conversations.NextSequenceAsync(conversation.Id, cancellationToken),
-            Text = answer
+            Text = reply
         };
 
         conversations.AddMessage(assistantMessage);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var version = await session.CommitAsync(assistantMessage.Id, cancellationToken);
+        var version = await CommitAsync(site, workspace, user, outcome, assistantMessage.Id, cancellationToken);
 
         if (version is not null)
         {
             assistantMessage.ProducedVersionId = version.Id;
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            // The editor refreshes its preview and its history from this, rather than polling for a change it
-            // has no way to predict the timing of.
             await writer.WriteAsync(new RunEvent
             {
                 Type = RunEventType.VersionCommitted,
@@ -127,125 +187,72 @@ public class AgentTurnService(
             }, cancellationToken);
         }
 
+        await ReportBuildErrorsAsync(workspace, cancellationToken);
+
         return conversation.Nanoid;
     }
 
-    /// <summary>
-    /// Streams one agent response into the writer, turning each kind of update into the event the client knows
-    /// how to draw.
-    ///
-    /// NOTE: the streaming shapes here are <c>Microsoft.Agents.AI</c> 1.9.0's and have not been run against the
-    /// package yet — see whats_next.md. Everything around them (the writer, the sink, the log, the replay) is
-    /// independent of that surface, which is why this is the one method to reconcile first.
-    /// </summary>
-    private async Task<string> StreamAsync(
-        AIAgent agent,
-        IReadOnlyList<ConversationMessage> history,
-        string message,
+    private async Task<SiteVersion?> CommitAsync(
+        Site site,
+        SiteWorkspace workspace,
+        Data.Models.Authentication.User user,
+        CodingAgentOutcome outcome,
+        int sourceMessageId,
         CancellationToken cancellationToken)
     {
-        var messages = new List<ChatMessage>();
+        var tree = await workspace.Sandbox.ReadTreeAsync(cancellationToken);
 
-        foreach (var past in history)
+        var version = await commitSiteVersion.ExecuteAsync(
+            site,
+            tree,
+            new CommitAuthor(user.DisplayName, user.Email),
+            user.Id,
+            SiteVersionOrigin.Agent,
+            outcome.Summary,
+            outcome.Details,
+            sourceMessageId,
+            cancellationToken: cancellationToken);
+
+        if (version is null)
         {
-            // Tool traffic is dropped: it is large, and it describes a document that has since moved on.
-            if (past.Role is MessageRole.Tool) continue;
+            logger.LogInformation("Turn on {Site} changed nothing; no commit.", site.Nanoid);
 
-            messages.Add(new ChatMessage(RoleOf(past.Role), past.Text));
+            return null;
         }
 
-        messages.Add(new ChatMessage(ChatRole.User, message));
+        // The workspace is now at the commit it just produced, so the next turn's parent is this one rather than
+        // a re-seed. Without this the registry would think the tree was stale and copy it back over itself.
+        workspace.CommitSha = version.CommitSha;
 
-        await foreach (var update in agent.RunStreamingAsync(messages, cancellationToken: cancellationToken))
-        {
-            foreach (var content in update.Contents)
-            {
-                switch (content)
-                {
-                    case TextContent text when text.Text.Length > 0:
-                        await writer.WriteTextAsync(text.Text, cancellationToken);
-                        break;
-
-                    case FunctionCallContent call:
-                        await writer.WriteAsync(new RunEvent
-                        {
-                            Type = RunEventType.ToolCall,
-                            Tool = call.Name,
-                            Detail = ToolPhrases.For(call.Name)
-                        }, cancellationToken);
-                        break;
-
-                    case FunctionResultContent result:
-                        await writer.WriteAsync(new RunEvent
-                        {
-                            Type = RunEventType.ToolResult,
-                            Tool = result.CallId,
-                            Detail = Summarize(result.Result?.ToString())
-                        }, cancellationToken);
-                        break;
-                }
-            }
-        }
-
-        return await writer.CompleteMessageAsync(cancellationToken);
+        return version;
     }
 
     /// <summary>
-    /// The key an args object routes to, plus its model override when it has one. One line per agent, and the
-    /// reason the router is a switch rather than a lookup: adding an agent should not compile until this has been
-    /// thought about.
+    /// Shows the person a compile error if the turn left one.
+    ///
+    /// The dev server is the build gate that the editor can see, and a Next.js compile error is both the most
+    /// useful thing to put on screen and the exact text the next message should carry back to the agent. Read
+    /// rather than inferred: the agent may sincerely believe it is finished.
     /// </summary>
-    private static string ResolveAgentKey(BaseAgentArgs args)
+    private async Task ReportBuildErrorsAsync(SiteWorkspace workspace, CancellationToken cancellationToken)
     {
-        var key = args switch
+        var log = await workspace.Sandbox.ReadDevServerLogAsync(cancellationToken);
+
+        if (log.Length == 0) return;
+
+        var hasError = log.Contains("Failed to compile", StringComparison.OrdinalIgnoreCase)
+            || log.Contains("Module not found", StringComparison.OrdinalIgnoreCase)
+            || log.Contains("Type error:", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasError) return;
+
+        await writer.WriteAsync(new RunEvent
         {
-            SiteEditorAgentArgs => SiteEditorAgent.Key,
-            _ => throw new InvalidOperationException($"No agent handles '{args.GetType().Name}'.")
-        };
-
-        return string.IsNullOrWhiteSpace(args.Model) ? key : $"{key}-{args.Model.Trim().ToLowerInvariant()}";
+            Type = RunEventType.BuildFailed,
+            Detail = log.Length <= 2000 ? log : log[^2000..]
+        }, cancellationToken);
     }
 
-    private static ChatRole RoleOf(MessageRole role) => role switch
-    {
-        MessageRole.Assistant => ChatRole.Assistant,
-        MessageRole.System => ChatRole.System,
-        _ => ChatRole.User
-    };
-
-    /// <summary>A tool result as a chip caption: the first line, clipped. The full text is the model's business.</summary>
-    private static string? Summarize(string? result)
-    {
-        if (string.IsNullOrWhiteSpace(result)) return null;
-
-        var firstLine = result.Split('\n')[0].Trim();
-
-        return firstLine.Length <= 80 ? firstLine : $"{firstLine[..77]}...";
-    }
-}
-
-/// <summary>
-/// What a tool call looks like in the stream: "Reading your site", not "ReadSite". The person watching does not
-/// know what a tool is, and a chip that reads like an internal name makes the product look like a debugger.
-/// </summary>
-public static class ToolPhrases
-{
-    private static readonly Dictionary<string, string> Phrases = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["ReadSite"] = "Reading your site",
-        ["AddPage"] = "Adding a page",
-        ["UpdatePage"] = "Updating a page",
-        ["RemovePage"] = "Removing a page",
-        ["AddSection"] = "Adding a section",
-        ["UpdateSection"] = "Editing a section",
-        ["MoveSection"] = "Moving a section",
-        ["RemoveSection"] = "Removing a section",
-        ["SetSectionHidden"] = "Hiding a section",
-        ["SetTheme"] = "Changing the look",
-        ["SetNavigation"] = "Updating the menu",
-        ["AskUser"] = "Asking you something"
-    };
-
-    public static string For(string? tool) =>
-        tool is not null && Phrases.TryGetValue(tool, out var phrase) ? phrase : "Working";
+    private static string Describe(ConversationMessage message) =>
+        $"{(message.Role == MessageRole.User ? "They asked" : "You replied")}: {message.Text}";
 }
