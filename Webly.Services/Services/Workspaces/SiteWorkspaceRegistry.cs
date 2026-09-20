@@ -117,9 +117,21 @@ public class SiteWorkspaceRegistry(
     /// <summary>
     /// Puts a commit's tree in the sandbox and makes sure the dependencies match it.
     ///
-    /// <c>npm install</c> runs only when the lockfile differs from the image's, which is what makes a cold
-    /// workspace fast: the sandbox image already has the starter template's dependencies installed, so the
-    /// common case is a tree copy and nothing else. A site whose agent added a package pays the install once.
+    /// An install runs only when the tree's dependencies are not already there, which is what makes a cold
+    /// workspace fast: the sandbox image has the starter template's dependencies installed, so the common case
+    /// is a tree copy and nothing else. A site whose agent added a package pays the install once.
+    ///
+    /// <b><c>npm ci</c> first, and that is not a preference.</b> <c>npm install</c> resolves the tree afresh and
+    /// writes <c>package-lock.json</c> back — so seeding a workspace edited the site's source, and the turn
+    /// committed the result as the person's change. The first real turn through this code produced a version
+    /// whose diff was the headline they asked for <i>and eighty-four deleted lines of lockfile</i>. It is worse
+    /// than noise in a history: the publish path runs <c>npm ci</c> against that lockfile, so a file nobody
+    /// reviewed decides what the built site is made of. <c>npm ci</c> installs what the lockfile says and never
+    /// writes it.
+    ///
+    /// The fallback is the one case <c>npm ci</c> refuses: a <c>package.json</c> the lockfile does not match,
+    /// which is what an agent that edited dependencies by hand leaves behind. Then resolving really is the job,
+    /// and the lockfile it writes is an honest part of that turn's change.
     /// </summary>
     private async Task SeedAsync(
         ISandbox sandbox,
@@ -135,18 +147,24 @@ public class SiteWorkspaceRegistry(
             new SandboxCommand("sh", ["-c", "test -d node_modules && npm ls --depth=0 >/dev/null 2>&1"]),
             cancellationToken: cancellationToken);
 
-        if (!install.Succeeded)
-        {
-            logger.LogInformation("Installing dependencies for {Site}.", site.Nanoid);
+        if (install.Succeeded) return;
 
-            var result = await sandbox.RunAsync(
-                new SandboxCommand("npm", ["install", "--no-audit", "--no-fund"], TimeSpan.FromMinutes(5)),
-                cancellationToken: cancellationToken);
+        logger.LogInformation("Installing dependencies for {Site}.", site.Nanoid);
 
-            if (!result.Succeeded)
-                throw new SandboxException(
-                    "The site's dependencies could not be installed.", result.Output);
-        }
+        var clean = await sandbox.RunAsync(
+            new SandboxCommand("npm", ["ci", "--no-audit", "--no-fund"], TimeSpan.FromMinutes(5)),
+            cancellationToken: cancellationToken);
+
+        if (clean.Succeeded) return;
+
+        var resolved = await sandbox.RunAsync(
+            new SandboxCommand("npm", ["install", "--no-audit", "--no-fund"], TimeSpan.FromMinutes(5)),
+            cancellationToken: cancellationToken);
+
+        if (!resolved.Succeeded)
+            throw new SandboxException(
+                "The site's dependencies could not be installed.",
+                $"npm ci:\n{clean.Output}\n\nnpm install:\n{resolved.Output}");
     }
 
     public async Task ReleaseAsync(string siteNanoid)

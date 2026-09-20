@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Webly.Api.Extensions;
+using Webly.Api.Infrastructure;
 using Webly.Data.Repositories.Sites;
 using Webly.Services.Services.Workspaces;
 using Yarp.ReverseProxy.Forwarder;
@@ -34,7 +35,7 @@ public class PreviewController(
     IHttpForwarder forwarder,
     ISiteRepository siteRepository,
     ISiteWorkspaceRegistry workspaces,
-    IHttpClientFactory httpClientFactory,
+    PreviewForwarder client,
     ILogger<PreviewController> logger) : ControllerBase
 {
     /// <summary>
@@ -76,7 +77,7 @@ public class PreviewController(
         var transformer = new PreviewTransformer(workspace.Sandbox.AgentToken, $"/api/sites/{siteNanoid}/preview");
 
         var error = await forwarder.SendAsync(
-            HttpContext, destination, httpClientFactory.CreateClient(nameof(PreviewController)), new ForwarderRequestConfig
+            HttpContext, destination, client.Client, new ForwarderRequestConfig
             {
                 // Generous: a cold page in a dev server compiles on first request, and the compile is the wait.
                 ActivityTimeout = TimeSpan.FromMinutes(2)

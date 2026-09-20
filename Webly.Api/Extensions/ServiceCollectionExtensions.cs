@@ -305,24 +305,9 @@ public static class ServiceCollectionExtensions
                 $"Unknown Deployment:Provider '{deploymentProvider}'. Expected 'vercel' or 'filesystem'.");
         }
 
-        // The preview proxy's own client. AllowAutoRedirect off, so a redirect from the site is passed to the
-        // browser rather than followed server-side into the sandbox.
-        //
-        // The infinite timeout is load-bearing and not laziness. `HttpClient.Timeout` is a deadline on the *whole*
-        // exchange, response body included, and its default is a hundred seconds — which for a proxy means every
-        // hot-reload WebSocket is torn down after a minute and a half, and a first-request compile that takes
-        // longer than that fails however generous YARP's own timeout is. `ActivityTimeout` in
-        // <c>ForwarderRequestConfig</c> is the bound that belongs here: it measures *silence* rather than duration,
-        // so a connection that is being used is never cut off.
-        services.AddHttpClient(nameof(Controllers.PreviewController), client => client.Timeout = Timeout.InfiniteTimeSpan)
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-            {
-                UseProxy = false,
-                AllowAutoRedirect = false,
-                AutomaticDecompression = System.Net.DecompressionMethods.None,
-                ConnectTimeout = TimeSpan.FromSeconds(15)
-            })
-            .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
+        // The preview proxy's outbound client. A singleton HttpMessageInvoker, not a named HttpClient — see
+        // PreviewForwarder, which is where the reason lives and where it is long enough to be worth its own file.
+        services.AddSingleton<PreviewForwarder>();
 
         services.AddHttpForwarder();
 

@@ -57,15 +57,23 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
+// The five settings that name something on disk, made absolute before anything reads them. They are written
+// relative in configuration because "templates/next-site" is what they mean, and a relative path otherwise
+// resolves against the working directory — which is not a thing this app gets to choose. See PathAnchor for
+// what they are resolved against and why it is not the content root.
+//
+// Deployment:FileSystem:Root is on the list because it was the fourth one to be found the hard way: a publish
+// reported Ready, wrote its export under Webly.Api/, and the URL in the row 404ed. A deployment that says it
+// succeeded and serves nothing is the worst outcome this product has.
+PathAnchor.Resolve(builder.Configuration, builder.Environment,
+    "Templates:SitePath",
+    "Sandbox:Local:AgentPath",
+    "Sandbox:Local:WorkspaceRoot",
+    "Repositories:Root",
+    "Deployment:FileSystem:Root");
+
 // Resolve the dev DB up front so both the DbContext and the /health endpoint agree on which
 // Postgres instance is actually in use. See DevDatabaseResolver for the hybrid strategy.
-// The three settings that name something on disk, made absolute before anything reads them. They are
-// written relative in configuration because "templates/next-site" is what they mean, and a relative path
-// otherwise resolves against the working directory — which is not a thing this app gets to choose. See
-// PathAnchor for what they are resolved against and why it is not the content root.
-PathAnchor.Resolve(builder.Configuration, builder.Environment,
-    "Templates:SitePath", "Sandbox:Local:AgentPath", "Repositories:Root");
-
 var configuredConnectionString = builder.Configuration.GetConnectionString("WeblyDb")
     ?? throw new InvalidOperationException("Missing ConnectionStrings:WeblyDb configuration.");
 
@@ -152,10 +160,13 @@ if (app.Environment.IsDevelopment())
 
     Directory.CreateDirectory(publishedRoot);
 
+    app.Logger.LogInformation("Serving locally published sites from {Root} at /published.", publishedRoot);
+
     var publishedFiles = new PhysicalFileProvider(publishedRoot);
 
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = publishedFiles, RequestPath = "/published" });
     app.UseStaticFiles(new StaticFileOptions { FileProvider = publishedFiles, RequestPath = "/published" });
+
 }
 
 // Everything in front of this app in a deployment terminates TLS and forwards over plain HTTP
@@ -189,6 +200,17 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 // Must run before UseAuthentication: it turns the auth cookies into the Authorization header that
 // the bearer handler reads, and refreshes an expired session on the way past.
 app.UseMiddleware<CookieAuthenticationMiddleware>();
+
+// Explicit, and this is the line that makes the static files above work at all.
+//
+// `WebApplication` inserts `UseRouting()` at the *front* of the pipeline when nothing has called it, which puts
+// endpoint selection before every middleware here. `MapReverseProxy` is a catch-all, so an endpoint is then
+// selected for every request — and `StaticFileMiddleware` deliberately stands down when one already is, on the
+// reasonable grounds that a matched endpoint is a more specific answer than a file. The result was that a
+// published site 502ed through the proxy to the Angular dev server while its index.html sat on disk, with no
+// error anywhere: the file provider resolved it, the middleware was in the pipeline, and it skipped every time.
+// Calling `UseRouting` here suppresses that insertion and puts selection back after the files.
+app.UseRouting();
 
 app.UseAuthentication();
 
