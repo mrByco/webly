@@ -1,0 +1,117 @@
+<div class="min-h-0 flex-1 overflow-y-auto p-5">
+  <div class="mx-auto flex w-full max-w-2xl flex-col gap-5">
+    <div>
+      <h2 class="text-base font-bold">Domains</h2>
+      <p class="text-sm text-base-content/60">
+        Your site is always reachable at its Webly address. Add your own domain when you have one.
+      </p>
+    </div>
+
+    @if (weblyUrl()) {
+      <div class="surface flex items-center gap-3 p-4">
+        <app-icon class="size-4.5 text-base-content/55" name="globe" />
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ weblyUrl() }}</span>
+        <span class="badge badge-sm">Always on</span>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="alert alert-error">
+        <app-icon class="size-5" name="circle-alert" />
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    <form class="flex flex-wrap items-end gap-2" (ngSubmit)="add()">
+      <label class="floating-label flex-1">
+        <span>Your domain</span>
+        <input
+          class="input w-full"
+          name="hostname"
+          type="text"
+          autocomplete="off"
+          placeholder="example.com"
+          [(ngModel)]="hostname" />
+      </label>
+
+      <button class="btn btn-primary" type="submit" [disabled]="busy() || !hostname.trim()">Add domain</button>
+    </form>
+
+    @if (loading()) {
+      <p class="text-sm text-base-content/60">Loading…</p>
+    } @else {
+      @for (domain of list(); track domain.nanoid) {
+        <div class="surface flex flex-col gap-3 p-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <app-icon class="size-4.5 text-base-content/55" name="link" />
+            <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ domain.hostname }}</span>
+
+            @switch (domain.verificationState) {
+              @case ('Verified') { <span class="badge badge-sm badge-success">Connected</span> }
+              @case ('Pending') { <span class="badge badge-sm badge-warning">Waiting for DNS</span> }
+              @case ('Failed') { <span class="badge badge-sm badge-error">Not working</span> }
+            }
+
+            @if (domain.isPrimary) {
+              <span class="badge badge-sm badge-primary">Main address</span>
+            }
+          </div>
+
+          <!-- What goes in the registrar's panel, as three copyable values. -->
+          @if (domain.verificationState !== 'Verified' && domain.dnsRecordType) {
+            <div class="grid gap-2 rounded-field bg-base-200 p-3 sm:grid-cols-3">
+              <div>
+                <p class="section-label">Type</p>
+                <p class="font-mono text-sm">{{ domain.dnsRecordType }}</p>
+              </div>
+              <div class="min-w-0">
+                <p class="section-label">Name</p>
+                <p class="truncate font-mono text-sm">{{ domain.dnsRecordName }}</p>
+              </div>
+              <div class="flex min-w-0 items-end gap-1">
+                <div class="min-w-0">
+                  <p class="section-label">Value</p>
+                  <p class="truncate font-mono text-sm">{{ domain.dnsRecordValue }}</p>
+                </div>
+                <button
+                  class="btn btn-ghost btn-xs"
+                  type="button"
+                  aria-label="Copy the value"
+                  (click)="copy(domain.dnsRecordValue)">
+                  <app-icon class="size-3.5" name="copy" />
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (domain.lastError) {
+            <p class="text-xs font-semibold text-error">{{ domain.lastError }}</p>
+          }
+
+          <div class="flex flex-wrap gap-2">
+            @if (domain.verificationState !== 'Verified') {
+              <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="check(domain)">
+                Check again
+              </button>
+            }
+
+            @if (domain.verificationState === 'Verified' && !domain.isPrimary) {
+              <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="setPrimary(domain)">
+                Make this the main address
+              </button>
+            }
+
+            @if (!domain.isPrimary) {
+              <button class="btn btn-ghost btn-sm text-error" type="button" [disabled]="busy()" (click)="remove(domain)">
+                <app-icon class="size-4" name="trash" />
+                Remove
+              </button>
+            }
+          </div>
+        </div>
+      } @empty {
+        <p class="text-sm text-base-content/60">No custom domains yet.</p>
+      }
+    }
+  </div>
+</div>

@@ -1,0 +1,19 @@
+<!--
+  A sheet from the bottom on a phone, where the thumb already is, and centred from `sm` up.
+
+  The action row belongs to whatever is inside: a dialog's buttons are part of the thing being
+  decided, and projecting them through a second slot would separate them from the state they act on.
+-->
+@if (open()) {
+  <div class="modal modal-open modal-bottom sm:modal-middle" role="dialog">
+    <div class="modal-box">
+      @if (title()) {
+        <h2 class="text-xl font-bold">{{ title() }}</h2>
+      }
+
+      <ng-content />
+    </div>
+
+    <button class="modal-backdrop" type="button" aria-label="Close" (click)="close.emit()"></button>
+  </div>
+}

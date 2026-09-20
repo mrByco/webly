@@ -1,0 +1,65 @@
+<div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+  <div class="flex min-h-0 basis-1/2 flex-col overflow-y-auto border-base-300 p-4 lg:max-w-sm lg:border-r">
+    <h2 class="mb-3 text-base font-bold">History</h2>
+
+    @if (error()) {
+      <div class="alert alert-error mb-3">
+        <app-icon class="size-5" name="circle-alert" />
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (loading()) {
+      <p class="text-sm text-base-content/60">Loading…</p>
+    } @else {
+      <ul class="flex flex-col gap-2">
+        @for (version of versions(); track version.nanoid) {
+          <!-- A row rather than one big button: the restore action is its own control, and nesting a
+               button inside a button is markup a browser is entitled to render however it likes. -->
+          <li
+            class="rounded-box border border-base-300 bg-base-100 p-3 transition-colors"
+            [class.border-primary]="version.nanoid === selected()?.nanoid">
+            <button class="block w-full text-left" type="button" (click)="select(version)">
+              <span class="flex items-center gap-2">
+                <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ version.summary }}</span>
+
+                @if (version.isDraft) {
+                  <span class="badge badge-sm badge-primary">Current</span>
+                } @else if (version.isPublished) {
+                  <span class="badge badge-sm badge-success">Live</span>
+                }
+              </span>
+
+              <span class="mt-1 block text-xs text-base-content/55">
+                {{ version.createdAt | date: 'd MMM, HH:mm' }} ·
+                @switch (version.origin) {
+                  @case ('Agent') { asked for }
+                  @case ('Manual') { edited by hand }
+                  @case ('Restore') { restored }
+                  @default { created }
+                }
+              </span>
+            </button>
+
+            @if (!version.isDraft) {
+              <button class="btn btn-xs mt-2" type="button" [disabled]="restoring()" (click)="restore(version)">
+                <app-icon class="size-3.5" name="restore" />
+                Bring this back
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <!-- The same renderer the deployment uses, pointed at an older version. See SitePreview. -->
+  <div class="flex min-h-0 flex-1 flex-col">
+    @if (selected(); as version) {
+      <app-site-preview
+        [siteNanoid]="siteNanoid"
+        [version]="version.isDraft ? undefined : version.nanoid"
+        [reloadKey]="0" />
+    }
+  </div>
+</div>

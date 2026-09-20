@@ -1,0 +1,111 @@
+name: Dev Deployment - Deploy to Portainer
+
+on:
+  push:
+    branches: ["master"]
+
+# Deliberately no build-or-test gate here. ci.yml already runs on the same push and on every pull
+# request; duplicating it would double the wait for no extra signal. What that does mean is that a
+# red CI run does not stop this workflow, so a broken master still produces an image — acceptable
+# for a dev tag that only the author's VPS pulls, and the thing to reconsider before pointing
+# anything else at it.
+
+jobs:
+  push_to_registry_api:
+    name: Push Webly API Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      # Required by the cache-from/cache-to below: the runner's default builder uses the docker
+      # driver, which cannot export a cache at all, and the build fails outright rather than
+      # falling back to an uncached one. This switches to a docker-container builder that can.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: byc0/margareta
+
+      # Context is the repository root, not Webly.Api: Directory.Build.props and
+      # Directory.Packages.props are there and restore fails without them. See the Dockerfile.
+      - name: Build and push Webly API Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Webly.Api/Dockerfile
+          push: true
+          tags: byc0/margareta:webly_dev_api
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=webly-api
+          cache-to: type=gha,mode=max,scope=webly-api
+
+  push_to_registry_frontend:
+    name: Push Webly Frontend Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      # Required by the cache-from/cache-to below: the runner's default builder uses the docker
+      # driver, which cannot export a cache at all, and the build fails outright rather than
+      # falling back to an uncached one. This switches to a docker-container builder that can.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: byc0/margareta
+
+      # No build-args, unlike the reference project's frontend job. This client resolves the API at
+      # the same origin it was served from, so there is nothing environment-specific to bake in and
+      # the dev and prod frontend images differ only in their tag.
+      - name: Build and push Webly Frontend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client/
+          file: ./client/Dockerfile
+          push: true
+          tags: byc0/margareta:webly_dev_frontend
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=webly-client
+          cache-to: type=gha,mode=max,scope=webly-client
+
+  # Deploy to Portainer
+  deployment_all:
+    runs-on: ubuntu-latest
+    name: Deploy to Portainer
+    needs:
+      - push_to_registry_api
+      - push_to_registry_frontend
+    steps:
+      # The webhook URL is a secret rather than a literal. It carries no authentication of its own,
+      # so anyone holding it can redeploy the stack at will.
+      - name: Deploy Apps to Portainer
+        uses: fjogeleit/http-request-action@v1
+        with:
+          url: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+          method: "POST"
+          preventFailureOnNoResponse: "true"
+          customHeaders: '{"Content-Type": "application/json"}'

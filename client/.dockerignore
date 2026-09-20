@@ -1,0 +1,7 @@
+# Context is client/. node_modules is excluded so the image always installs from yarn.lock
+# rather than inheriting a Windows-built tree, and dist so a stale local build cannot be
+# mistaken for the one this image just produced.
+node_modules/
+dist/
+.angular/
+.vscode/

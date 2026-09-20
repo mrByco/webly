@@ -1,0 +1,92 @@
+<app-shell>
+  @if (site(); as detail) {
+    <div class="flex min-h-0 flex-1 flex-col">
+      <!-- The header: what is open, where it lives, and the one button that changes the world. -->
+      <header class="flex flex-wrap items-center gap-3 border-b border-base-300 bg-base-100 px-4 py-3">
+        <div class="min-w-0">
+          <h1 class="truncate text-lg font-bold tracking-tight">{{ detail.summary.name }}</h1>
+          <a
+            class="flex items-center gap-1 truncate text-xs text-base-content/60 hover:text-base-content"
+            target="_blank"
+            rel="noopener"
+            [href]="detail.summary.url">
+            {{ detail.summary.url }}
+            <app-icon class="size-3" name="external" />
+          </a>
+        </div>
+
+        <nav class="ml-auto flex gap-1">
+          <a
+            class="btn btn-ghost btn-sm"
+            routerLinkActive="btn-active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            [routerLink]="routes.site.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="sparkles" />
+            Editor
+          </a>
+          <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteHistory.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="clock" />
+            History
+          </a>
+          <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteDomains.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="link" />
+            Domains
+          </a>
+          <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteSettings.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="settings" />
+            Settings
+          </a>
+        </nav>
+
+        <button class="btn btn-primary btn-sm" type="button" [disabled]="!canPublish()" (click)="publish()">
+          <app-icon class="size-4" name="rocket" />
+          @if (publishing()) {
+            {{ publishStatus() ?? 'Publishing…' }}
+          } @else if (detail.summary.hasUnpublishedChanges || !detail.summary.publishedAt) {
+            Publish
+          } @else {
+            Published
+          }
+        </button>
+      </header>
+
+      @if (error()) {
+        <div class="alert alert-error mx-4 mt-3">
+          <app-icon class="size-5" name="circle-alert" />
+          <span>{{ error() }}</span>
+        </div>
+      }
+
+      <!--
+        Chat on the left, preview on the right, from `lg` up. Below that the preview goes under the chat
+        rather than beside it: on a phone the chat is the product, and half a screen of each is neither.
+      -->
+      <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <section class="flex min-h-0 basis-2/5 flex-col border-base-300 lg:max-w-md lg:border-r">
+          <app-site-chat [siteNanoid]="detail.summary.nanoid" (versionCommitted)="onVersionCommitted()" />
+        </section>
+
+        <section class="flex min-h-0 flex-1 flex-col">
+          <!--
+            The child routes render in place of the preview: history, domains and settings are all about the
+            site you are looking at, and taking the chat off screen to show them would interrupt the one
+            thing somebody was in the middle of.
+
+            `isActivated` off the outlet itself, rather than a flag this component maintains from activate
+            and deactivate events: a flag is a second copy of the router's state, and it is wrong for one
+            change-detection pass on every navigation.
+          -->
+          <router-outlet #outlet="outlet" />
+
+          @if (!outlet.isActivated) {
+            <app-site-preview [siteNanoid]="detail.summary.nanoid" [reloadKey]="previewKey()" />
+          }
+        </section>
+      </div>
+    </div>
+  } @else {
+    <div class="flex flex-1 items-center justify-center">
+      <p class="text-sm text-base-content/60">Loading your site…</p>
+    </div>
+  }
+</app-shell>

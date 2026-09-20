@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "webly-dev": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["tools/dev-mcp/index.js"],
+      "env": {}
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--ignore-https-errors"],
+      "env": {}
+    }
+  }
+}

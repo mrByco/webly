@@ -1,0 +1,93 @@
+<div class="min-h-0 flex-1 overflow-y-auto p-5">
+  <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div>
+      <h2 class="text-base font-bold">Settings</h2>
+      <p class="text-sm text-base-content/60">The name is yours to change; the web address is not.</p>
+    </div>
+
+    @if (error()) {
+      <div class="alert alert-error">
+        <app-icon class="size-5" name="circle-alert" />
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    <form class="flex flex-wrap items-end gap-2" (ngSubmit)="rename()">
+      <label class="floating-label flex-1">
+        <span>Site name</span>
+        <input class="input w-full" name="name" type="text" maxlength="80" [(ngModel)]="name" />
+      </label>
+
+      <button class="btn" type="submit" [disabled]="saving() || !name.trim()">Save</button>
+    </form>
+
+    <!-- The address does not follow the name: it may already be published, linked to and indexed, and
+         moving it because somebody fixed a typo is a broken link they did not ask for. -->
+    @if (site(); as detail) {
+      <div class="rounded-field bg-base-200 p-3">
+        <p class="section-label">Web address</p>
+        <p class="font-mono text-sm">{{ detail.summary.url }}</p>
+      </div>
+    }
+
+    <div>
+      <h3 class="mb-2 text-sm font-bold">Publishing history</h3>
+
+      @if (history().length === 0) {
+        <p class="text-sm text-base-content/60">Nothing published yet.</p>
+      } @else {
+        <ul class="flex flex-col gap-2">
+          @for (deployment of history(); track deployment.nanoid) {
+            <li class="surface flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+              @switch (deployment.status) {
+                @case ('Ready') { <app-icon class="size-4 text-success" name="check" /> }
+                @case ('Failed') { <app-icon class="size-4 text-error" name="circle-alert" /> }
+                @default { <app-icon class="size-4 text-base-content/50" name="clock" /> }
+              }
+
+              <span class="min-w-0 flex-1 truncate">{{ deployment.siteVersionSummary }}</span>
+
+              @if (deployment.error) {
+                <span class="text-xs font-semibold text-error">{{ deployment.error }}</span>
+              }
+
+              @if (deployment.providerUrl) {
+                <a class="btn btn-ghost btn-xs" target="_blank" rel="noopener" [href]="deployment.providerUrl">
+                  <app-icon class="size-3.5" name="external" />
+                </a>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <!-- Deliberately flatter than a surface: a destructive action that looks like a panel looks like a
+         setting. -->
+    <div class="rounded-box border border-error/40 p-4">
+      <h3 class="text-sm font-bold text-error">Delete this site</h3>
+      <p class="mb-3 text-sm text-base-content/65">
+        The site, its history and its domains go. If it is published, it stops being reachable. This cannot
+        be undone.
+      </p>
+
+      <button class="btn btn-sm btn-error" type="button" (click)="confirmingDelete.set(true)">
+        <app-icon class="size-4" name="trash" />
+        Delete site
+      </button>
+    </div>
+  </div>
+</div>
+
+<app-modal [open]="confirmingDelete()" (close)="confirmingDelete.set(false)">
+  <h3 class="text-lg font-bold">Delete {{ site()?.summary.name }}?</h3>
+  <p class="py-3 text-sm text-base-content/70">
+    Everything goes: the pages, every version in the history, and the domains you connected. There is no way
+    back.
+  </p>
+
+  <div class="flex justify-end gap-2">
+    <button class="btn btn-ghost" type="button" (click)="confirmingDelete.set(false)">Keep it</button>
+    <button class="btn btn-error" type="button" [disabled]="saving()" (click)="remove()">Delete</button>
+  </div>
+</app-modal>

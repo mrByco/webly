@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore Webly.slnx
+
+      - name: Build
+        run: dotnet build Webly.slnx --no-restore -c Release
+
+      # Testcontainers needs a Docker daemon; ubuntu-latest runners ship one.
+      - name: Test
+        run: dotnet test Webly.Tests/Webly.Tests.csproj --no-build -c Release --logger "console;verbosity=normal"
+
+  client:
+    name: Client build + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 24, not 22: Angular 22.1's engines field requires 22.22.3+, and pinning the major alone made
+          # this job depend on whatever 22.x the runner happened to cache.
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: client/yarn.lock
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      # The generated API client is committed, so no backend is needed here to regenerate it — except
+      # that it does not exist yet (see CLAUDE.md "Status"). Rather than a red job on every commit until
+      # then, the steps below are skipped while it is missing, and this check is what deletes itself:
+      # the first `regen_api` makes them run, and nobody has to remember to re-enable anything.
+      - name: Is the generated client committed?
+        id: generated
+        run: |
+          if [ -d src/app/api ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::client/src/app/api is not committed yet, so the client is not type-checked. See MASTER_PLAN.md P1."
+          fi
+
+      - name: Typecheck
+        if: steps.generated.outputs.present == 'true'
+        run: yarn typecheck
+
+      - name: Build (browser + SSR)
+        if: steps.generated.outputs.present == 'true'
+        run: yarn build
+
+      - name: Test
+        if: steps.generated.outputs.present == 'true'
+        run: yarn test --watch=false
+
+# Deployment is its own pair of workflows (webly-dev-deploy.yaml, webly-prod.yaml) and deliberately does
+# not gate on this one: a red master should still produce a dev image to look at. That is a decision, not
+# an oversight — see CLAUDE.md "Deployment".

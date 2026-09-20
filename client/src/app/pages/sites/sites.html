@@ -1,0 +1,79 @@
+<app-shell>
+  <div class="mx-auto w-full max-w-5xl px-5 py-8 lg:px-8">
+    <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Your sites</h1>
+        <p class="text-sm text-base-content/60">Describe what you want and Webly builds it.</p>
+      </div>
+
+      <a class="btn btn-primary" [routerLink]="routes.newSite.build()">
+        <app-icon class="size-4.5" name="plus" />
+        New site
+      </a>
+    </header>
+
+    @if (error()) {
+      <div class="alert alert-error mb-4">
+        <app-icon class="size-5" name="circle-alert" />
+        <span>{{ error() }}</span>
+        <button class="btn btn-sm" type="button" (click)="load()">Try again</button>
+      </div>
+    }
+
+    @if (loading()) {
+      <p class="text-sm text-base-content/60">Loading…</p>
+    } @else if (list().length === 0) {
+      <!-- The empty state is the onboarding step. See the component's comment for why it is not a guard. -->
+      <div class="surface flex flex-col items-center gap-3 px-6 py-14 text-center">
+        <app-icon class="size-8 text-primary" name="sparkles" />
+        <h2 class="text-lg font-bold">Let's build your first site</h2>
+        <p class="max-w-md text-sm text-base-content/65">
+          Tell Webly what your business does, in a sentence or two. You will have a page to look at
+          before you finish reading this.
+        </p>
+        <a class="btn btn-primary mt-2" [routerLink]="routes.newSite.build()">Start</a>
+      </div>
+    } @else {
+      <ul class="grid gap-4 sm:grid-cols-2">
+        @for (site of list(); track site.nanoid) {
+          <li class="surface flex flex-col gap-3 p-5">
+            <div class="flex items-start justify-between gap-3">
+              <button class="min-w-0 text-left" type="button" (click)="open(site)">
+                <h2 class="truncate text-lg font-bold">{{ site.name }}</h2>
+                <p class="truncate text-sm text-base-content/60">{{ site.url }}</p>
+              </button>
+
+              @if (site.publishedAt) {
+                <a
+                  class="btn btn-ghost btn-sm"
+                  target="_blank"
+                  rel="noopener"
+                  [href]="site.url"
+                  title="Open the live site">
+                  <app-icon class="size-4" name="external" />
+                </a>
+              }
+            </div>
+
+            <!-- Three states, and they are the three questions somebody has about a site they own:
+                 is it live, is what is live current, and have I not published it at all. -->
+            <p class="text-xs font-semibold">
+              @if (!site.publishedAt) {
+                <span class="text-base-content/55">Not published yet</span>
+              } @else if (site.hasUnpublishedChanges) {
+                <span class="text-warning">Live, with newer changes</span>
+              } @else {
+                <span class="text-success">Live and up to date</span>
+              }
+            </p>
+
+            <button class="btn btn-sm btn-block" type="button" (click)="open(site)">
+              Open editor
+              <app-icon class="size-4" name="arrow-right" />
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</app-shell>

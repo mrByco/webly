@@ -1,0 +1,26 @@
+# Reference projects kept locally, not part of this repo
+sample-projects/
+*.zip
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Dev runtime (pidfiles, logs) — see run-app.ps1 / tools/dev-mcp
+.run/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# Node (client/ and tools/dev-mcp/ have their own, this catches the rest)
+node_modules/
+
+# Playwright MCP scratch output (snapshots, console logs, screenshots)
+.playwright-mcp/
+
+# Local secrets / env
+.env
+.env.*
+appsettings.*.local.json

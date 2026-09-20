@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: webly-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: webly
+      POSTGRES_USER: webly
+      POSTGRES_PASSWORD: webly
+    # Host port 5434 on purpose. 5432 is commonly owned by a locally installed Postgres, which would
+    # silently answer instead of this container; 5433 is the reference project (cookta-rework) dev DB,
+    # and connecting to *that* by accident is worse than not connecting at all — the schema is close
+    # enough to look plausible and wrong. Matches ConnectionStrings:WeblyDb.
+    ports:
+      - "5434:5432"
+    volumes:
+      - webly-postgres-dev-data:/var/lib/postgresql/data
+
+volumes:
+  webly-postgres-dev-data:

@@ -1,0 +1,108 @@
+<div class="flex h-dvh overflow-hidden bg-base-200">
+  <!--
+    Desktop navigation. Fixed rather than scrolling with the page: the editor's panes scroll a long
+    way, and the way out of a site should not leave with them.
+  -->
+  <aside
+    class="hidden h-dvh w-62 shrink-0 flex-col border-r border-base-300 bg-base-300/55 px-3 pt-5 pb-3 lg:flex">
+    <a class="mb-4 flex items-center gap-2.5 px-2" [routerLink]="routes.home.build()">
+      <span class="grid size-9 shrink-0 place-items-center rounded-box bg-primary text-primary-content">
+        <app-icon class="size-5" name="layout" />
+      </span>
+      <span class="text-lg font-bold tracking-tight">Webly</span>
+    </a>
+
+    <a
+      class="flex h-10 items-center gap-3 rounded-field px-2.5 text-[0.95rem] font-semibold text-base-content/75 transition-colors hover:bg-base-300/70"
+      routerLinkActive="bg-base-100! text-primary! shadow-sm"
+      [routerLinkActiveOptions]="{ exact: true }"
+      [routerLink]="routes.home.build()">
+      <app-icon class="size-5" name="layout" />
+      All sites
+    </a>
+
+    <p class="section-label px-2.5 pt-5 pb-2">Your sites</p>
+
+    <nav class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+      @for (site of mySites(); track site.nanoid) {
+        <a
+          class="flex h-10 items-center gap-3 rounded-field px-2.5 text-[0.95rem] font-semibold text-base-content/75 transition-colors hover:bg-base-300/70"
+          routerLinkActive="bg-base-100! text-primary! shadow-sm"
+          [routerLink]="routes.site.build(site.nanoid)">
+          <app-icon class="size-5" name="globe" />
+          <span class="min-w-0 flex-1 truncate">{{ site.name }}</span>
+
+          <!-- One dot, two meanings: filled is live, hollow is live-but-changed-since. The label is
+               for anybody who cannot tell the two apart. -->
+          @if (site.publishedAt) {
+            <span
+              class="size-2 shrink-0 rounded-full"
+              [class.bg-success]="!site.hasUnpublishedChanges"
+              [class.bg-warning]="site.hasUnpublishedChanges"
+              [title]="site.hasUnpublishedChanges ? 'Published, with newer changes' : 'Published'"></span>
+          }
+        </a>
+      } @empty {
+        <p class="px-2.5 py-2 text-sm text-base-content/55">No sites yet.</p>
+      }
+    </nav>
+
+    @if (canCreate()) {
+      <a
+        class="mt-1 flex h-10 items-center gap-3 rounded-field px-2.5 text-[0.95rem] font-semibold text-primary transition-colors hover:bg-base-300/70"
+        [routerLink]="routes.newSite.build()">
+        <app-icon class="size-5" name="plus" />
+        New site
+      </a>
+    }
+
+    <!-- Who you are, pinned where it cannot scroll away. -->
+    <div class="mt-3 flex items-center gap-2.5 border-t border-base-300 pt-3">
+      <a class="flex min-w-0 flex-1 items-center gap-2.5" [routerLink]="routes.account.build()">
+        <app-avatar [name]="me().displayName" [title]="me().email" />
+
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-semibold">{{ me().displayName }}</p>
+          <p class="truncate text-xs text-base-content/60">{{ me().email }}</p>
+        </div>
+      </a>
+
+      <button
+        class="grid size-8 shrink-0 place-items-center rounded-field text-base-content/55 transition-colors hover:bg-base-300/70 hover:text-base-content"
+        type="button"
+        aria-label="Sign out"
+        (click)="logout()">
+        <app-icon class="size-4.5" name="log-out" />
+      </button>
+    </div>
+  </aside>
+
+  <!--
+    The content column. `min-w-0` is load-bearing: without it a wide child stretches the flex item and
+    the whole page scrolls sideways.
+  -->
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <ng-content />
+  </div>
+
+  <!-- Phone navigation. Two destinations, because the app has two; see the component's comment. -->
+  <nav
+    class="fixed inset-x-0 bottom-0 z-30 flex border-t border-base-300 bg-base-100 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:hidden">
+    <a
+      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-base-content/60"
+      routerLinkActive="text-primary!"
+      [routerLinkActiveOptions]="{ exact: true }"
+      [routerLink]="routes.home.build()">
+      <app-icon class="size-6" name="layout" />
+      <span class="truncate">Sites</span>
+    </a>
+
+    <a
+      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-base-content/60"
+      routerLinkActive="text-primary!"
+      [routerLink]="routes.account.build()">
+      <app-icon class="size-6" name="user" />
+      <span class="truncate">Account</span>
+    </a>
+  </nav>
+</div>

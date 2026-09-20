@@ -1,0 +1,207 @@
+/* Global styles. Component styling lives with its component; this is only the theme and the
+   brand mark. */
+
+@import 'tailwindcss';
+
+/*
+ * Source Sans 3: a wide accent set, so a site name in any Latin-script language renders correctly in
+ * the switcher, and a lowercase that stays legible at the small sizes the lists use. The system stack
+ * behind it is the fallback while the webfont loads, or if it never does.
+ *
+ * Note this is the *app's* type. A published site's fonts come from its own theme — see `ThemeCss` on
+ * the backend — and the two are deliberately unrelated: the editor should not look like the thing it
+ * edits, or nobody can tell which they are looking at.
+ */
+@theme {
+  --font-sans:
+    'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@plugin 'daisyui' {
+  themes: webly --default, webly-dark --prefersdark;
+}
+
+/*
+ * A quiet, cool palette, and quiet is the point: this app is a frame around somebody else's website.
+ * The editor's own colours have to stay out of the way of whatever the customer picked for their
+ * brand, which is the opposite of the reference project's problem — a recipe app can afford to be
+ * paprika red because nothing inside it is competing.
+ *
+ * Indigo as the primary, one slate neutral, and no decorative accent: the accents on screen should be
+ * the preview's.
+ */
+@plugin 'daisyui/theme' {
+  name: 'webly';
+  default: true;
+  color-scheme: light;
+
+  /* Panel, page and edge. The page is a shade warmer than the panels sitting on it, so a card
+     reads as paper on a table rather than as a box drawn on the same surface. */
+  --color-base-100: oklch(99% 0.003 265);
+  --color-base-200: oklch(96.5% 0.005 265);
+  --color-base-300: oklch(91.5% 0.008 265);
+  --color-base-content: oklch(26% 0.014 265);
+
+  --color-primary: oklch(52% 0.19 268);
+  --color-primary-content: oklch(98.5% 0.008 268);
+  --color-secondary: oklch(58% 0.12 200);
+  --color-secondary-content: oklch(98% 0.01 200);
+  --color-accent: oklch(62% 0.15 300);
+  --color-accent-content: oklch(98% 0.01 300);
+  --color-neutral: oklch(32% 0.018 265);
+  --color-neutral-content: oklch(96% 0.006 265);
+
+  --color-info: oklch(62% 0.11 235);
+  --color-info-content: oklch(98% 0.01 235);
+  --color-success: oklch(60% 0.13 150);
+  --color-success-content: oklch(98% 0.01 150);
+  --color-warning: oklch(78% 0.15 80);
+  --color-warning-content: oklch(26% 0.04 80);
+  --color-error: oklch(58% 0.2 27);
+  --color-error-content: oklch(98% 0.01 27);
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.28rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'webly-dark';
+  prefersdark: true;
+  color-scheme: dark;
+
+  /*
+   * Reviewed rather than inverted. Three things were wrong with the first pass: the panels sat
+   * below the page instead of above it, so nothing advanced; the edge colour was darker than both,
+   * so borders disappeared; and the content was dim enough that muted text at 50% opacity landed
+   * near the contrast floor. Panels are now the lightest surface, the edge is lighter still, and
+   * the content is bright enough that the muted ramp has somewhere to go.
+   */
+  --color-base-100: oklch(25.5% 0.012 265);
+  --color-base-200: oklch(21% 0.011 265);
+  --color-base-300: oklch(32.5% 0.014 265);
+  --color-base-content: oklch(95% 0.008 265);
+
+  --color-primary: oklch(68% 0.16 268);
+  --color-primary-content: oklch(18% 0.03 268);
+  --color-secondary: oklch(68% 0.1 200);
+  --color-secondary-content: oklch(18% 0.03 200);
+  --color-accent: oklch(70% 0.13 300);
+  --color-accent-content: oklch(18% 0.03 300);
+  --color-neutral: oklch(30% 0.014 265);
+  --color-neutral-content: oklch(94% 0.006 265);
+
+  --color-info: oklch(70% 0.1 235);
+  --color-info-content: oklch(18% 0.03 235);
+  --color-success: oklch(70% 0.12 150);
+  --color-success-content: oklch(18% 0.03 150);
+  --color-warning: oklch(82% 0.14 80);
+  --color-warning-content: oklch(22% 0.04 80);
+  --color-error: oklch(68% 0.17 27);
+  --color-error-content: oklch(18% 0.03 27);
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.28rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/*
+ * Two idioms the designs repeat on every screen, so they are written once rather than as the same
+ * five utilities copied into thirty templates.
+ *
+ * `section-label` is the small uppercase heading that names a block (Your sites, Domains, Publishing
+ * history). `surface` is the panel those blocks sit on: the one elevation the app has.
+ * Everything else — filter rows, destructive actions, read-only notes — is deliberately flatter
+ * than this, which is what stops a delete button and a filter panel looking alike.
+ */
+@utility section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+}
+
+@utility surface {
+  background-color: var(--color-base-100);
+  border: 1px solid var(--color-base-300);
+  border-radius: var(--radius-box);
+}
+
+/*
+ * Disabled controls in the dark theme were fading into the panel they sat on, so a read-only
+ * ingredient looked broken rather than deliberately not-yours. daisyUI dims them with opacity; in
+ * dark that lands under the contrast floor, so the floor is raised here instead of per component.
+ */
+@media (prefers-color-scheme: dark) {
+  :where(.input, .select, .textarea, .btn, .checkbox):disabled,
+  :where(.input, .select, .textarea, .btn, .checkbox)[disabled] {
+    opacity: 1;
+    color: color-mix(in oklch, var(--color-base-content) 62%, transparent);
+    background-color: var(--color-base-200);
+    border-color: var(--color-base-300);
+  }
+}
+
+/*
+ * The recognition layer for the twelve ingredient categories.
+ *
+ * Text was doing all the work in the old list: the category was grey micro-text, third in a run-on
+ * line. Here each category owns a hue, and that one number drives the group header's tint, its
+ * chip and the coloured edge on every row beneath it — so a scanning eye finds the dairy block
+ * without reading a word. The hue arrives as `--cat-h` from `CATEGORY_HUES`; everything else is
+ * derived here, once.
+ *
+ * `light-dark()` rather than a second palette: the dark theme wants the tint to sit *above* the
+ * panel and the ink to be bright, which is the same two formulas with the lightness swapped, not a
+ * separate set of colours to keep in step.
+ */
+@utility cat-chip {
+  background-color: oklch(0.54 0.12 var(--cat-h, 60));
+  color: oklch(0.98 0.01 var(--cat-h, 60));
+}
+
+@utility cat-tint {
+  background-color: light-dark(oklch(0.95 0.03 var(--cat-h, 60)), oklch(0.3 0.035 var(--cat-h, 60)));
+}
+
+@utility cat-ink {
+  color: light-dark(oklch(0.4 0.11 var(--cat-h, 60)), oklch(0.87 0.07 var(--cat-h, 60)));
+}
+
+@utility cat-edge {
+  background-color: oklch(0.58 0.12 var(--cat-h, 60));
+}
+
+/*
+ * One step up in scale for large screens.
+ *
+ * Everything in this app is sized in rem, so moving the root size moves the whole system together —
+ * type, control heights, the sidebar, the list pane, gaps — instead of thirty components each
+ * growing a `2xl:` variant that drifts. Without it a layout tuned on a 1440 laptop renders at the
+ * same physical size on a 1080p desktop and reads as a phone design stretched across a monitor.
+ *
+ * Safe against feedback: `rem` inside a media query resolves against the browser's *initial* font
+ * size, not this one, so Tailwind's rem-based breakpoints do not move when these fire.
+ */
+@media (min-width: 1536px) {
+  :root {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1800px) {
+  :root {
+    font-size: 18px;
+  }
+}

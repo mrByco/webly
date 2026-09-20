@@ -1,0 +1,169 @@
+# Webly production stack, for Portainer (Stacks -> Add stack -> Web editor + Repository).
+#
+# Paste this file, fill the variables below in Portainer's "Environment variables" panel, and add a
+# webhook to the stack. That webhook's URL is the PORTAINER_WEBHOOK_URL secret the deploy workflow
+# posts to; receiving it makes Portainer re-pull every image tag named here and recreate the stack.
+#
+# Required variables — the API validates all of these at startup and refuses to boot without them,
+# so a missing one is a crash on deploy, not a failure at the first login:
+#   WEBLY_DOMAIN          the hostname this stack answers on, e.g. webly.example.com
+#   WEBLY_DB_PASSWORD     any long random string; only these containers ever see it
+#   WEBLY_JWT_KEY         >= 64 characters, signs access tokens
+#   WEBLY_JWT_REFRESH_KEY >= 64 characters, hashes refresh tokens, must differ from the above
+#   WEBLY_EMAIL_TOKEN_KEY >= 64 characters, hashes the verification and password-reset tokens
+#   WEBLY_FROM_ADDRESS    the From: on every mail, on a domain verified with Resend
+#   WEBLY_SITES_DOMAIN    the zone every site gets a subdomain of, e.g. webly.site
+#   WEBLY_VERCEL_TOKEN    the account token deployments and domains are created with
+# Optional:
+#   WEBLY_RESEND_API_KEY  unset means mail is written to the API's log instead of being sent
+#   WEBLY_GOOGLE_CLIENT_ID / WEBLY_GOOGLE_CLIENT_SECRET  unset hides the Google button
+#   WEBLY_VERCEL_TEAM_ID  set when the token belongs to a team rather than a personal account
+#   WEBLY_ANTHROPIC_API_KEY / WEBLY_OPENAI_API_KEY  the editor agent. With neither, the chat is
+#                         absent rather than broken: /api/agent/status reports disabled and the
+#                         client hides it. The rest of the product still works.
+#   WEBLY_ADMIN_EMAIL     who administers the platform (see UserRoles.Admin)
+#   WEBLY_ACME_EMAIL      where Let's Encrypt sends expiry warnings
+#
+# Generate the three keys with: openssl rand -base64 64 | tr -d '\n'
+
+services:
+  # -------------------------------------------------------------------------------------------
+  # Database
+  # -------------------------------------------------------------------------------------------
+  webly-postgres:
+    image: postgres:17
+    container_name: webly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: webly
+      POSTGRES_USER: webly
+      POSTGRES_PASSWORD: ${WEBLY_DB_PASSWORD}
+    # No ports. Unlike docker-compose.dev.yml this is never reached from the host; the only client
+    # is the API container on the stack network. Publishing 5432 here would put the database on the
+    # public internet behind one password.
+    volumes:
+      - webly-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webly -d webly"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # -------------------------------------------------------------------------------------------
+  # API — also the single origin: it serves /api, /health and reverse-proxies the rest to the SSR
+  # container, exactly as it proxies `ng serve` in development. There is no CORS anywhere.
+  # -------------------------------------------------------------------------------------------
+  webly-api:
+    image: byc0/margareta:webly_dev_api
+    container_name: webly-api
+    restart: unless-stopped
+    depends_on:
+      webly-postgres:
+        condition: service_healthy
+      webly-client:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      # Port 5432, not the 5434 the dev compose publishes: that offset exists to dodge a Postgres
+      # installed on the developer's machine, and inside this network nothing else is listening.
+      ConnectionStrings__WeblyDb: "Host=webly-postgres;Port=5432;Database=webly;Username=webly;Password=${WEBLY_DB_PASSWORD}"
+
+      Jwt__Key: ${WEBLY_JWT_KEY}
+      Jwt__RefreshKey: ${WEBLY_JWT_REFRESH_KEY}
+      EmailTokens__Key: ${WEBLY_EMAIL_TOKEN_KEY}
+
+      # Every link in every mail is built from this and never from the request host, so it has to
+      # be the origin people actually reach — a wrong value here mails out unusable reset links.
+      Email__BaseUrl: "https://${WEBLY_DOMAIN}"
+      Email__FromAddress: ${WEBLY_FROM_ADDRESS}
+      Email__FromName: Webly
+      Email__Resend__ApiKey: ${WEBLY_RESEND_API_KEY:-}
+
+      Authentication__Google__ClientId: ${WEBLY_GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${WEBLY_GOOGLE_CLIENT_SECRET:-}
+
+      # Every site is reachable at {slug}.<this zone> from its first publish, which is what makes the
+      # product self-service: nobody has to own a domain to see their site on the internet. The zone
+      # has to be one the Vercel token below can add domains to.
+      Sites__BaseDomain: ${WEBLY_SITES_DOMAIN}
+
+      # Deployments and custom domains. One platform-owned token rather than each customer's own
+      # account — "without touching a single line of code" cannot start with "create a Vercel
+      # account". See CLAUDE.md "Deploying" for the bring-your-own-token upgrade path.
+      Deployment__Vercel__Token: ${WEBLY_VERCEL_TOKEN}
+      Deployment__Vercel__TeamId: ${WEBLY_VERCEL_TEAM_ID:-}
+
+      Agent__Anthropic__ApiKey: ${WEBLY_ANTHROPIC_API_KEY:-}
+      Agent__OpenAi__ApiKey: ${WEBLY_OPENAI_API_KEY:-}
+
+      # An array element, because Administrators:Emails is a list. Add __1, __2 for more.
+      Administrators__Emails__0: ${WEBLY_ADMIN_EMAIL:-}
+
+    # No ports either. Caddy is the only thing that reaches 8080, which is what lets the app trust
+    # the X-Forwarded-* headers it reads without naming a known proxy address.
+    expose:
+      - "8080"
+    volumes:
+      # See the Dockerfile: the Data Protection key ring, which is only load-bearing for an
+      # in-flight Google handshake. Cheap to keep, and it silences a warning on every start.
+      - webly-dataprotection:/home/app/.aspnet/DataProtection-Keys
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      # Generous: the first start after a deploy applies migrations before the port answers
+      # anything.
+      start_period: 90s
+
+  # -------------------------------------------------------------------------------------------
+  # Angular SSR
+  # -------------------------------------------------------------------------------------------
+  webly-client:
+    image: byc0/margareta:webly_dev_frontend
+    container_name: webly-client
+    restart: unless-stopped
+    # The name matters: appsettings.Production.json points the YARP cluster at
+    # http://webly-client:4000/. Renaming this service without editing that file serves a 502 for
+    # every page while /api keeps working, which reads like a frontend bug and is not one.
+    expose:
+      - "4000"
+
+  # -------------------------------------------------------------------------------------------
+  # TLS termination
+  # -------------------------------------------------------------------------------------------
+  # `caddy reverse-proxy` rather than a Caddyfile, so this stack is one pasteable file with no
+  # second artifact to keep on the VPS. It obtains and renews a Let's Encrypt certificate on its
+  # own, which is the whole reason it is here — the API's cookies are Secure and will not survive
+  # a plaintext origin.
+  #
+  # Drop this service if the VPS already runs a proxy. In that case give webly-api a published
+  # port and point the existing proxy at it; nothing else in this file changes.
+  webly-caddy:
+    image: caddy:2-alpine
+    container_name: webly-caddy
+    restart: unless-stopped
+    depends_on:
+      - webly-api
+    command: caddy reverse-proxy --from ${WEBLY_DOMAIN} --to webly-api:8080
+    environment:
+      ACME_AGREE: "true"
+      CADDY_ACME_EMAIL: ${WEBLY_ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certificates survive a redeploy. Without this volume every stack recreation asks Let's
+      # Encrypt for a fresh certificate and the domain hits the five-per-week duplicate limit
+      # after a handful of deploys.
+      - webly-caddy-data:/data
+      - webly-caddy-config:/config
+
+volumes:
+  webly-postgres-data:
+  webly-dataprotection:
+  webly-caddy-data:
+  webly-caddy-config:

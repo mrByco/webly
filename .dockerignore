@@ -1,0 +1,31 @@
+# Build context for Webly.Api/Dockerfile is the repository root, because Central Package
+# Management puts the package versions in Directory.Packages.props up here and every csproj
+# in the solution is restored together. That means the client, the reference projects and the
+# local dev runtime would all be shipped to the daemon unless they are excluded here.
+
+client/
+sample-projects/
+design/
+ds-bundle/
+tools/
+
+**/bin/
+**/obj/
+**/node_modules/
+
+.git/
+.github/
+.run/
+.vs/
+.angular/
+.claude/
+.playwright-mcp/
+
+*.zip
+*.user
+*.suo
+
+# Never let a local secret file reach the image.
+.env
+.env.*
+**/appsettings.*.local.json

@@ -1,0 +1,65 @@
+<!--
+  The split screen shared by sign-in, registration and the two password screens.
+
+  An even split, not a fixed form column against a brand panel that takes the rest. Letting the
+  paprika panel absorb the slack put it at roughly three quarters of a 1080p screen, which is far
+  more brand than a sign-in page has any business being. Half each keeps the two sides in balance at
+  every width, and the form inside its half stays at a readable measure rather than growing with it.
+-->
+<div class="flex min-h-dvh flex-col bg-base-100 lg:grid lg:grid-cols-2">
+  <aside
+         class="relative hidden flex-col justify-between overflow-hidden bg-primary p-14 text-primary-content lg:flex 2xl:p-16">
+    <!-- Soft light from the top-left, so the flat fill reads as a surface rather than a block. -->
+    <div class="pointer-events-none absolute -top-24 -left-24 size-[28rem] rounded-full bg-white/10 blur-3xl"
+         aria-hidden="true"></div>
+    <div class="pointer-events-none absolute -right-32 -bottom-32 size-[26rem] rounded-full bg-black/10 blur-3xl"
+         aria-hidden="true"></div>
+
+    <div class="relative flex items-center gap-3">
+      <span class="grid size-10 shrink-0 place-items-center rounded-box bg-primary-content/15">
+        <app-icon class="size-6" name="layout" />
+      </span>
+      <span class="text-xl font-bold tracking-tight">Webly</span>
+    </div>
+
+    <div class="relative">
+      <h2 class="max-w-[16ch] text-[2.5rem] leading-[1.1] font-bold tracking-tight text-pretty 2xl:text-[3.25rem]">
+        A website you build by talking.
+      </h2>
+      <p class="mt-4 max-w-[38ch] text-lg leading-relaxed text-primary-content/80 text-pretty">
+        Say what your business does. Get a real site, versioned and live on your own domain.
+      </p>
+    </div>
+
+    <ul class="relative flex flex-col gap-3 text-primary-content/85">
+      @for (feature of features; track feature) {
+      <li class="flex items-start gap-3">
+        <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary-content/15 text-[0.65rem]">
+          ✓
+        </span>
+        <span class="text-sm">{{ feature }}</span>
+      </li>
+      }
+    </ul>
+  </aside>
+
+  <main class="flex min-w-0 flex-col justify-center px-6 py-12 sm:px-14">
+    <div class="mx-auto w-full max-w-sm">
+      <div class="mb-8 flex items-center gap-2.5 lg:hidden">
+        <span class="grid size-9 shrink-0 place-items-center rounded-box bg-primary text-primary-content">
+          <app-icon class="size-5" name="layout" />
+        </span>
+        <span class="text-lg font-bold tracking-tight">Webly</span>
+      </div>
+
+      <h1 class="text-3xl font-bold tracking-tight">{{ heading() }}</h1>
+      @if (subheading()) {
+      <p class="mt-1.5 text-base-content/60">{{ subheading() }}</p>
+      }
+
+      <div class="mt-8">
+        <ng-content />
+      </div>
+    </div>
+  </main>
+</div>

@@ -1,0 +1,94 @@
+name: Prod - Build and push Production
+
+on:
+  push:
+    branches: ["release/**"]
+
+# Release images are built and pushed, never deployed. There is no Portainer webhook step and no
+# notification step: production is promoted by hand, so that the branch being cut and the stack
+# being restarted are two decisions rather than one.
+
+jobs:
+  push_to_registry_api:
+    name: Push Webly API Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      # Required by the cache-from/cache-to below: the runner's default builder uses the docker
+      # driver, which cannot export a cache at all, and the build fails outright rather than
+      # falling back to an uncached one. This switches to a docker-container builder that can.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # One tag type, not the action's defaults. The tag is suffixed below to separate the two
+      # images, and a string concatenation is only meaningful if metadata-action emitted exactly
+      # one line — the defaults can emit several, which would silently produce one mangled tag.
+      # A push to release/v1.4.0 gives byc0/margareta:release-v1.4.0.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: byc0/margareta
+          tags: |
+            type=ref,event=branch
+
+      - name: Build and push Webly API Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Webly.Api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}_webly_api
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=webly-api
+          cache-to: type=gha,mode=max,scope=webly-api
+
+  push_to_registry_frontend:
+    name: Push Webly Frontend Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      # Required by the cache-from/cache-to below: the runner's default builder uses the docker
+      # driver, which cannot export a cache at all, and the build fails outright rather than
+      # falling back to an uncached one. This switches to a docker-container builder that can.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: byc0/margareta
+          tags: |
+            type=ref,event=branch
+
+      - name: Build and push Webly Frontend Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client/
+          file: ./client/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}_webly_frontend
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=webly-client
+          cache-to: type=gha,mode=max,scope=webly-client

@@ -1,0 +1,28 @@
+<app-onboarding-layout
+  heading="What are we building?"
+  subheading="Just a name for now — the bakery, the studio, your own name. Everything else you will do by asking.">
+  <div class="w-full">
+    <form class="flex flex-col gap-4" (ngSubmit)="create()">
+      <label class="floating-label">
+        <span>Site name</span>
+        <input
+          class="input input-lg w-full"
+          name="name"
+          type="text"
+          maxlength="80"
+          autocomplete="off"
+          placeholder="Kovács Bakery"
+          required
+          [(ngModel)]="name" />
+      </label>
+
+      @if (error()) {
+        <p class="text-sm font-semibold text-error">{{ error() }}</p>
+      }
+
+      <button class="btn btn-primary btn-lg" type="submit" [disabled]="saving() || !name.trim()">
+        {{ saving() ? 'Creating…' : 'Create site' }}
+      </button>
+    </form>
+  </div>
+</app-onboarding-layout>

@@ -1,0 +1,63 @@
+<app-auth-layout heading="Sign in" subheading="Welcome back — pick up where you left off.">
+  <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
+    @if (error(); as message) {
+      <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
+    }
+
+    <label class="floating-label">
+      <span>Email address</span>
+      <input
+        class="input input-bordered w-full"
+        type="email"
+        placeholder="nev@example.com"
+        formControlName="email"
+        autocomplete="email"
+        required />
+    </label>
+
+    <label class="floating-label">
+      <span>Password</span>
+      <input
+        class="input input-bordered w-full"
+        type="password"
+        placeholder="Password"
+        formControlName="password"
+        autocomplete="current-password"
+        required />
+    </label>
+
+    <div class="-mt-3 text-right">
+      <a
+        class="link link-hover text-sm text-base-content/60"
+        [routerLink]="routes.forgotPassword.build()">
+        Elfelejtetted a jelszavad?
+      </a>
+    </div>
+
+    <button class="btn btn-primary w-full" type="submit" [disabled]="form.invalid || submitting()">
+      @if (submitting()) {
+        <span class="loading loading-spinner loading-sm"></span>
+      }
+      Sign in
+    </button>
+
+    @if (googleEnabled()) {
+      <div class="divider my-0 text-xs text-base-content/50">vagy</div>
+
+      <button class="btn btn-outline w-full" type="button" (click)="continueWithGoogle()">
+        <svg class="size-5" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4" d="M21.6 12.23c0-.7-.06-1.37-.18-2.02H12v3.82h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.75 2.98-4.32 2.98-7.33Z"/>
+          <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.44l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22Z"/>
+          <path fill="#FBBC05" d="M6.41 13.89a6 6 0 0 1 0-3.78V7.52H3.06a10 10 0 0 0 0 8.96l3.35-2.59Z"/>
+          <path fill="#EA4335" d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.95 2.99 14.7 2 12 2a10 10 0 0 0-8.94 5.52l3.35 2.59C7.2 7.75 9.4 5.98 12 5.98Z"/>
+        </svg>
+        Continue with Google
+      </button>
+    }
+
+    <p class="text-sm text-center text-base-content/60">
+      No account yet?
+      <a class="link link-primary font-medium" [routerLink]="routes.register.build()">Create one</a>
+    </p>
+  </form>
+</app-auth-layout>

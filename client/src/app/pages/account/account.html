@@ -1,0 +1,87 @@
+<app-shell>
+  <main class="flex w-full max-w-2xl flex-col px-5 pt-6 pb-10 sm:px-8 xl:px-10 xl:pt-10">
+    <header>
+      <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Account</h1>
+      <p class="mt-0.5 text-base-content/60">{{ me().email }}</p>
+    </header>
+
+    <h2 class="section-label mt-8 mb-2.5">How you sign in</h2>
+
+    <section class="surface flex flex-wrap gap-2 p-5">
+      @if (me().hasPassword) {
+        <span class="badge badge-soft badge-secondary">Password</span>
+      }
+      @for (provider of me().linkedProviders ?? []; track provider) {
+        <span class="badge badge-soft badge-secondary">{{ provider }}</span>
+      }
+      @if (me().emailVerified) {
+        <span class="badge badge-soft badge-success">Email confirmed</span>
+      } @else {
+        <span class="badge badge-soft badge-warning">Email not confirmed</span>
+      }
+    </section>
+
+    <h2 class="section-label mt-8 mb-2.5">
+      {{ settingFirstPassword() ? 'Set a password' : 'Change your password' }}
+    </h2>
+
+    <section class="surface p-5">
+      <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
+        @if (settingFirstPassword()) {
+          <p class="text-sm text-base-content/65">
+            Your account has no password — you sign in with Google. Set one and you will be able to
+            sign in either way.
+          </p>
+        }
+
+        @if (saved()) {
+          <div role="alert" class="alert alert-success alert-soft text-sm">
+            Done. Every other device has been signed out.
+          </div>
+        }
+
+        @if (error(); as message) {
+          <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
+        }
+
+        <div class="flex flex-col gap-5 sm:max-w-sm">
+          @if (!settingFirstPassword()) {
+            <label class="floating-label">
+              <span>Current password</span>
+              <input
+                class="input input-bordered w-full"
+                type="password"
+                placeholder="Current password"
+                formControlName="currentPassword"
+                autocomplete="current-password" />
+            </label>
+          }
+
+          <div>
+            <label class="floating-label">
+              <span>New password</span>
+              <input
+                class="input input-bordered w-full"
+                type="password"
+                placeholder="New password"
+                formControlName="newPassword"
+                autocomplete="new-password"
+                required />
+            </label>
+            <p class="mt-1.5 text-xs text-base-content/55">At least 8 characters.</p>
+          </div>
+        </div>
+
+        <button
+          class="btn btn-primary self-start"
+          type="submit"
+          [disabled]="form.invalid || submitting()">
+          @if (submitting()) {
+            <span class="loading loading-spinner loading-sm"></span>
+          }
+          {{ settingFirstPassword() ? 'Set the password' : 'Save the password' }}
+        </button>
+      </form>
+    </section>
+  </main>
+</app-shell>

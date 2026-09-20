@@ -1,0 +1,46 @@
+<div class="flex h-full min-h-0 flex-col bg-base-200">
+  <div class="flex items-center justify-between gap-2 border-b border-base-300 px-3 py-2">
+    <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
+      <app-icon class="size-3.5" name="eye" />
+      Preview{{ version() ? ' · earlier version' : '' }}
+    </p>
+
+    <div class="join">
+      <button
+        class="btn join-item btn-xs"
+        type="button"
+        [class.btn-active]="width() === 'phone'"
+        (click)="setWidth('phone')">
+        Phone
+      </button>
+      <button
+        class="btn join-item btn-xs"
+        type="button"
+        [class.btn-active]="width() === 'tablet'"
+        (click)="setWidth('tablet')">
+        Tablet
+      </button>
+      <button
+        class="btn join-item btn-xs"
+        type="button"
+        [class.btn-active]="width() === 'full'"
+        (click)="setWidth('full')">
+        Full
+      </button>
+    </div>
+  </div>
+
+  <!--
+    The frame is centred and bounded rather than scaled: a transform-scaled iframe reports the wrong
+    viewport width to the page inside it, so the media queries a published site depends on would fire at
+    the wrong points and the preview would be lying about the one thing people check it for.
+  -->
+  <div class="flex min-h-0 flex-1 justify-center overflow-hidden p-3">
+    <iframe
+      class="h-full w-full rounded-box border border-base-300 bg-base-100 shadow-sm"
+      title="Site preview"
+      [class.max-w-96]="width() === 'phone'"
+      [class.max-w-3xl]="width() === 'tablet'"
+      [src]="url()"></iframe>
+  </div>
+</div>

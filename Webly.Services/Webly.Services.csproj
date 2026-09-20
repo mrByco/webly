@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <!-- BackgroundService and IHostApplicationLifetime: the reaper and the deployment runner live here rather than in
+         the API, because they are logic with a schedule and not endpoints. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <PackageReference Include="Nanoid" />
+    <PackageReference Include="System.Threading.RateLimiting" />
+    <!-- The agent's own surface. The provider SDKs are deliberately *not* here: the keyed IChatClient registrations
+         live in Webly.Api, so this assembly knows how to build an agent and nothing about who serves it. -->
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Webly.Data\Webly.Data.csproj" />
+  </ItemGroup>
+
+</Project>

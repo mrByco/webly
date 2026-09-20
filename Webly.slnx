@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Webly.Api/Webly.Api.csproj" />
+  <Project Path="Webly.Data/Webly.Data.csproj" />
+  <Project Path="Webly.Services/Webly.Services.csproj" />
+  <Project Path="Webly.Tests/Webly.Tests.csproj" />
+</Solution>
