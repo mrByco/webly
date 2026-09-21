@@ -34,7 +34,12 @@ export class ResetPasswordPage {
 
     try {
       await this.auth.resetPassword(this.token, this.form.getRawValue().newPassword);
-      await this.router.navigateByUrl(AppRoutes.home.build());
+
+      // `nextStop`, not home: choosing a new password signs the person in and proves their address, so this is
+      // the same junction sign-in stands at — and the answer for somebody who has no site yet is the screen that
+      // makes one, not the landing page they have just been handed the keys past. Home is where a site-less
+      // account used to land, reading the marketing copy for a product it had already bought.
+      await this.router.navigateByUrl(this.auth.nextStop());
     } catch {
       this.error.set('That link is not valid any more. Ask for a new one.');
     } finally {
