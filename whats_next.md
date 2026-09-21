@@ -89,14 +89,15 @@ Kept here because each is a shape of mistake that will recur, not because the fi
 
 `Agent:ClaudeCode:ApiKey` in user secrets, then a conversation — not a message. Ask for something that needs
 a fact the agent does not have ("we do repairs, we're in Utrecht") and watch it ask rather than invent; answer
-it; watch the second turn build on the first. Two things to watch because that is where the design is
-load-bearing rather than obvious: a **reload mid-turn** (it proves the run outlived the socket and the
-workspace lease held) and **Stop** (it proves a cancelled turn leaves no commit, and now also that it leaves a
-line in the thread saying so).
+it; watch the second turn build on the first.
 
 The mock agent is a stand-in for the model, not for the plumbing, so what is genuinely untested here is
 narrow: whether `BuildPrompt` produces a turn worth having, and whether the `SUMMARY:` line survives a long
-answer.
+answer. **A reload mid-turn and Stop are already done** — the two paths that exist only because a run
+outlives its connection, driven in a browser against a cold workspace, which is what makes the window wide
+enough to press a button in. The reload found nothing until the run's correlation id stopped being assigned
+from a value that arrives when the turn is over; Stop leaves no commit and a "Stopped. Nothing was changed."
+line in the thread.
 
 ### 2. The sandbox in a container
 
