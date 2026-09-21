@@ -17,5 +17,14 @@ public enum SiteVersionOrigin
     Manual,
 
     /// <summary>An older version's tree written forward. See <c>SiteVersion.RestoredFromVersionId</c>.</summary>
-    Restore
+    Restore,
+
+    /// <summary>
+    /// A person added files — today only images, committed into <c>public/images</c>.
+    ///
+    /// Its own value rather than <see cref="Manual"/>, because the history is read by the person who did it:
+    /// "Added shopfront.jpg" beside a badge saying Manual would be describing the mechanism instead of what
+    /// happened.
+    /// </summary>
+    Upload
 }

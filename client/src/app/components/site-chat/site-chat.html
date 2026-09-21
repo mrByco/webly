@@ -54,9 +54,16 @@
           }
           @case ('files') {
             <!-- One entry for the whole turn's writes. A chip per file would bury the sentence
-                 explaining them, and the list is what somebody scans to see the shape of the change. -->
+                 explaining them, and the list is what somebody scans to see the shape of the change.
+
+                 The text is optional and only an upload sets it: a turn's files arrive under the sentence that
+                 introduced them, while an upload has no sentence of its own — the chips would otherwise appear
+                 with nothing saying where they came from. -->
             <div class="flex flex-wrap items-center gap-1.5">
               <app-icon class="size-3.5 text-base-content/55" name="file" />
+              @if (entry.text) {
+                <span class="text-xs text-base-content/55">{{ entry.text }}</span>
+              }
               @for (path of entry.paths ?? []; track path) {
                 <span class="badge badge-ghost badge-sm font-mono text-[0.7rem]">{{ path }}</span>
               }
@@ -142,6 +149,29 @@
       }
 
       <div class="flex items-end gap-2">
+        <!--
+          A file input rather than a button that opens one: the label *is* the button, which is how a file
+          picker works without JavaScript deciding when to open it. `sr-only` on the input rather than
+          `display:none`, so it keeps its place in the tab order and a screen reader announces it.
+        -->
+        <label
+          class="btn btn-square"
+          [class.btn-disabled]="uploading() || running()"
+          [attr.aria-label]="uploading() ? 'Adding your images' : 'Add a photo'">
+          @if (uploading()) {
+            <span class="loading loading-spinner loading-xs"></span>
+          } @else {
+            <app-icon class="size-4.5" name="image" />
+          }
+          <input
+            class="sr-only"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            [disabled]="uploading() || running()"
+            (change)="addImages($any($event.target))" />
+        </label>
+
         <textarea
           class="textarea textarea-bordered min-h-11 flex-1 resize-none"
           name="message"

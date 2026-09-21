@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 97-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 102-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -533,6 +533,34 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **`VercelDeploymentTarget` has never run**, in either half — the REST calls or the CLI in the sandbox.
   Treat its endpoints, payloads and output parsing as the plan; `docs/deploy-plan.md` §6 says what to
   reconcile first.
+
+### Images
+
+**An image is a version, not an asset.** There is no blob store and no asset table: an upload commits the
+files into the site's repository under `public/images/`, which is where Next.js serves static files from, and
+`UploadSiteImages` goes through `CommitSiteVersion` like everything else that changes a site.
+
+- Four things follow from that, and together they are the argument for it. The published site serves its own
+  photographs **from its own domain**, so nothing of Webly's has to exist for them to load. They travel with
+  the **git bundle**, so a customer who leaves takes their pictures as well as their code. They are in the
+  **history**, so a restore takes them back and a version cannot reference one that is missing. And
+  `CommitSiteVersion` stays the **only writer** of history.
+- The cost is binary in git, which is what the caps are for: 5 MB an image, ten an upload, and the tree cap
+  underneath. The browser shrinks first (`client/src/app/models/image-file.ts`, a canvas re-encode to 2000 px)
+  — which is also where the resizing has to happen, because a static export has no image optimizer behind it
+  (`next.config.ts` turns Next's off, since it needs a running server) so **what is uploaded is what every
+  visitor downloads**. The server re-checks; the browser is an affordance, not an authority.
+- **The extension comes from the bytes, never from the name.** `ImageKind.Of` sniffs the magic numbers and the
+  file is stored with that extension, because the extension is the only thing a static host uses to decide how
+  to serve a file and the name comes from whoever uploaded it. A PNG called `.jpg` is stored as a `.png`; an
+  HTML document called `.jpg` is refused. **SVG is deliberately not on the list** — it can carry script, and the
+  preview serves it from Webly's own origin, where the person's session is.
+- **A name collision gets a number, never an overwrite.** Two phones both calling it `image.jpg` is a normal
+  afternoon, and replacing the first would remove it from a page already using it.
+- **The upload lives in the chat**, not on a screen of its own: nobody wants to upload a picture, they want it
+  *on* a page, and the sentence saying which page is the next thing they type. So the paths land in the
+  composer with the caret after them. The upload re-seeds the warm workspace for the same reason a restore
+  does — the next thing that happens is an agent turn that has to be able to see the file.
 
 ### Forms
 

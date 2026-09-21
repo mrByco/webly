@@ -24,6 +24,11 @@ the preview served through Webly's own origin → publish → a page at `/publis
 person typed. `tools/e2e/turn.mjs` is what starts a turn, because `StartChat` is a hub method and a SignalR
 client is the only way to press that button.
 
+A customer's own photographs are in it as well: a JPEG uploaded from the chat was committed as a version
+(`Added shopfront.jpg`, one binary file), served byte for byte by the preview's dev server, and then by the
+published site at `/published/{nanoid}/images/shopfront.jpg` after a publish — no blob store anywhere in that
+sentence.
+
 A visitor who is not a customer can reach it too: the starter template ships a working contact page, and a
 form posted from the published site at `/published/{nanoid}/contact/` answered 303 back to that page, put the
 message in the owner's Messages tab with the visitor's own labels on it, and wrote an email whose reply-to was
@@ -37,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 97 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 102 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -186,5 +191,8 @@ the client re-exports the generated types.)*
 - **The agent cannot ask a blocking question.** It asks in its reply and the turn ends; the answer is the
   person's next message. The MCP bridge that would make it a tool again is `docs/agent-plan.md` §1.3.
 - **One template**, so every site starts the same shape. P3.
-- **No uploads and no billing.** P5, P7. Forms landed — see `MASTER_PLAN.md` P4 and the Forms section of
+- **No billing.** P7. Uploads landed (P5) and are not what that section expected: an image is a commit in the
+  site's own repository rather than a row in a blob store, so the published site serves its own photographs and
+  a customer who exports takes them along. What is missing is a way to delete one from the editor.
+- Forms landed — see `MASTER_PLAN.md` P4 and the Forms section of
   `CLAUDE.md`; what is deliberately missing there is read state on a message and a way to delete one.

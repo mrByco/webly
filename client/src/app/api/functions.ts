@@ -129,3 +129,11 @@ export type { ApiSitesNanoidFileGet$Json$Params as ApiSitesNanoidFileGet$Json$Pa
 export { apiSitesNanoidFileGet$Json as apiSitesNanoidFileGet$Json } from './fn/site/api-sites-nanoid-file-get-json';
 export type { ApiSitesNanoidExportGet$Params as ApiSitesNanoidExportGet$Params } from './fn/site/api-sites-nanoid-export-get';
 export { apiSitesNanoidExportGet as apiSitesNanoidExportGet } from './fn/site/api-sites-nanoid-export-get';
+export type { ApiSitesSiteNanoidImagesGet$Plain$Params as ApiSitesSiteNanoidImagesGet$Plain$Params } from './fn/site-image/api-sites-site-nanoid-images-get-plain';
+export { apiSitesSiteNanoidImagesGet$Plain as apiSitesSiteNanoidImagesGet$Plain } from './fn/site-image/api-sites-site-nanoid-images-get-plain';
+export type { ApiSitesSiteNanoidImagesGet$Json$Params as ApiSitesSiteNanoidImagesGet$Json$Params } from './fn/site-image/api-sites-site-nanoid-images-get-json';
+export { apiSitesSiteNanoidImagesGet$Json as apiSitesSiteNanoidImagesGet$Json } from './fn/site-image/api-sites-site-nanoid-images-get-json';
+export type { ApiSitesSiteNanoidImagesPost$Plain$Params as ApiSitesSiteNanoidImagesPost$Plain$Params } from './fn/site-image/api-sites-site-nanoid-images-post-plain';
+export { apiSitesSiteNanoidImagesPost$Plain as apiSitesSiteNanoidImagesPost$Plain } from './fn/site-image/api-sites-site-nanoid-images-post-plain';
+export type { ApiSitesSiteNanoidImagesPost$Json$Params as ApiSitesSiteNanoidImagesPost$Json$Params } from './fn/site-image/api-sites-site-nanoid-images-post-json';
+export { apiSitesSiteNanoidImagesPost$Json as apiSitesSiteNanoidImagesPost$Json } from './fn/site-image/api-sites-site-nanoid-images-post-json';

@@ -184,9 +184,12 @@ above it changes. That is the whole reason the check is in one query.
    `POST /api/public/forms/{siteNanoid}`, an ordinary cross-origin form post so that it needs no CORS and no
    JavaScript — and the starter template ships the form that uses it. `CLAUDE.md`'s Forms section is the
    short version; the caps, the honeypot and the reply-to are the parts worth reading before changing it.
-3. **Assets.** Uploads, a blob store, image conversion. The agent writes `<Image>` tags today against URLs
-   somebody pasted; a customer photographing their shop front is the next step, and the seam is a URL the
-   sandbox can fetch.
+3. ~~**Assets.**~~ Done, and without the blob store this line assumed. An image is committed into the site's
+   repository under `public/images/`, which makes it a version: the published site serves it from its own
+   domain, it travels with the git bundle, a restore takes it back, and the sandbox gets it in the tree it is
+   already seeded with. The seam that was going to be "a URL the sandbox can fetch" turned out not to be
+   needed at all. The resizing happens in the browser, before the upload. `CLAUDE.md`'s Images section is the
+   short version.
 4. **A second locale per site.** With real source this is the App Router's `[locale]` segment rather than
    a second document tree, which is a much smaller decision than it was. Still do not guess it early.
 5. **Collaboration**, as in §4.

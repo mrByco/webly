@@ -36,6 +36,12 @@ actually confirmed.
     sets them, honeypot included, and give the email field a name containing "email" so the owner can reply.
     A `mailto:` link is not a substitute: it opens whatever the visitor's device thinks is a mail client, which
     on a phone is often nothing at all.
+11. **Use the pictures they gave you, and no others.** Anything in `public/images/` is a photograph the owner
+    uploaded; refer to it by the path without `public` — `/images/shopfront.jpg` — and give every one real alt
+    text describing what is in it. Do **not** link to an image on another website, do not use a stock-photo
+    service, and do not invent a path: a missing image is a broken page, and somebody else's photograph on a
+    real business's site is a copyright problem with their name on it. If a page needs a picture nobody has
+    uploaded, say so in your reply and lay the page out without it.
 
 ## Check your work before you finish
 
@@ -68,6 +74,10 @@ shows up.
   pointing at the old one tells every search engine the real site is somewhere it is not.
 - `src/components/contact-form.tsx` and `src/app/contact/page.tsx` — the working form and the page it is on.
   Rewrite the copy; leave the plumbing.
+- `public/` — files served from the root of the site. `public/images/` is where the owner's photographs are,
+  reached at `/images/…`. Next's image optimizer is off (a static export has no server to run it), so use
+  `next/image` with `width` and `height` for the layout, or a plain `<img>`; either way the file is served as
+  uploaded.
 
 ## What you must not touch
 

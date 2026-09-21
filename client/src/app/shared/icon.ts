@@ -31,6 +31,7 @@ type IconName =
   | 'eye'
   | 'file'
   | 'globe'
+  | 'image'
   | 'layout'
   | 'link'
   | 'log-out'
@@ -67,6 +68,9 @@ const PATHS: Record<IconName, string> = {
   globe:
     '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>'
     + '<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>',
+  image:
+    '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/>'
+    + '<path d="m21 15-4.35-4.35a2 2 0 0 0-2.83 0L3 21"/>',
   layout: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
   link:
     '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>'

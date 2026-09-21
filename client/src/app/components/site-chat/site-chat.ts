@@ -6,6 +6,8 @@ import { Icon } from '../../shared/icon';
 import { ChatService } from '../../services/chat.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { messageOf } from '../../models/problem-details';
+import { shrinkImage } from '../../models/image-file';
+import { ImageService } from '../../services/image.service';
 import { ChatMessageResponse } from '../../api/models/chat-message-response';
 
 /** A line in the transcript. One shape for everything the stream can produce. */
@@ -87,12 +89,14 @@ export class SiteChat {
   readonly turnFinished = output<void>();
 
   private readonly chat = inject(ChatService);
+  private readonly images = inject(ImageService);
   private readonly realtime = inject(RealtimeService);
 
   protected readonly entries = signal<ChatEntry[]>([]);
   protected readonly enabled = signal(true);
   protected readonly running = signal(false);
   protected readonly error = signal<string | undefined>(undefined);
+  protected readonly uploading = signal(false);
   protected readonly connected = this.realtime.connected;
 
   protected message = '';
@@ -152,6 +156,50 @@ export class SiteChat {
 
     composer?.focus();
     composer?.setSelectionRange(text.length, text.length);
+  }
+
+  /**
+   * Puts the person's own photographs into their site, from the chat.
+   *
+   * <b>Here rather than on a screen of its own</b>, because an upload is never the thing somebody wanted: they
+   * wanted the picture *on* a page, and the sentence that says which page is the next thing they type. So the
+   * files are committed and their paths land in the composer, with the caret after them — the message they
+   * send is "/images/shopfront.jpg at the top of the home page", which is exactly what the agent needs.
+   *
+   * The upload is a version like any other, so the preview is told to reload: the files are in the site's
+   * source the moment this returns, and an agent turn is not needed to make them exist.
+   */
+  protected async addImages(input: HTMLInputElement): Promise<void> {
+    const chosen = [...(input.files ?? [])];
+
+    // Cleared immediately, so choosing the same file twice in a row still fires a change event.
+    input.value = '';
+
+    if (chosen.length === 0 || this.uploading()) return;
+
+    this.uploading.set(true);
+    this.error.set(undefined);
+
+    try {
+      // Shrunk in the browser: a phone's photograph is several megabytes and a published site has no image
+      // optimizer behind it, so what is uploaded is what every visitor downloads. See `models/image-file.ts`.
+      const files = await Promise.all(chosen.map(shrinkImage));
+      const result = await this.images.upload(this.siteNanoid(), files);
+      const urls = result.images.map(image => image.url);
+
+      this.entries.update(entries => [
+        ...entries,
+        { kind: 'files', text: urls.length === 1 ? 'Added an image' : `Added ${urls.length} images`, paths: urls },
+      ]);
+
+      this.suggest(`${this.message.trim()} ${urls.join(' ')} `.trimStart());
+
+      if (result.versionNanoid) this.versionCommitted.emit(result.versionNanoid);
+    } catch (failure) {
+      this.error.set(messageOf(failure));
+    } finally {
+      this.uploading.set(false);
+    }
   }
 
   protected async send(): Promise<void> {

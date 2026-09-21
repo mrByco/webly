@@ -17,6 +17,7 @@ using Webly.Services.UseCases.Authentication;
 using Webly.Services.UseCases.Chat;
 using Webly.Services.UseCases.Deployments;
 using Webly.Services.UseCases.Domains;
+using Webly.Services.UseCases.Assets;
 using Webly.Services.UseCases.Forms;
 using Webly.Services.UseCases.Sites;
 
@@ -94,6 +95,9 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<GetChat>();
         services.AddScoped<ArchiveChat>();
+
+        services.AddScoped<UploadSiteImages>();
+        services.AddScoped<ListSiteImages>();
 
         services.AddScoped<SubmitForm>();
         services.AddScoped<ListFormSubmissions>();

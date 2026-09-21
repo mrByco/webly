@@ -10,5 +10,6 @@ export const SITE_VERSION_ORIGIN: SiteVersionOrigin[] = [
   'Template',
   'Agent',
   'Manual',
-  'Restore'
+  'Restore',
+  'Upload'
 ];

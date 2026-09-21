@@ -182,8 +182,18 @@ actually catches the traffic this endpoint will see.
 
 ## P5 — Assets
 
-Uploads, a blob store, image conversion, and a URL a sandbox can fetch. The agent writes `<Image>` tags
-today against URLs somebody pasted; a customer photographing their shop front is the next step.
+~~Uploads, a blob store, image conversion, and a URL a sandbox can fetch~~ — done, and three of those four
+turned out to be the wrong shape. There is **no blob store**: an image is committed into the site's own
+repository under `public/images/`, so the published site serves its own photographs from its own domain, they
+travel with the export, and they are in the history like every other change. There is **no URL for the sandbox
+to fetch**, because the files are simply in the tree it is seeded with. And the **conversion happens in the
+browser** — a canvas re-encode before the upload — which keeps an image library out of the backend and means
+the megabytes never cross the network.
+
+What is left for a later round: a way to delete an image from the editor (an agent turn can do it today, and a
+delete that left a page pointing at nothing would need to say so), and thumbnails in the chat instead of
+paths. Video is deliberately not on that list — a git repository is the wrong place for it, and that is the
+point at which a blob store becomes the right answer after all.
 
 ## P6 — Export, then growth surface
 
