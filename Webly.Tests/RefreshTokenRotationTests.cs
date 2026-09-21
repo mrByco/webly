@@ -1,3 +1,4 @@
+using Webly.Services.UseCases.Authentication;
 using Microsoft.EntityFrameworkCore;
 
 namespace Webly.Tests;
@@ -66,8 +67,11 @@ public class RefreshTokenRotationTests : PostgresTestBase
         var second = await auth.RotateRefreshToken.Execute(first.RefreshToken!);
         Assert.That(second.Succeeded, Is.True);
 
-        // The old token turning up again means two parties hold cookies from this chain, and there
-        // is no way to tell which one is the legitimate user.
+        // Old enough to be a replay rather than a sibling. The grace window exists for the requests a browser
+        // sends together; a token presented long after its successor was issued means two parties hold cookies
+        // from this chain, and there is no way to tell which one is the legitimate user.
+        await AgeTheRotationAsync(auth, first.RefreshToken!);
+
         var replay = await auth.RotateRefreshToken.Execute(first.RefreshToken!);
         Assert.That(replay.Succeeded, Is.False);
 
@@ -75,5 +79,76 @@ public class RefreshTokenRotationTests : PostgresTestBase
         Assert.That(successorStillWorks.Succeeded, Is.False, "the successor must be revoked too, not just the replayed token");
 
         Assert.That(await auth.Db.RefreshTokens.AllAsync(x => x.RevokedAt != null), Is.True);
+    }
+
+    /// <summary>
+    /// A browser does not send one request at a time. When the access token dies, every request already in
+    /// flight arrives carrying the same live refresh cookie — so one of them rotates and the rest are replays
+    /// of a token revoked a millisecond ago. Treating those as theft logged people out reliably, every fifteen
+    /// minutes, on any page that loads more than one thing.
+    /// </summary>
+    [Test]
+    public async Task A_replay_within_the_grace_window_is_the_rest_of_a_batch_rather_than_theft()
+    {
+        using var auth = Auth();
+        var first = await auth.RegisterUser.Execute(Registration());
+
+        var rotated = await auth.RotateRefreshToken.Execute(first.RefreshToken!);
+        Assert.That(rotated.Succeeded, Is.True);
+
+        var sibling = await auth.RotateRefreshToken.Execute(first.RefreshToken!);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(sibling.Succeeded, Is.True, "the sibling request is served rather than treated as a leak");
+            Assert.That(sibling.AccessToken, Is.Not.Null, "with a usable access token");
+
+            // The point of answering this way: no second refresh token is minted, so the successor the first
+            // request issued stays the only live one and the cookie the browser ends up with is whichever
+            // response landed last — which is that successor either way.
+            Assert.That(sibling.RefreshToken, Is.Null, "and no second refresh token");
+
+            Assert.That(
+                await auth.Db.RefreshTokens.CountAsync(x => x.RevokedAt == null), Is.EqualTo(1),
+                "the chain is untouched");
+        });
+    }
+
+    /// <summary>
+    /// The window is for rotation only. A token revoked by signing out is spent immediately, because a
+    /// sign-out that keeps working for another thirty seconds is not a sign-out — which is what this was
+    /// until `ReplacedAt` told the two kinds of revocation apart.
+    /// </summary>
+    [Test]
+    public async Task The_grace_window_does_not_apply_to_signing_out()
+    {
+        using var auth = Auth();
+        var registered = await auth.RegisterUser.Execute(Registration());
+
+        // Through the tracker, not ExecuteUpdate: this context already has the row loaded from registering,
+        // and a query would hand back that tracked instance rather than what the statement wrote.
+        foreach (var token in await auth.Db.RefreshTokens.ToListAsync()) token.RevokedAt = DateTime.UtcNow;
+
+        await auth.Db.SaveChangesAsync();
+
+        var rotated = await auth.RotateRefreshToken.Execute(registered.RefreshToken!);
+
+        Assert.That(rotated.Succeeded, Is.False);
+    }
+
+    /// <summary>
+    /// Moves a rotation far enough into the past that the grace window has closed, by editing the row rather
+    /// than by waiting thirty seconds in a test suite.
+    /// </summary>
+    private static async Task AgeTheRotationAsync(AuthenticationTestContext auth, string rawToken)
+    {
+        var hash = auth.TokenService.HashRefreshToken(rawToken);
+        var stale = DateTime.UtcNow - RotateRefreshToken.ReuseGrace - TimeSpan.FromSeconds(1);
+
+        // Through the tracker for the reason above.
+        var token = await auth.Db.RefreshTokens.SingleAsync(x => x.TokenHash == hash);
+        token.ReplacedAt = stale;
+
+        await auth.Db.SaveChangesAsync();
     }
 }

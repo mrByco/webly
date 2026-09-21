@@ -32,4 +32,16 @@ public class RefreshToken : IHasTimestamps
     /// bool: "revoked at 14:02, two minutes after it was issued" is a story, "true" is not.
     /// </summary>
     public DateTime? RevokedAt { get; set; }
+
+    /// <summary>
+    /// Set when this token stopped being usable <i>because it was rotated</i>, rather than because a session
+    /// ended. <see cref="RevokedAt"/> is filled in either way, so everything that asks "is this spent" keeps
+    /// one question to ask; this answers the second question, which is why.
+    ///
+    /// Exactly one thing reads it, and it is the reason it exists: a replayed token is given a short grace
+    /// window before the whole chain is dropped, because a browser's parallel requests all present the same
+    /// cookie. Without this column the window would apply to logout as well — and a sign-out that keeps
+    /// working for another thirty seconds is not a sign-out.
+    /// </summary>
+    public DateTime? ReplacedAt { get; set; }
 }

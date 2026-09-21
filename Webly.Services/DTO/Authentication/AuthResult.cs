@@ -18,4 +18,12 @@ public record AuthResult
 
     public static AuthResult Success(string accessToken, string refreshToken, MeResponse me) =>
         new() { Succeeded = true, AccessToken = accessToken, RefreshToken = refreshToken, Me = me };
+
+    /// <summary>
+    /// A session for a caller whose refresh token stays where it is — <see cref="RefreshToken"/> is null, and
+    /// the caller must leave that cookie alone rather than clearing it. Only
+    /// <c>RotateRefreshToken</c>'s concurrent-replay path produces this; the comment there is the reason.
+    /// </summary>
+    public static AuthResult SuccessWithoutRotation(string accessToken, MeResponse me) =>
+        new() { Succeeded = true, AccessToken = accessToken, Me = me };
 }
