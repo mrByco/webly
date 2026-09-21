@@ -172,6 +172,16 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     `SyncWeblyOwnedFiles` (was `SyncSiteInstructions`) now carries the build contract alongside `AGENTS.md`,
     which is safe precisely because the rules the agent reads put that file on the list it must not touch.
 
+24. **Every email Webly sent was branded as another app.** A paprika header, a bowl-of-stew emoji beside the
+    name and `lang="hu"` on the document — the reference project's shell, carried over and never opened. An
+    email is the one part of this product a customer sees when they are not looking at it, which is why
+    nothing caught it for months. Found by rendering all seven in a browser, which took ten minutes.
+
+    Two more in the same pass: the failure notice said "your site did not build — the error is below" and had
+    nothing below it, because the build log stayed on the settings screen; and every message carried the
+    verification mail's footer, so a notice about somebody's own website ended with "if you did not ask for
+    it, you can ignore it".
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

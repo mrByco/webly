@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 140-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 144-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -279,8 +279,20 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
 **Mail**: `IEmailSender` — `ResendEmailSender` when `Email:Resend:ApiKey` is set, otherwise
 `LoggingEmailSender`, which logs and **writes the HTML to `.run/mail/`** so you can open the real thing in a
 browser. Templates are hand-written HTML in C# raw strings over `EmailLayout`; email needs tables and
-inline styles, so a template engine buys nothing at six messages. Links are built from `Email:BaseUrl`,
+inline styles, so a template engine buys nothing at seven messages. Links are built from `Email:BaseUrl`,
 never the request host (host-header poisoning).
+
+- **The shell is Webly's, and for months it was not.** The templates came from the reference project and
+  nobody opened one, so every Webly email went out in that project's paprika header, with a bowl-of-stew
+  emoji beside the name and `lang="hu"` on the document. An email is the one part of this product a customer
+  sees when they are not looking at it, which is exactly why nothing caught it. `EmailTemplateTests` now
+  fails on those values by name — a comment saying "do not put the paprika back" is not something a build can
+  enforce. The palette lives in `EmailLayout` as hex, converted from the same OKLCH numbers `styles.css`
+  uses, because email cannot read a variable: change one and change the other.
+- **The footer belongs to the message.** "If you did not ask for it, you can ignore it" is true under a
+  sign-up code and a lie under a notice about somebody's own website, which is where it sat.
+- **A failed publish carries the build log.** The mail said "the error is below" with nothing below, because
+  the detail stayed on the settings screen — the one place the person reading the mail is not.
 
 ### Sites and ownership
 

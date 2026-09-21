@@ -20,10 +20,13 @@ public static class WeblyEmails
                 $"Your confirmation code is {code}",
                 EmailLayout.Paragraph("Thanks for signing up to Webly. Type this code into the page you left open:")
                 + EmailLayout.Code(code)
-                + EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">Or confirm with one tap, if you are reading this on the same device:</span>")
+                + EmailLayout.Small("Or confirm with one tap, if you are reading this on the same device:")
                 + EmailLayout.Button(link, "Confirm email address")
-                + EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">The code and the link are valid for 24 hours.</span>")
-                + EmailLayout.FallbackLink(link)),
+                + EmailLayout.Small("The code and the link are valid for 24 hours.")
+                + EmailLayout.FallbackLink(link),
+                // One of the two messages that can land in front of somebody who did nothing: anybody can
+                // type an address into a sign-up form. The footer has to give them the way out.
+                footer: "Somebody signed up to Webly with this address. If it was not you, ignore this email."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -51,7 +54,7 @@ public static class WeblyEmails
                 "Set a new password for your Webly account.",
                 EmailLayout.Paragraph($"Hi {displayName}, you asked for a new password for your Webly account. Use the button below to set one.")
                 + EmailLayout.Button(link, "Set a new password")
-                + EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">The link is valid for 1 hour and can only be used once.</span>")
+                + EmailLayout.Small("The link is valid for 1 hour and can only be used once.")
                 + EmailLayout.Paragraph("If you did not ask for this, there is nothing to do — your password stays as it is.")
                 + EmailLayout.FallbackLink(link)),
             TextBody =
@@ -140,7 +143,7 @@ public static class WeblyEmails
                 "Your site has been published.",
                 EmailLayout.Paragraph($"Hi {displayName}, the latest version of <strong>{siteName}</strong> has been published and is now serving visitors.")
                 + EmailLayout.Button(url, "Open your site")
-                + EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">Every published version stays in your history, so you can roll back at any time.</span>")
+                + EmailLayout.Small("Every published version stays in your history, so you can roll back at any time.")
                 + EmailLayout.FallbackLink(url)),
             TextBody =
                 $"""
@@ -159,7 +162,12 @@ public static class WeblyEmails
     /// the previous version is still live, and saying so is the difference between an inconvenience
     /// and a panic.
     /// </summary>
-    public static EmailMessage DeploymentFailed(string to, string displayName, string siteName, string reason) =>
+    public static EmailMessage DeploymentFailed(
+        string to,
+        string displayName,
+        string siteName,
+        string reason,
+        string? detail = null) =>
         new()
         {
             To = to,
@@ -169,7 +177,11 @@ public static class WeblyEmails
                 $"Publishing {siteName} failed",
                 "Your live site is unchanged.",
                 EmailLayout.Paragraph($"Hi {displayName}, the latest attempt to publish <strong>{siteName}</strong> did not finish.")
-                + EmailLayout.Paragraph($"<span style=\"font-size:13px;color:#6b615c;\">{reason}</span>")
+                + EmailLayout.Paragraph(reason)
+                // The reason's own words are "the error is below", and for a long time there was nothing
+                // below: the detail stayed on the settings screen, which is the one place the person reading
+                // this is not. It is the compiler's output, already made readable and trimmed by the caller.
+                + (string.IsNullOrWhiteSpace(detail) ? string.Empty : EmailLayout.Log(detail))
                 + EmailLayout.Paragraph("The version that was live before is still live and untouched. Open Webly and try publishing again — if it keeps failing, reply to this email.")),
             TextBody =
                 $"""
@@ -178,7 +190,7 @@ public static class WeblyEmails
                 The latest attempt to publish {siteName} did not finish.
 
                 {reason}
-
+                {(string.IsNullOrWhiteSpace(detail) ? "" : "\n" + detail + "\n")}
                 The version that was live before is still live and untouched. Open Webly and try
                 publishing again — if it keeps failing, reply to this email.
                 """
@@ -214,8 +226,8 @@ public static class WeblyEmails
                 EmailLayout.Paragraph($"Hi {displayName}, somebody filled in a form on <strong>{EmailLayout.Escape(siteName)}</strong>.")
                 + EmailLayout.Fields(fields)
                 + (replyTo is null
-                    ? EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">They did not leave an email address, so check the message for another way to reach them.</span>")
-                    : EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">Reply to this email and your answer goes straight to them.</span>"))
+                    ? EmailLayout.Small("They did not leave an email address, so check the message for another way to reach them.")
+                    : EmailLayout.Small("Reply to this email and your answer goes straight to them."))
                 + EmailLayout.Button(link, "See all your messages")),
             TextBody =
                 $"""

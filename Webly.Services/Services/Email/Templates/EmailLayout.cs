@@ -5,39 +5,66 @@ namespace Webly.Services.Services.Email.Templates;
 ///
 /// Tables and inline styles, not flexbox and a stylesheet — Outlook still renders with Word's engine
 /// and Gmail strips most of what a browser would honour, so email markup is its own dialect. Written
-/// by hand rather than through a template engine because there are four short messages here and a
+/// by hand rather than through a template engine because there are seven short messages here and a
 /// dependency would be more code than the templates it renders.
+///
+/// <b>The colours are the app's own, as hex.</b> They were the reference project's for a while and nobody
+/// noticed, because nobody opened one: every Webly email went out in a paprika header with a bowl-of-stew
+/// emoji beside the name and <c>lang="hu"</c> on the document. An email is the only part of this product a
+/// customer sees when they are not looking at it, and it was branded as another app. Email cannot read a CSS
+/// variable, so these are the same numbers `client/src/styles.css` derives its palette from, converted once
+/// and written down — change one there and change it here.
 /// </summary>
 public static class EmailLayout
 {
-    private const string Paprika = "#c2410c";
-    private const string Ink = "#2b2320";
-    private const string Muted = "#6b615c";
-    private const string Paper = "#faf7f2";
+    /// <summary>The app's primary, <c>oklch(52% 0.19 268)</c>.</summary>
+    private const string Brand = "#3b5bd4";
+
+    private const string Ink = "#21242a";
+    private const string Muted = "#656970";
+    private const string Paper = "#f2f3f7";
+    private const string Edge = "#dcdee2";
+
+    /// <summary>
+    /// What most of these messages are: something the account asked for by using Webly. The two that are not —
+    /// a sign-up code and a password reset, which can both be sent to somebody who did not ask — pass their
+    /// own.
+    /// </summary>
+    public const string DefaultFooter = "Sent by Webly because of something on your account.";
 
     /// <param name="preheader">
     /// The grey line inboxes show after the subject. Hidden in the body itself — left unset, clients
     /// fill it with whatever text comes first, which is usually the logo alt text.
     /// </param>
-    public static string Wrap(string heading, string preheader, string bodyHtml) =>
+    /// <param name="footer">
+    /// The small line under the rule. It belongs to the message: a confirmation code can honestly say "if you
+    /// did not ask for this, ignore it", and a notice about somebody's own website cannot.
+    /// </param>
+    public static string Wrap(string heading, string preheader, string bodyHtml, string footer = DefaultFooter) =>
         $"""
         <!doctype html>
-        <html lang="hu">
+        <html lang="en">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>{heading}</title>
+          <!-- Dark mode: clients that honour this stop inverting the card into something nobody chose. -->
+          <meta name="color-scheme" content="light">
+          <meta name="supported-color-schemes" content="light">
         </head>
         <body style="margin:0;padding:0;background:{Paper};">
           <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{preheader}</div>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{Paper};padding:32px 16px;">
             <tr>
               <td align="center">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #ece5dc;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid {Edge};">
                   <tr>
-                    <td style="background:{Paprika};padding:20px 28px;">
-                      <span style="font:600 20px/1.2 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;">
-                        &#127858; Webly
+                    <!-- The name, set in the app's own colour. No emoji: a picture of food was the
+                         reference project's, and a glyph in a header is a decoration that renders
+                         differently in every client anyway. -->
+                    <td style="background:{Brand};padding:20px 28px;">
+                      <span style="font:600 20px/1.2 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;letter-spacing:-0.01em;">
+                        Webly
                       </span>
                     </td>
                   </tr>
@@ -48,8 +75,11 @@ public static class EmailLayout
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding:0 28px 28px;font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Muted};border-top:1px solid #f0eae2;padding-top:20px;">
-                      Sent by Webly. If you did not ask for it, you can ignore it.
+                    <!-- The footer says what this message is, not what every message is. "If you did not
+                         ask for it, you can ignore it" is true of a sign-up code and a lie under a
+                         notification about somebody's own site, which is where it used to sit. -->
+                    <td style="padding:0 28px 28px;font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Muted};border-top:1px solid {Edge};padding-top:20px;">
+                      {footer}
                     </td>
                   </tr>
                 </table>
@@ -63,11 +93,21 @@ public static class EmailLayout
     public static string Paragraph(string text) =>
         $"""<p style="margin:0 0 16px;">{text}</p>""";
 
+    /// <summary>
+    /// A quieter paragraph — an aside, a validity window, a reassurance.
+    ///
+    /// It exists because every template had the muted colour written into it as a literal hex, six copies of
+    /// one number that the palette above is supposed to own. Three of them were still the reference project's
+    /// brown after the rest of the shell had been repainted.
+    /// </summary>
+    public static string Small(string text) =>
+        $"""<p style="margin:0 0 16px;font-size:13px;color:{Muted};">{text}</p>""";
+
     public static string Button(string url, string label) =>
         $"""
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
           <tr>
-            <td style="border-radius:10px;background:{Paprika};">
+            <td style="border-radius:10px;background:{Brand};">
               <a href="{url}" style="display:inline-block;padding:12px 24px;font:600 16px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;border-radius:10px;">{label}</a>
             </td>
           </tr>
@@ -83,7 +123,7 @@ public static class EmailLayout
         $"""
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
           <tr>
-            <td style="border-radius:12px;background:{Paper};border:1px solid #ece5dc;padding:16px 24px;">
+            <td style="border-radius:12px;background:{Paper};border:1px solid {Edge};padding:16px 24px;">
               <span style="font:700 30px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:8px;padding-left:8px;color:{Ink};">{code}</span>
             </td>
           </tr>
@@ -97,7 +137,29 @@ public static class EmailLayout
     public static string FallbackLink(string url) =>
         $"""
         <p style="margin:0 0 8px;font-size:13px;color:{Muted};">If the button does not work, paste this address into your browser:</p>
-        <p style="margin:0;font-size:13px;word-break:break-all;"><a href="{url}" style="color:{Paprika};">{url}</a></p>
+        <p style="margin:0;font-size:13px;word-break:break-all;"><a href="{url}" style="color:{Brand};">{url}</a></p>
+        """;
+
+    /// <summary>
+    /// Output from a build, as something somebody can read in an inbox.
+    ///
+    /// <b>The email that needed it was promising it and not showing it.</b> "Your site did not build — the
+    /// error is below" is true on the settings screen, where the log is folded underneath, and it was simply
+    /// false in the mail: the sentence went out with nothing after it. The whole reason to mail a failure is
+    /// that the person is not looking at the app, so the words they need have to travel with it.
+    ///
+    /// Monospace, escaped, and left to scroll rather than wrap: a compiler's column markers mean nothing once
+    /// a line has been folded. It is the caller's job to trim it — see <c>CompilerOutput</c>.
+    /// </summary>
+    public static string Log(string text) =>
+        $"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+          <tr>
+            <td style="border-radius:12px;background:{Paper};border:1px solid {Edge};padding:14px 16px;">
+              <pre style="margin:0;overflow-x:auto;font:400 12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:{Ink};white-space:pre;">{Escape(text)}</pre>
+            </td>
+          </tr>
+        </table>
         """;
 
     /// <summary>

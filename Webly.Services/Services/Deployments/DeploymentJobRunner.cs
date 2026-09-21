@@ -170,7 +170,7 @@ public class DeploymentJobRunner(
                 Detail = url
             }, isTerminal: true, stoppingToken);
 
-            await NotifyAsync(email, users, deployment, site.Name, url, null, stoppingToken);
+            await NotifyAsync(email, users, deployment, site.Name, url, null, null, stoppingToken);
         }
         catch (Exception exception)
         {
@@ -209,7 +209,7 @@ public class DeploymentJobRunner(
                 Detail = detail
             }, isTerminal: true, CancellationToken.None);
 
-            await NotifyAsync(email, users, deployment, site.Name, null, message, CancellationToken.None);
+            await NotifyAsync(email, users, deployment, site.Name, null, message, detail, CancellationToken.None);
         }
         finally
         {
@@ -303,6 +303,7 @@ public class DeploymentJobRunner(
         string siteName,
         string? url,
         string? error,
+        string? detail,
         CancellationToken cancellationToken)
     {
         try
@@ -313,7 +314,9 @@ public class DeploymentJobRunner(
 
             var message = error is null
                 ? WeblyEmails.SitePublished(user.Email, user.DisplayName, siteName, url!)
-                : WeblyEmails.DeploymentFailed(user.Email, user.DisplayName, siteName, error);
+                // The build log travels with it. The person reading this is, by definition, not looking at the
+                // screen where it is folded away — that is the whole reason the mail exists.
+                : WeblyEmails.DeploymentFailed(user.Email, user.DisplayName, siteName, error, detail);
 
             await email.SendAsync(message, cancellationToken);
         }
