@@ -37,12 +37,14 @@ build — are all exercised for real. What is mocked is the part written in the 
 
 ## What it asserts, in order
 
-1. A new site is the template, committed to its own bare repository — with `AGENTS.md` and `content/brand.md`.
+1. A new site is the template, committed to its own bare repository — with `AGENTS.md` and
+   `content/brand.md` — and that first commit's diff, which has no parent to diff against.
 2. A turn that changes nothing commits nothing.
 3. A sandbox starts and answers `/health`.
 4. The commit's tree lands in the workspace, and `node_modules` did not travel through git.
 5. `npm ls --depth=0` passes without an install — the prebaked-dependencies bet the sandbox image makes.
-6. `next dev` starts and `/preview/` serves the page **through the agent's proxy**.
+6. `next dev` starts and `/preview/` serves the page **through the agent's proxy** — the document *and* its
+   stylesheet, under the base path the dev server was started with.
 7. A turn runs the agent in the workspace.
 8. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
    *(`--agent claude` only, so a mock run has thirteen steps rather than fourteen.)*
@@ -75,12 +77,25 @@ build — are all exercised for real. What is mocked is the part written in the 
 - **A hung request stalled the run silently.** `waitFor` bounded the retry loop but not each attempt, so a dev
   server compiling under load held one `fetch` open past every deadline and the harness simply stopped rather
   than failing. Attempts are bounded now.
+- **The preview served the HTML and nothing else.** Next.js writes absolute URLs for its stylesheets, its
+  chunks and its hot-reload socket, so a dev server proxied under a path asked for `/_next/...` at the root of
+  whatever origin was serving it — Webly's own app — and every one of those requests 502ed. The page rendered
+  as unstyled text with no JavaScript, and this harness had been asserting on the document since the day it
+  was written. The document was perfect. Step 6 reads an asset now.
+- **The first commit's diff answered 500.** `git diff {sha}~1 {sha}` is not a revision for a parentless
+  commit, so the History tab of every newly created site was broken on the only version it had. What kept it
+  hidden is worth more than the fix: `git-store.mjs` had a comment claiming the C# returned an empty string
+  there. It did not — a stand-in that *describes* the behaviour it stands in for is not standing in for
+  anything. It runs the same `diff-tree --root` now.
 - **The build-error report could not fire, and then could not stop firing.** Two bugs in one check.
   `next dev` compiles *on demand*, so right after a turn it has never looked at the agent's edits and the log is
   empty — which reads as "no errors"; the turn now requests the preview first. And the log is *cumulative*, so
   reading all of it re-reports an error from three turns ago for ever; the turn now records an offset before it
   starts. Step 16 covers both, and writing it turned up a third thing worth knowing: `next dev` does not
-  typecheck at all, which is why `AGENTS.md` asks the agent to run `npm run typecheck` itself.
+  typecheck at all, which is why `AGENTS.md` asks the agent to run `npm run typecheck` itself. A third
+  attempt at breaking a file taught the rest of it: an *unused* broken import is elided as possibly-a-type
+  before anything resolves it, so the dev server recompiles it happily. What the compile check can see is
+  syntax errors and imports that are used — `DevServerLogReader` has the full list and the markers to match.
 - **The export bundle cloned into an empty directory.** `git bundle create - <branch>` records the commits and
   the ref but no `HEAD`, so `git bundle verify` says "complete history" and `git clone` checks out *nothing*.
   The export endpoint — the feature whose whole point is that a customer can leave with their site — shipped

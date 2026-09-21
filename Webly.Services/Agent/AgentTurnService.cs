@@ -17,10 +17,28 @@ namespace Webly.Services.Agent;
 public interface IAgentTurnService
 {
     /// <summary>
-    /// Runs one turn and returns the conversation it happened in. Called on the run's own scope, by
-    /// <see cref="ChatRunLauncher"/>, and never from a request thread.
+    /// Runs one turn. Called on the run's own scope, by <see cref="ChatRunLauncher"/>, and never from a
+    /// request thread.
+    ///
+    /// It returns nothing, deliberately. It used to return the conversation's nanoid, and the launcher
+    /// assigned the run's correlation id from it — which is the same value, arriving far too late to be the
+    /// thing a reloading page looks the run up by. Taking the return value away means nobody can make that
+    /// mistake twice; the nanoid is reported through <paramref name="onConversation"/>, when it is true.
     /// </summary>
-    Task<string> RunAsync(SendMessageRequest request, int userId, CancellationToken cancellationToken);
+    /// <param name="onConversation">
+    /// Called with the conversation's nanoid as soon as there is one, which is before any of the work.
+    ///
+    /// It exists because the return value is too late to be useful: a page that reloads mid-turn finds the
+    /// run by asking which one is attached to this conversation, and a correlation set when the turn
+    /// <i>finishes</i> is never there while it is running. The whole "a run outlives the connection that
+    /// started it" design hangs off this line — without it a reload shows a finished-looking thread with a
+    /// turn still writing files behind it.
+    /// </param>
+    Task RunAsync(
+        SendMessageRequest request,
+        int userId,
+        Action<string> onConversation,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -73,7 +91,11 @@ public class AgentTurnService(
     /// <summary>What a stopped turn says. Not an error: the person asked for it, and nothing was committed.</summary>
     public const string StoppedNote = "Stopped. Nothing was changed.";
 
-    public async Task<string> RunAsync(SendMessageRequest request, int userId, CancellationToken cancellationToken)
+    public async Task RunAsync(
+        SendMessageRequest request,
+        int userId,
+        Action<string> onConversation,
+        CancellationToken cancellationToken)
     {
         var site = await siteRepository.FindForOwnerAsync(request.SiteNanoid, userId, cancellationToken)
             ?? throw new InvalidOperationException($"Site '{request.SiteNanoid}' is not available to this user.");
@@ -97,6 +119,9 @@ public class AgentTurnService(
             conversations.Add(conversation);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+
+        // Before anything that takes time, because this is what a reload looks the run up by.
+        onConversation(conversation.Nanoid);
 
         var history = await conversations.ListMessagesAsync(conversation.Id, HistoryMessages, cancellationToken);
 
@@ -128,8 +153,6 @@ public class AgentTurnService(
             await NoteAsync(conversation.Id, FailureNote);
             throw;
         }
-
-        return conversation.Nanoid;
     }
 
     /// <summary>

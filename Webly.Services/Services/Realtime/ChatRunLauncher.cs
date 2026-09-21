@@ -63,10 +63,13 @@ public class ChatRunLauncher(
 
         try
         {
-            // The conversation may not exist yet, so the run is registered without a correlation id and gets one
-            // as soon as the turn knows it. Without this, a client that reloads mid-turn on a brand-new thread can
-            // never re-attach — which is the whole reason the run outlives the socket.
-            handle.CorrelationId = await turn.RunAsync(request, userId, handle.Token);
+            // The conversation may not exist yet, so the run is registered without a correlation id and is given
+            // one as soon as the turn knows it — through the callback, not from the return value. Assigning it
+            // from what `RunAsync` returns looked like the same thing and is not: that happens when the turn is
+            // *over*, so for the whole time a reload could have re-attached, the registry had no way to connect
+            // this run to that conversation. A page reloaded mid-turn showed a thread with nothing running and a
+            // turn still writing files behind it.
+            await turn.RunAsync(request, userId, nanoid => handle.CorrelationId = nanoid, handle.Token);
         }
         catch (OperationCanceledException)
         {
