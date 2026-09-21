@@ -54,7 +54,7 @@ CLI, `next dev`, the build — in sixteen asserted steps. `tools/e2e/turn.mjs` d
 running backend's own hub. Between them: a verified account, a site that is a bare repository, turns that
 commit one version each, a preview through Webly's origin, and a published page that says what the person
 typed. The backend compiles, `InitialSchema` is applied to a real Postgres with its ten deferrable
-constraints, 68 tests pass, and `client/src/app/api/` is generated and committed.
+constraints, 70 tests pass, and `client/src/app/api/` is generated and committed.
 
 **Known gaps inside P0**, each with a note in the code:
 
@@ -88,7 +88,7 @@ paragraphs are kept because each one names a thing to check again after a change
 1. ~~`dotnet build`, then the migration, then the deferred-constraint SQL by hand~~ — `InitialSchema` carries
    ten `ALTER CONSTRAINT … DEFERRABLE INITIALLY DEFERRED` statements, and the canary that justifies them
    passes. It also turned out that the delete cannot go through EF's change tracker at all; the test says why.
-2. ~~`GitSiteRepositoryStoreTests` and `ClaudeStreamJsonParserTests`~~, then the rest: 68 tests, green, and
+2. ~~`GitSiteRepositoryStoreTests` and `ClaudeStreamJsonParserTests`~~, then the rest: 70 tests, green, and
    `WEBLY_TEST_POSTGRES` lets the Postgres-backed ones run without Docker.
 3. ~~`regen_api`, commit `client/src/app/api/`, get the client green~~ — and keep
    `SupportNonNullableReferenceTypes()` in `AddSwaggerGen`, without which every string in the generated client

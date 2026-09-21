@@ -25,7 +25,7 @@ says what the person typed. `tools/e2e/turn.mjs` is what starts a turn, because 
 and a SignalR client is the only way to press that button.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 68 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 70 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -35,7 +35,9 @@ and the Angular app type-checks and prerenders against it.
 **The lower layers were already evidence** before any of that, from `tools/e2e/run.mjs`: the git plumbing
 sequence, the sandbox agent's HTTP contract, the real `claude` CLI (including that it follows the `SUMMARY:`
 convention and edits `content/brand.md` unasked, because `AGENTS.md` tells it to), the real `next dev`, the
-real build. `tools/e2e/README.md` lists the nine bugs it caught.
+real build. `tools/e2e/README.md` lists the bugs it caught. Hot reload is evidence too: an external write to
+`page.tsx` reaches the served HTML in about four seconds, which is what "the preview updates itself" rests
+on.
 
 ### The ones the running app caught
 
@@ -60,6 +62,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
    a launcher sets. `PathAnchor` ends that argument.
 8. **The OpenAPI document threw away every nullable annotation** without
    `SupportNonNullableReferenceTypes()`, and an `IActionResult` describes no type at all.
+9. **The preview served the HTML and nothing else.** Next.js writes absolute asset URLs, so a dev server
+   proxied under a path asked for `/_next/...` at the root of Webly's origin and every one of those 502ed.
+   The product's main surface had never rendered with a stylesheet. The harness had been reading the
+   document, and the document was perfect.
+10. **Both editor panes were the height of their own contents**, because a custom element is a plain block
+    and the `h-full` inside resolved against nothing.
+11. **Logging in lasted fifteen minutes.** A browser's parallel requests all present the same refresh cookie
+    when the access token dies; one rotates it and the rest were read as theft, which revoked the chain.
 
 ## What is still intent
 

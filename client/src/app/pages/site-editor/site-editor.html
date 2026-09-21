@@ -80,7 +80,12 @@
         rather than beside it: on a phone the chat is the product, and half a screen of each is neither.
       -->
       <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section class="flex min-h-0 basis-2/5 flex-col border-base-300 lg:max-w-md lg:border-r">
+        <!--
+          A fixed width from `lg` up, not a share of the row. `basis-2/5` is the phone layout's two fifths of
+          the *height*, and it was also letting the chat be squeezed sideways whenever the pane beside it
+          wanted room — opening History left the transcript about ninety pixels wide, one word per line.
+        -->
+        <section class="flex min-h-0 basis-2/5 flex-col border-base-300 lg:w-96 lg:shrink-0 lg:basis-auto lg:border-r">
           <app-site-chat
             [siteNanoid]="detail.summary.nanoid"
             (versionCommitted)="onVersionCommitted()"

@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 68-test
+person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 70-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -206,8 +206,14 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   token's `jti` in `IAccessTokenBlacklist` — an `IMemoryCache` whose entries expire exactly when the token
   would have. **Per process**: a restart or a second instance forgets it. One of the three pieces to move
   to shared storage if Webly ever scales out (the others are `RunRegistry` and `AgentBudget`).
-- **Refresh tokens are single-use.** Replaying a spent one is treated as theft and revokes the whole chain.
-  Only the HMAC hash is stored.
+- **Refresh tokens are single-use, with a thirty-second window.** Replaying a spent one is treated as theft
+  and revokes the whole chain — but not immediately, and the exception is not a weakening. A browser sends
+  requests in parallel, so when the access token dies they all arrive carrying the same live refresh cookie:
+  one rotates and the rest are replays of a token revoked a millisecond ago. Inside `RotateRefreshToken.
+  ReuseGrace` a replay is served an access token and **no new refresh token**, so the successor stays the only
+  live one. The window is keyed on `RefreshToken.ReplacedAt`, not `RevokedAt`, because both a rotation and a
+  sign-out revoke — and a sign-out that keeps working for another thirty seconds is not a sign-out. Only the
+  HMAC hash is stored.
 - **The verification gate lives in the accessors, not in an attribute.** `GetUserId()` /
   `GetUserIdIfLoggedIn()` return a caller **only if their email is verified** and throw
   `EmailNotVerifiedException` (→ 403, `email_not_verified`) otherwise; `GetUserIdUnverified()` is the
@@ -359,6 +365,18 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   `IHttpForwarder`: same origin, ownership re-checked per request, WebSockets forwarded (hot reload is one),
   our cookie stripped on the way out. A cold site answers 503 with a sentence rather than starting a
   workspace on a GET, because tens of seconds of a hanging iframe looks broken.
+- **The dev server is told where it is, and that is load-bearing.** Next.js writes absolute URLs for its
+  stylesheets, its chunks and its hot-reload socket, so a dev server that thinks it is at `/` asks the browser
+  for `/_next/...` at the root of Webly's origin — which is Webly's app. `SiteWorkspaceRegistry` passes
+  `/api/sites/{nanoid}/preview` to `StartDevServerAsync`; the sandbox agent sets `WEBLY_PREVIEW_BASE` and
+  rewrites everything under its own `/preview` onto it; the site template turns that variable into Next's
+  `basePath`. Three files agree on one string, and the day they disagree the preview renders as unstyled text
+  — which is exactly how it shipped, because the test read the HTML and the HTML was perfect.
+- **`next dev` catches less than it looks like.** It compiles with SWC, which strips types rather than
+  checking them: a type error never reaches its log, and neither does an *unused* broken import, which is
+  elided as possibly-a-type before anything resolves it. What `BuildFailed` can see is syntax and imports that
+  are used. Types are what `npm run typecheck` is for — `AGENTS.md` tells the agent to run it — and `next
+  build` at publish time is the backstop for both.
 - **The sandbox contract is ours** (`tools/sandbox-agent`, zero dependencies, baked into the image). A
   provider's job is "start this image, give me a URL"; files, exec and preview all go through one HTTP
   contract we can test. That is what makes E2B → Fly → Daytona a class nobody else has to know about.
