@@ -30,8 +30,15 @@
         old name — header, footer, every page's title, the card a shared link draws — with nothing on screen
         saying so.
       -->
+      <!--
+        `checkbox-primary` is not decoration. Unmodified, a daisyUI checkbox that is *ticked* is a 1px outline at
+        1.5:1 with a grey mark inside it — so "on" and "off" look nearly the same at a glance, on the one control
+        that decides whether renaming a business renames its website. Filled, it is unmistakable and its edge
+        clears 3:1 in both themes on its own. The app's colours are quiet on purpose; a state somebody has to be
+        sure of is where that stops being the rule.
+      -->
       <label class="flex cursor-pointer items-start gap-2 text-sm">
-        <input class="checkbox checkbox-sm mt-0.5" name="applyToSite" type="checkbox" [(ngModel)]="applyToSite" />
+        <input class="checkbox checkbox-primary checkbox-sm mt-0.5" name="applyToSite" type="checkbox" [(ngModel)]="applyToSite" />
         <span>
           Say this on the site too
           <span class="block text-xs text-base-content/60">

@@ -15,6 +15,17 @@
 @theme {
   --font-sans:
     'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /*
+   * The boundary of a control, at 3:1 or better against the panels it is drawn on.
+   *
+   * One value rather than a `light-dark()` pair, and that is measured rather than lucky: 59% lightness is
+   * where a border clears WCAG 1.4.11 on *both* of this app's themes at once — 4.0:1 light, 3.8:1 dark.
+   * It is a token because two rules below need it (a field's border, a checkbox's) and daisyUI hands them
+   * their colour by different routes; the same number written twice is the same number until somebody
+   * changes one.
+   */
+  --color-control-edge: oklch(59% 0.02 265);
 }
 
 @plugin 'daisyui' {
@@ -146,8 +157,8 @@
  * a barely-there rule around it is enough; a field is empty by definition, and its border is the only
  * thing on screen saying where to click. WCAG 1.4.11 asks for 3:1 on exactly that, and the login and
  * register screens — the first two anybody sees — are made of nothing else. Measured in a browser
- * rather than reasoned about: 59% lightness clears it on both themes at once (4.0:1 light, 3.8:1
- * dark), which is why there is one value here and not a `light-dark()` pair.
+ * rather than reasoned about: `--color-control-edge` is 59% lightness, which clears it on both themes at
+ * once (4.0:1 light, 3.8:1 dark) — which is why there is one value and not a `light-dark()` pair.
  *
  * `--input-color` rather than `border-color`, because that is the variable daisyUI derives the field's
  * border *and* its inset shadow from — and because `:focus` re-points the same variable at the full
@@ -160,7 +171,36 @@
  * on different palettes.
  */
 :where(.input, .textarea, .select, .file-input):not(:focus, :focus-within) {
-  --input-color: oklch(59% 0.02 265);
+  --input-color: var(--color-control-edge);
+}
+
+/*
+ * A checkbox, which the rule above does not reach and which needs it more than anything it does.
+ *
+ * That fix named the four field classes, so the checkbox stayed at daisyUI's 1.49:1 — and a checkbox is the
+ * clearest case of the whole rule rather than an edge of it: an *unchecked* box is nothing but its border.
+ * There is no placeholder, no label shape and no inner text to identify it by, so a line nobody can see is a
+ * control nobody can find. It is the "also update the site's own pages" tick on the settings screen, which
+ * decides whether renaming a business renames its website.
+ *
+ * `--input-color` again, because that really is where the border comes from — daisyUI writes
+ * `border: … solid var(--input-color, color-mix(…20%…))`, so the faint line is its *fallback* rather than its
+ * definition, and a `border-color` of our own loses to the shorthand. Read out of the served stylesheet
+ * rather than guessed, after the `border-color` version measured exactly as faint as before.
+ *
+ * The exclusions are not the field rule's, and each one is a thing this would otherwise break: on a
+ * **checked** box daisyUI spends `--input-color` as the *fill* (`background-color: var(--input-color, #0000)`),
+ * so an unmodified tick would turn from a dark mark on nothing into a dark mark on grey; and on
+ * `:focus-visible` it is the *outline*, which is meant to be `currentColor`. A faint border is a control you
+ * cannot find, and a faint focus ring is one you cannot follow with a keyboard.
+ *
+ * Found by the contrast rule in `tools/e2e/screens.mjs`, on a screen it had photographed a dozen times: a
+ * border drawn too faintly reads as a design choice in every screenshot ever taken of it. That rule measures
+ * every `input` on the page, so a radio or a switch added later is caught the same way rather than needing
+ * its name here.
+ */
+:where(.checkbox):not(:checked, :indeterminate, :focus-visible) {
+  --input-color: var(--color-control-edge);
 }
 
 /*

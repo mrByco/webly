@@ -1038,7 +1038,15 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   saying where to click, and login and register are made of nothing else. `styles.css` repoints
   `--input-color` (the variable daisyUI derives both the border and its inset shadow from) at 59% lightness,
   which is the single value that clears 3:1 on **both** themes — 4.0:1 light, 3.8:1 dark, measured in a
-  browser rather than reasoned about. The `:not(:focus, :focus-within)` on that rule is load-bearing: an
+  browser rather than reasoned about; it lives in `@theme` as `--color-control-edge`, because two rules need it
+  and the same literal written twice is the same value until somebody changes one. **The checkbox is the second
+  of those rules and needed both halves**: unchecked it was a 1.49:1 outline, which is the whole of what a
+  checkbox is; checked, unmodified daisyUI draws the same faint outline with a grey mark in it, so on and off
+  looked alike on the control that decides whether renaming a business renames its website. The fix is
+  `--input-color` again — daisyUI writes `border: … solid var(--input-color, color-mix(…20%…))`, so the faint
+  colour is a *fallback* and a `border-color` of our own loses to the shorthand — excluding `:checked` and
+  `:focus-visible`, where that same variable is the fill and the outline. Ticked is `checkbox-primary`, which is
+  not decoration. Found by the sweep's contrast rule, on a screen it had photographed a dozen times. The `:not(:focus, :focus-within)` on that rule is load-bearing: an
   unlayered declaration beats anything in a cascade layer whatever its specificity, so without it the rule
   would also win against daisyUI's `:focus`, which repoints the same variable — and silently delete the focus
   ring on every field in the app. The site template has the same rule for the same reason, as its own

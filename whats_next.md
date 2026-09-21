@@ -484,6 +484,28 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     moment the answer cannot change.
 
 
+45. **The one checkbox in the app was invisible in both of its states**, and the contrast rule in
+    `tools/e2e/screens.mjs` is what said so — on a screen it had already photographed a dozen times, because a
+    border drawn too faintly reads as a design choice in every screenshot ever taken of it.
+
+    Two separate things were wrong. The earlier contrast fix repointed `--input-color` and named the four field
+    classes, which left the checkbox at daisyUI's 1.49:1: an *unchecked* box is nothing but its border, so a line
+    nobody can see is a control nobody can find. And an unmodified daisyUI checkbox that is *ticked* is the same
+    faint outline with a grey mark in it, so "on" and "off" looked nearly the same — on the control that decides
+    whether renaming a business renames its website.
+
+    The border goes through `--input-color` after all: daisyUI writes `border: … solid var(--input-color,
+    color-mix(…20%…))`, so the faint colour is its fallback rather than its definition, and a `border-color` of
+    our own loses to the shorthand. Read out of the served stylesheet after the `border-color` version measured
+    exactly as faint as before — which is the lesson worth keeping: with daisyUI, find the variable rather than
+    fight the rule. The checked half is `checkbox-primary`, which is not decoration: it fills the box, clears 3:1
+    on its own edge, and makes the state readable at a glance. Photographed ticked and unticked, light and dark.
+
+    The value both rules use is now one `--color-control-edge` token in `@theme` rather than the same literal
+    written twice, and the bundle budget — which had been warning on every single build for longer than anyone
+    can date, at 503 kB against 500 — is 600 kB, so a clean build is once again how a new warning gets noticed.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
