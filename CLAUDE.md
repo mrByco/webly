@@ -143,6 +143,11 @@ more than one restating what the line does.
   the binary's own directory) when it does not — so development works from anywhere and `/app` in the
   container is the same case. Before it, `run-app.ps1` and the dev MCP server each started the app in a
   working directory that broke the other, because `dotnet run` ignores the shell's and uses the project's.
+- **The site template is read once and cached**, so editing `templates/next-site` and then creating a site
+  gives you the template as it was when the backend started. That is right in production — it ships inside the
+  image and never changes at runtime — and it is a wasted verification in development, where the new site's
+  repository quietly holds the old file. `DirectorySiteTemplateSource` says so; restart the backend after
+  touching the template, and check the commit rather than the screen if something looks unchanged.
 - **Start order: backend first.** The frontend's `prestart` (`ng-openapi-gen`) reads the backend's live
   swagger. `run-app.ps1` and `app_start` both do this in the right order.
 - **A template change that does not appear in the browser means a stale lazy chunk, not a wrong change.**

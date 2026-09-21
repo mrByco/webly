@@ -11,9 +11,12 @@ import { Cta } from '@/components/cta';
 export default function Home() {
   return (
     <>
+      {/* A hero with nothing to press asks a visitor to scroll and hope. The action is here from the start
+          rather than added the first time somebody notices it missing. */}
       <Hero
         headline="Your new website"
         subheadline="Tell Webly what this site is about, and this page will be rewritten for you."
+        action={{ label: 'Get in touch', href: '/contact' }}
       />
 
       <Features
