@@ -22,5 +22,28 @@ export function messageOf(error: unknown, fallback = 'That could not be saved.')
     }
   }
 
-  return (body as { title?: string })?.title ?? fallback;
+  return (body as { title?: string })?.title ?? hubMessageOf(error) ?? fallback;
+}
+
+/**
+ * The sentence out of a `HubException`, or nothing.
+ *
+ * A hub invocation is not an HTTP call and its failures carry no ProblemDetails, so everything the backend says
+ * over the hub — that a site could not be found, that a run is not there, that somebody has made a great many
+ * changes in the last hour — was arriving here as an `Error` with no `error` property and coming out as the
+ * generic fallback. Every one of those sentences exists to be read.
+ *
+ * What SignalR's JavaScript client throws is one string:
+ *
+ *   "An unexpected error occurred invoking 'Subscribe' on the server. HubException: That run could not be found."
+ *
+ * Only the part after `HubException:` is ours. The prefix names a method the person has never heard of, and an
+ * error *without* that marker is an unhandled server exception whose message is deliberately not sent — so this
+ * returns undefined there and the caller's fallback stands.
+ */
+function hubMessageOf(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : undefined;
+  const marker = message?.indexOf('HubException: ') ?? -1;
+
+  return marker >= 0 ? message!.slice(marker + 'HubException: '.length).trim() : undefined;
 }

@@ -73,7 +73,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
 12. **A site whose address was printed on every screen resolved nowhere.** Nothing ever asked the provider to
     serve `{slug}.{BaseDomain}`, so the header's link — offered the moment a publish succeeded — was to a 404.
     Publishing attaches it now, and until it takes, what the product links is the deployment's own URL.
-13. **Build errors were never reported, for two independent reasons.** The turn asks the dev server for a page in
+13. **Every publish pressed in the UI looked like it had failed.** A deployment is a row before it is work, and
+    the page watches the run as a second step — so `Subscribe` was called three seconds before the runner
+    registered anything and threw "that run could not be found", which the client showed as its generic "that
+    could not be saved". The publish itself was fine the whole time. Two fixes: the run is registered when the
+    row is, and a `HubException`'s own sentence now reaches the screen instead of the fallback (every hub
+    message did that — including the rate limit's).
+14. **Build errors were never reported, for two independent reasons.** The turn asks the dev server for a page in
     order to make it compile, and on a cold workspace that request landed before anything was listening; and a dev
     server killed by the out-of-memory killer took the only record of itself with it, because the log hung off the
     child object. Both were invisible: the log read as empty and empty reads as healthy. Asking the mock agent to

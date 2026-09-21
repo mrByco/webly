@@ -10,7 +10,7 @@ namespace Webly.Tests;
 /// "Type error:", and a syntax error — the commonest way an edit breaks a page — produces none of the three.
 /// The editor said nothing at all while the site was down.
 /// </summary>
-public class DevServerLogReaderTests
+public class CompilerOutputTests
 {
     /// <summary>A syntax error, ANSI codes and Rust backtrace included, exactly as it arrives.</summary>
     private const string SyntaxError =
@@ -27,8 +27,13 @@ public class DevServerLogReaderTests
         + "Stack backtrace:\n"
         + "   0: <unknown>\n"
         + "   1: <unknown>\n"
+        // A real frame from `next build` carries its file on an indented line of its own, which the first
+        // version of the filter kept — sixteen of them, about node's thread pool.
         + "  14: worker\n"
+        + "             at /home/iojs/build/ws/out/../deps/uv/src/threadpool.c:123:5\n"
         + "  15: start_thread\n"
+        + "             at ./nptl/pthread_create.c:447:8\n"
+        + "\n"
         + "Import trace for requested module:\n"
         + "./src/app/page.tsx\n";
 
@@ -62,7 +67,7 @@ public class DevServerLogReaderTests
     [Test]
     public void The_block_starts_at_the_complaint_not_at_the_dev_server_is_first_breath()
     {
-        var readable = DevServerLogReader.Readable(ColdStartThenSyntaxError);
+        var readable = CompilerOutput.Readable(ColdStartThenSyntaxError);
 
         Assert.Multiple(() =>
         {
@@ -76,13 +81,13 @@ public class DevServerLogReaderTests
     [Test]
     public void A_syntax_error_is_reported()
     {
-        Assert.That(DevServerLogReader.SaysTheBuildBroke(SyntaxError), Is.True);
+        Assert.That(CompilerOutput.SaysTheBuildBroke(SyntaxError), Is.True);
     }
 
     [Test]
     public void An_import_that_does_not_resolve_is_reported()
     {
-        Assert.That(DevServerLogReader.SaysTheBuildBroke(MissingModule), Is.True);
+        Assert.That(CompilerOutput.SaysTheBuildBroke(MissingModule), Is.True);
     }
 
     [Test]
@@ -90,16 +95,16 @@ public class DevServerLogReaderTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(DevServerLogReader.SaysTheBuildBroke(TypeError), Is.False);
-            Assert.That(DevServerLogReader.SaysTheBuildBroke(" ✓ Ready in 1158ms\n GET / 200 in 42ms\n"), Is.False);
-            Assert.That(DevServerLogReader.SaysTheBuildBroke(string.Empty), Is.False);
+            Assert.That(CompilerOutput.SaysTheBuildBroke(TypeError), Is.False);
+            Assert.That(CompilerOutput.SaysTheBuildBroke(" ✓ Ready in 1158ms\n GET / 200 in 42ms\n"), Is.False);
+            Assert.That(CompilerOutput.SaysTheBuildBroke(string.Empty), Is.False);
         });
     }
 
     [Test]
     public void What_the_person_reads_is_the_error_and_not_the_compiler_is_internals()
     {
-        var readable = DevServerLogReader.Readable(SyntaxError);
+        var readable = CompilerOutput.Readable(SyntaxError);
 
         Assert.Multiple(() =>
         {
@@ -118,6 +123,8 @@ public class DevServerLogReaderTests
             Assert.That(readable, Does.Not.Contain("Stack backtrace"));
             Assert.That(readable, Does.Not.Contain("<unknown>"));
             Assert.That(readable, Does.Not.Contain("start_thread"));
+            Assert.That(readable, Does.Not.Contain("threadpool.c"), "nor the frames' own indented file lines");
+            Assert.That(readable, Does.Not.Contain("pthread_create"));
 
             // The text after the backtrace is kept: it names the file that could not be imported.
             Assert.That(readable, Does.Contain("Import trace for requested module"));

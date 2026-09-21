@@ -734,7 +734,7 @@ try {
     // before it starts and reads from there. This proves the mechanism the fix rests on.
     const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
     const good = readFileSync(page, 'utf8');
-    // The same set DevServerLogReader looks for, and the reason it is that set rather than the obvious one is
+    // The same set CompilerOutput looks for, and the reason it is that set rather than the obvious one is
     // in its comment: a syntax error produces `⨯ ./` and `Caused by: Syntax Error`, and none of the three
     // phrases anybody would guess.
     const markers = /⨯ \.\/|Failed to compile|Module not found|Syntax Error|Type error:/i;

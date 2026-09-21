@@ -3,18 +3,21 @@ using System.Text.RegularExpressions;
 namespace Webly.Services.Agent;
 
 /// <summary>
-/// Reads <c>next dev</c>'s output for the one question a turn asks it: did this edit break the site, and what
+/// Reads Next.js's own output for the two questions this product asks it: did that break the site, and what
 /// would you tell the person?
 ///
+/// Both callers are here because both print the same thing. <c>next dev</c> is what a turn checks, so that a
+/// compile error reaches the chat while somebody can still say "fix it"; <c>next build</c> is what a publish
+/// runs, and its failure is the one that stops a site going live. Its tail becomes
+/// <c>Deployment.ErrorDetail</c>, which the settings screen shows folded away — and it went there raw until a
+/// publish was watched in a browser, ANSI escapes, the build machine's absolute paths and SWC's Rust backtrace
+/// included.
+///
 /// Its own class rather than two private methods on <see cref="AgentTurnService"/> because both halves are
-/// about somebody else's output format, both were wrong in ways only running them showed, and both are worth
-/// a test that does not need a sandbox.
+/// about somebody else's output format, both were wrong in ways only running them showed, and both are worth a
+/// test that does not need a sandbox.
 /// </summary>
-/// <remarks>
-/// Named for what it does rather than for what it reads, because <c>DevServerLog</c> is already the record the
-/// sandbox hands back — the text and how far through it that reached.
-/// </remarks>
-public static partial class DevServerLogReader
+public static partial class CompilerOutput
 {
     /// <summary>
     /// What a broken build looks like in the log, taken from the log rather than from memory.
@@ -70,8 +73,11 @@ public static partial class DevServerLogReader
                 continue;
             }
 
-            // The frames themselves, and the blank lines among them. Anything else ends the section.
-            if (inBacktrace && (line.Trim().Length == 0 || StackFrame().IsMatch(line))) continue;
+            // The frames, their indented "at …/threadpool.c:123:5" continuations, and the blank lines among them.
+            // Anything starting at column 0 with something in it ends the section — which is how "Import trace for
+            // requested module:" survives while sixteen frames of node's own thread pool do not.
+            if (inBacktrace && (line.Trim().Length == 0 || StackFrame().IsMatch(line) || char.IsWhiteSpace(line[0])))
+                continue;
 
             inBacktrace = false;
             kept.Add(line);

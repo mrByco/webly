@@ -103,8 +103,19 @@ public sealed class RunRegistry
 {
     private readonly ConcurrentDictionary<string, RunHandle> _runs = new();
 
+    /// <summary>
+    /// Registers a run, or hands back the one already registered under this id.
+    ///
+    /// The second case is a deploy. A deployment is a row before it is work: <c>PublishSite</c> queues it and answers,
+    /// the runner picks it up on its next poll up to three seconds later, and in between the person has already
+    /// pressed the button and the page is trying to watch it. Registering on the way out of the use case is what makes
+    /// that possible — and a plain overwrite here would then replace the handle the client is subscribed to, losing
+    /// its subscriber count and its replay log at the moment the events start.
+    /// </summary>
     public RunHandle Register(RunKind kind, string runId, string? correlationId, int userId, CancellationToken linkedTo = default)
     {
+        if (_runs.TryGetValue(runId, out var existing) && existing.FinishedAt is null) return existing;
+
         var handle = new RunHandle
         {
             Kind = kind,

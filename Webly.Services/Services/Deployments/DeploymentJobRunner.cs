@@ -6,6 +6,7 @@ using Webly.Data;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Deployments;
+using Webly.Services.Agent;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Realtime;
@@ -174,12 +175,15 @@ public class DeploymentJobRunner(
                 _ => "Publishing failed unexpectedly. Your live site is unchanged."
             };
 
-            var detail = exception switch
+            // Through the same reader the chat's build block uses: this text is shown to the site's owner, and a
+            // build log with the terminal's colour codes in it, a Rust backtrace from SWC's internals and the
+            // absolute path of a machine they have never seen is not something anybody can act on.
+            var detail = Tail(CompilerOutput.Readable(exception switch
             {
-                DeploymentFailedException failure => failure.ProviderDetail,
-                SandboxException sandboxFailure => sandboxFailure.Detail,
+                DeploymentFailedException failure => failure.ProviderDetail ?? string.Empty,
+                SandboxException sandboxFailure => sandboxFailure.Detail ?? string.Empty,
                 _ => exception.Message
-            };
+            }));
 
             logger.LogError(exception, "Deployment {Deployment} of site {Site} failed.", deployment.Nanoid, site.Nanoid);
 
@@ -208,6 +212,10 @@ public class DeploymentJobRunner(
             registry.Finish(handle.RunId);
         }
     }
+
+    /// <summary>The end of a log, which is where a build says what went wrong. Trimmed after it is made
+    /// readable, never before: the stripping needs the whole thing to recognise its own shapes.</summary>
+    private static string Tail(string output) => output.Length <= 2000 ? output : output[^2000..];
 
     /// <summary>
     /// Tells the provider to serve the site's Webly subdomain, once, and records it when it takes.

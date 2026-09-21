@@ -356,9 +356,9 @@ public class AgentTurnService(
 
         if (text.Length == 0) return;
 
-        if (!DevServerLogReader.SaysTheBuildBroke(text)) return;
+        if (!CompilerOutput.SaysTheBuildBroke(text)) return;
 
-        var detail = DevServerLogReader.Readable(text);
+        var detail = CompilerOutput.Readable(text);
 
         await writer.WriteAsync(new RunEvent
         {

@@ -65,9 +65,12 @@ public class FileSystemDeploymentTarget(
         if (!build.Succeeded)
             // The same exception, with the same tail, as the real target throws. The whole reason this class
             // exists is that this path can then be exercised without an account.
+            // The whole output, not a tail of it: the runner makes it readable and *then* trims, and cutting first
+            // sliced the middle out of SWC's stack backtrace — which left the frames in and the marker that
+            // identifies them out, so the filter could not see what it was looking at.
             throw new DeploymentFailedException(
                 "Your site did not build, so nothing was published. The error is below — ask the assistant to fix it.",
-                Tail(build.Output));
+                build.Output);
 
         // The site's nanoid, which is what the project id is made of — not its slug, although the directory
         // reads like one. A slug can be reused by a later site once an old one is deleted; a nanoid never is,

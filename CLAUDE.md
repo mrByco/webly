@@ -355,7 +355,7 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   hands back: atomic, readable in the history, and free to cancel.
 - **Build errors are surfaced, not swallowed.** After a turn the dev server's log is read from an offset
   recorded before the turn started, and a `BuildFailed` event puts the compiler's own words on screen —
-  because the person's next message is what fixes it. `DevServerLogReader` owns both halves and both were
+  because the person's next message is what fixes it. `CompilerOutput` owns both halves and both were
   wrong until they were run against a real dev server: the markers it looks for begin with `⨯ ./`, which is
   what a syntax error produces, and the three obvious phrases do not appear for one; and what reaches the chat
   has the terminal's ANSI codes, SWC's seventeen-frame Rust backtrace, the workspace's absolute path and every
@@ -417,7 +417,12 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   introduced it.
 - **`RunKind.Deploy` is the durable one**: its state is the `Deployment` row and its run id *is* the
   deployment's nanoid, so a page that reloads mid-publish can re-attach to something that outlived the
-  process.
+  process. **`PublishSite` registers the run, not the runner** — a deployment is a row three seconds before it is
+  work, and the client's start-then-watch pair means `Subscribe` was asked for a run the runner had not reached
+  yet. It answered "that run could not be found" and the editor showed an error over a publish that went on to
+  succeed: **every publish through the UI looked like a failure.** `RunRegistry.Register` hands back an existing
+  unfinished handle rather than replacing it, so the runner asking for the same id joins the one the client is
+  already watching.
 - **`AgentBudget`, not `[EnableRateLimiting]`.** The rate-limiting middleware only sees HTTP endpoints, so
   an attribute on a hub would look like a fence and be none. It matters more here than in the reference
   project: a turn costs a model call *and* a machine.
@@ -436,7 +441,10 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   that is also what makes a retry mean something.
 - **`Site.PublishedVersionId` moves in exactly one place**, in `DeploymentJobRunner` after the provider
   reports success. A failed publish leaves the previous version live, and the email says so in its first
-  line. The build log's tail goes to `Deployment.ErrorDetail`, which the settings screen shows folded away.
+  line. The build log goes to `Deployment.ErrorDetail`, which the settings screen shows folded away — through
+  `CompilerOutput.Readable` and **then** trimmed to a tail, in that order: it reached the screen raw until a failed
+  publish was watched in a browser, and trimming first sliced the middle out of SWC's backtrace, which left the
+  frames in and the marker that identifies them out.
 - **The CLIs are pinned in the image**, and the deployment target calls `vercel` rather than `npx vercel`:
   a publish that works on Tuesday and not on Wednesday, with no diff to blame, is the failure that costs
   the most to diagnose.

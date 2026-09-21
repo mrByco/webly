@@ -87,6 +87,19 @@ function readJson(request) {
 }
 
 /**
+ * The workspace's own path taken out of a command's output.
+ *
+ * Everything this agent prints can end up in front of the site's owner — a compile error in the chat, a failed
+ * build's log folded away under a deployment — and tools name files absolutely. `src/app/page.tsx` is the part
+ * somebody can act on; `/home/someone/webly/.run/workspaces/AbC-20260921…/src/app/page.tsx` is that plus a
+ * description of a machine they have never seen. This is the one place that knows what to remove, because it is
+ * the one place that was told the root.
+ */
+function relative(text) {
+  return text.split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
+}
+
+/**
  * Runs a command in the workspace and streams one NDJSON object per event:
  *   {"type":"stdout","text":"…"} | {"type":"stderr","text":"…"} | {"type":"exit","code":0}
  *
@@ -103,7 +116,7 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  const write = (type, text) => response.write(`${JSON.stringify({ type, text })}\n`);
+  const write = (type, text) => response.write(`${JSON.stringify({ type, text: relative(text) })}\n`);
 
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
@@ -215,11 +228,7 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   // caller that records the offset before it starts and passes it back afterwards gets only what happened in
   // between.
   const record = raw => {
-    // The workspace's own path taken out of it. A compile error names the file it is in, absolutely — and that
-    // string is shown to the site's owner, where `/home/someone/webly/.run/workspaces/AbC-20260921…/src/app/page.tsx`
-    // is both noise and a description of somebody else's disk. `src/app/page.tsx` is the part they can act on, and
-    // this is the one place that knows what to remove because it is the one place that was told the root.
-    const text = raw.split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
+    const text = relative(raw);
 
     devLog = (devLog + text).slice(-16_000);
     devLogLength += text.length;

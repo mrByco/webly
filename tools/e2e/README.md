@@ -95,7 +95,7 @@ build — are all exercised for real. What is mocked is the part written in the 
   typecheck at all, which is why `AGENTS.md` asks the agent to run `npm run typecheck` itself. A third
   attempt at breaking a file taught the rest of it: an *unused* broken import is elided as possibly-a-type
   before anything resolves it, so the dev server recompiles it happily. What the compile check can see is
-  syntax errors and imports that are used — `DevServerLogReader` has the full list and the markers to match.
+  syntax errors and imports that are used — `CompilerOutput` has the full list and the markers to match.
 - **The export bundle cloned into an empty directory.** `git bundle create - <branch>` records the commits and
   the ref but no `HEAD`, so `git bundle verify` says "complete history" and `git clone` checks out *nothing*.
   The export endpoint — the feature whose whole point is that a customer can leave with their site — shipped

@@ -5,6 +5,8 @@ using Webly.Data.Repositories.Sites;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Deployments;
 using Webly.Services.Services.Deployments;
+using Webly.Services.DTO.Realtime;
+using Webly.Services.Services.Realtime;
 using Webly.Services.UseCases.Deployments.Mapping;
 
 namespace Webly.Services.UseCases.Deployments;
@@ -25,6 +27,7 @@ public class PublishSite(
     ISiteRepository siteRepository,
     IDeploymentRepository deployments,
     IDeploymentTarget deploymentTarget,
+    RunRegistry runs,
     WeblyDbContext dbContext)
 {
     public async Task<Result<DeployError, DeploymentResponse>> ExecuteAsync(
@@ -66,6 +69,16 @@ public class PublishSite(
 
         deployments.Add(deployment);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // The run exists from here, not from when the runner picks the row up.
+        //
+        // The client's two steps are start, then watch — the same pair as an agent turn, so that a reload
+        // re-attaches by the same path. But a deploy's work starts on the runner's next poll, up to three seconds
+        // later, and until it did there was no run to watch: `Subscribe` answered "that run could not be found" and
+        // the editor showed an error alert over a publish that was going perfectly well. **Every publish through the
+        // UI looked like a failure.** Registering here closes the gap; the runner asks for the same id and gets this
+        // handle back.
+        runs.Register(RunKind.Deploy, deployment.Nanoid, deployment.Nanoid, userId);
 
         return Result<DeployError, DeploymentResponse>.Ok(
             DeploymentMapper.ToResponse(deployment, site.HeadVersion));
