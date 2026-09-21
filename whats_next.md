@@ -215,6 +215,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     The browser sweep had walked both screens clean many times, because opening a screen is not using it. It
     presses one thing per screen now — the thing the default selection does not reach.
 
+29. **The second site was a room with no door.** "New site" in the sidebar leads to a full-screen page —
+    right for the first one, which is the last step of signing up, and wrong for every one after it: there
+    was no way back but the browser's own button. It has one now, for somebody who has somewhere to go back
+    to. Its field also offered "Kovács Bakery" as the example name, the last of the reference project's
+    fingerprints on a screen a customer sees.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

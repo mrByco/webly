@@ -1,6 +1,6 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { OnboardingLayout } from '../../components/onboarding-layout/onboarding-layout';
 import { AuthService } from '../../services/auth.service';
@@ -19,13 +19,18 @@ import { messageOf } from '../../models/problem-details';
  */
 @Component({
   selector: 'app-new-site',
-  imports: [FormsModule, OnboardingLayout],
+  imports: [FormsModule, OnboardingLayout, RouterLink],
   templateUrl: './new-site.html',
 })
 export class NewSitePage {
   private readonly sites = inject(SiteService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+
+  protected readonly routes = AppRoutes;
+
+  /** Whether there is anywhere to go back to. See the template. */
+  protected readonly hasSite = computed(() => this.auth.me()?.hasSite === true);
 
   protected name = '';
   protected readonly saving = signal(false);

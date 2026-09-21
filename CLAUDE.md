@@ -789,6 +789,9 @@ in `src/app/app.routes.paths.ts` as `{ path, build() }` pairs — always build U
 with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, `components/`, `services/`,
 `guards/`, `interceptors/`, `models/`, `shared/`.
 
+- **`yarn typecheck` does not check templates.** It is `tsc --noEmit`, which never sees an HTML file, so a
+  property that does not exist on a component — `routes.sites` where the object has `home` — compiles clean
+  and fails in `ng build`. Run `client_build` (or `yarn build`) before believing a template change.
 - **`client/src/app/api/` is generated. Never hand-edit it.** After any controller or DTO change run
   `regen_api` (MCP) or `./regen-api.ps1`; it is committed so CI needs no backend. Two things about the
   document it is generated from are load-bearing and were both found by generating it: `AddSwaggerGen` must

@@ -11,7 +11,7 @@
           type="text"
           maxlength="80"
           autocomplete="off"
-          placeholder="Kovács Bakery"
+          placeholder="Ridgeway Cycles"
           required
           [(ngModel)]="name" />
       </label>
@@ -23,6 +23,18 @@
       <button class="btn btn-primary btn-lg" type="submit" [disabled]="saving() || !name.trim()">
         {{ saving() ? 'Creating…' : 'Create site' }}
       </button>
+
+      <!--
+        A way out, but only for somebody who has somewhere to go back to.
+
+        This screen is full-screen on purpose: for most people it is the last step of signing up, and a nav
+        bar offering three ways out is an invitation to leave halfway through. For the second site it is a
+        page reached by pressing "New site" in the sidebar, and then the same design is a room with no door —
+        the only way out was the browser's back button.
+      -->
+      @if (hasSite()) {
+        <a class="btn btn-ghost" [routerLink]="routes.home.build()">Back to your sites</a>
+      }
     </form>
   </div>
 </app-onboarding-layout>
