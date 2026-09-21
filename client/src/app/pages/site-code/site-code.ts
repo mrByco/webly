@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
+import { ImageService } from '../../services/image.service';
 import { messageOf } from '../../models/problem-details';
 import { SiteFileEntryResponse } from '../../api/models/site-file-entry-response';
 
@@ -25,6 +26,7 @@ import { SiteFileEntryResponse } from '../../api/models/site-file-entry-response
 export class SiteCodePage {
   private readonly route = inject(ActivatedRoute);
   private readonly sites = inject(SiteService);
+  private readonly images = inject(ImageService);
 
   /** The parent route holds the site: this screen is a child of the editor shell. */
   protected readonly siteNanoid = this.route.parent?.snapshot.paramMap.get('nanoid') ?? '';
@@ -121,6 +123,22 @@ export class SiteCodePage {
     const bytes = this.size();
 
     return bytes < 1024 ? `${bytes} bytes` : `${Math.round(bytes / 1024)} KB`;
+  });
+
+  /**
+   * The editor's URL for the selected file, when the selected file is one of the owner's photographs.
+   *
+   * Narrow on purpose, and in two ways. Only under `public/images/`, which is where uploads go and the one
+   * place the image route can serve from; and only when the file really is not text, so a `.svg` — which
+   * arrives as text and is shown as source, correctly, since it is source — is not routed through here.
+   */
+  protected readonly imageUrl = computed(() => {
+    const path = this.selected();
+
+    if (!path || this.text() !== undefined) return undefined;
+    if (!path.startsWith('public/images/')) return undefined;
+
+    return this.images.contentUrl(this.siteNanoid, path.slice('public/images/'.length));
   });
 
   protected readonly lines = computed(() => {

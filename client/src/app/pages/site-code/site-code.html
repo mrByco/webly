@@ -57,9 +57,17 @@
           <pre class="font-mono text-[0.7rem] leading-relaxed"><code>@for (line of lines(); track $index) {<span class="flex"><span
             class="mr-3 w-8 shrink-0 select-none text-right text-base-content/30">{{ $index + 1 }}</span><span
             class="whitespace-pre-wrap">{{ line }}</span></span>}</code></pre>
+        } @else if (imageUrl(); as source) {
+          <!--
+            A photograph is not text and is not "nothing to show" either: it is the owner's own picture, and
+            there was already a route serving its bytes for the thumbnails on the settings screen. Saying
+            "this file is not text" in front of one was the honest answer to the wrong question.
+
+            The editor's route, never the site's — see `ImageService.contentUrl`.
+          -->
+          <img class="max-h-full max-w-full rounded-field object-contain" [src]="source" [alt]="selected() ?? ''" />
         } @else {
-          <!-- The backend sends null text for anything that is not text — an image, a font. Saying so beats
-               rendering the bytes. -->
+          <!-- Anything else that is not text — a font, an icon file. Saying so beats rendering the bytes. -->
           <p class="text-sm text-base-content/60">
             This file is not text, so there is nothing to show — {{ humanSize() }} of it.
           </p>

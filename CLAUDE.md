@@ -393,6 +393,11 @@ structured-document model it replaced was better at.
   stay in the stack) and **`content/brand.md`** is where the agent records facts it learns, because its
   session does not outlive the workspace. `CLAUDE.md` in the template just points at `AGENTS.md`, so both
   CLIs read one file.
+- **A photograph in the Code tab is shown, not described.** A file that is not text gets "there is nothing
+  to show" — which is right for a font and wrong for one of the owner's own pictures, when a route serving
+  its bytes already exists for the settings screen's thumbnails. Only under `public/images/`, which is where
+  uploads go and the only place that route reads from, and only when the file really is not text, so an
+  `.svg` still shows as the source it is.
 - **The agent may read the source and so may the customer** — `GET /api/sites/{nanoid}/files` and
   `/file?path=`, shown by the editor's Code tab — because "you never have to touch the code" is not "you are
   not allowed to see it". The path is a query parameter, not a route catch-all, so `src/app/page.tsx` cannot be
