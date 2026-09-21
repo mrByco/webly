@@ -42,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 113 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 120 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -217,6 +217,6 @@ the client re-exports the generated types.)*
 - **One template**, so every site starts the same shape. P3.
 - **No billing.** P7. Uploads landed (P5) and are not what that section expected: an image is a commit in the
   site's own repository rather than a row in a blob store, so the published site serves its own photographs and
-  a customer who exports takes them along. What is missing is a way to delete one from the editor.
+  a customer who exports takes them along. Removing one landed with it, thumbnails and all.
 - Forms landed — see `MASTER_PLAN.md` P4 and the Forms section of
   `CLAUDE.md`; what is deliberately missing there is read state on a message and a way to delete one.

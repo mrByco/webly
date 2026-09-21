@@ -137,3 +137,7 @@ export type { ApiSitesSiteNanoidImagesPost$Plain$Params as ApiSitesSiteNanoidIma
 export { apiSitesSiteNanoidImagesPost$Plain as apiSitesSiteNanoidImagesPost$Plain } from './fn/site-image/api-sites-site-nanoid-images-post-plain';
 export type { ApiSitesSiteNanoidImagesPost$Json$Params as ApiSitesSiteNanoidImagesPost$Json$Params } from './fn/site-image/api-sites-site-nanoid-images-post-json';
 export { apiSitesSiteNanoidImagesPost$Json as apiSitesSiteNanoidImagesPost$Json } from './fn/site-image/api-sites-site-nanoid-images-post-json';
+export type { ApiSitesSiteNanoidImagesFileNameGet$Params as ApiSitesSiteNanoidImagesFileNameGet$Params } from './fn/site-image/api-sites-site-nanoid-images-file-name-get';
+export { apiSitesSiteNanoidImagesFileNameGet as apiSitesSiteNanoidImagesFileNameGet } from './fn/site-image/api-sites-site-nanoid-images-file-name-get';
+export type { ApiSitesSiteNanoidImagesFileNameDelete$Params as ApiSitesSiteNanoidImagesFileNameDelete$Params } from './fn/site-image/api-sites-site-nanoid-images-file-name-delete';
+export { apiSitesSiteNanoidImagesFileNameDelete as apiSitesSiteNanoidImagesFileNameDelete } from './fn/site-image/api-sites-site-nanoid-images-file-name-delete';

@@ -99,6 +99,8 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<UploadSiteImages>();
         services.AddScoped<ListSiteImages>();
+        services.AddScoped<ReadSiteImage>();
+        services.AddScoped<DeleteSiteImage>();
 
         services.AddScoped<SubmitForm>();
         services.AddScoped<ListFormSubmissions>();

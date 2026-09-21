@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 113-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 120-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -612,6 +612,18 @@ files into the site's repository under `public/images/`, which is where Next.js 
   *on* a page, and the sentence saying which page is the next thing they type. So the paths land in the
   composer with the caret after them. The upload re-seeds the warm workspace for the same reason a restore
   does — the next thing that happens is an agent turn that has to be able to see the file.
+- **Tidying up lives in Settings**, because it happens at a different moment: a week later, looking for the
+  wrong photograph. Thumbnails, since a list of file names is not how anybody knows which picture is which —
+  which needs a route for the bytes, and that route is **the editor's, never the site's**. A published page
+  serves its own photographs from its own domain, and one that fetched them through Webly would stop working
+  for a visitor who is not signed in; what this is for is the picture in a site nobody has published yet, or
+  whose sandbox is asleep. Its content type comes from the bytes, never from the name.
+- **A delete is refused while a page still uses it**, and the answer names the pages — a delete that leaves an
+  `<img>` pointing at nothing is a broken page produced by a button that said nothing about it.
+  `ImageReferences` is the rule, with its own test, because the first version searched every non-image file
+  and refused immediately: `AGENTS.md` uses `/images/shopfront.jpg` as its example, so every site would have
+  refused to delete a photograph with that name. Prose about a site is not a page of it. The delete is a
+  version, so the picture is still in the history — deleting the wrong one is undoable, like everything else.
 
 ### Forms
 

@@ -11,5 +11,14 @@ public enum AssetError
     NotAnImage,
 
     /// <summary>One file, or all of them together, is more than a website should carry.</summary>
-    TooLarge
+    TooLarge,
+
+    /// <summary>No image of that name is in the site.</summary>
+    NotFound,
+
+    /// <summary>
+    /// A page still uses it. The detail names the files, because "ask the assistant to take it off the home
+    /// page" is only actionable if the person knows which page it is on.
+    /// </summary>
+    InUse
 }

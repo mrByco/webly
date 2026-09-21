@@ -58,6 +58,51 @@
     </div>
 
     <!--
+      The site's photographs, with thumbnails: a list of file names is not how anybody knows which picture is
+      which, and the one thing somebody does on this screen is remove the wrong one. Absent entirely when
+      there are none, because a panel saying "no photographs" on a site nobody has added any to is a screen
+      explaining itself.
+    -->
+    @if (photographs().length > 0) {
+      <div>
+        <h3 class="mb-2 text-sm font-bold">Photographs</h3>
+
+        <ul class="flex flex-col gap-2">
+          @for (image of photographs(); track image.fileName) {
+            <li class="surface flex items-center gap-3 p-2">
+              <!-- The editor's own route for the bytes; the site's pages use their own domain. `loading` is
+                   lazy because a site with thirty pictures should not fetch thirty of them to show a panel
+                   that is below the fold. -->
+              <img
+                class="size-12 shrink-0 rounded-field object-cover"
+                loading="lazy"
+                alt=""
+                [src]="thumbnail(image)" />
+
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold">{{ image.fileName }}</p>
+                <p class="font-mono text-xs text-base-content/55">{{ image.url }} · {{ image.bytes / 1024 | number: '1.0-0' }} KB</p>
+              </div>
+
+              <button
+                class="btn btn-ghost btn-sm"
+                type="button"
+                [disabled]="removing() !== undefined"
+                [attr.aria-label]="'Remove ' + image.fileName"
+                (click)="removeImage(image)">
+                @if (removing() === image.fileName) {
+                  <span class="loading loading-spinner loading-xs"></span>
+                } @else {
+                  <app-icon class="size-4" name="trash" />
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <!--
       What the assistant has written down about this business. Shown because it is the most consequential
       text in the site and the only one nobody could see: every turn starts from it, so a fact recorded
       wrongly shapes every page written afterwards. Folded away, because on a normal visit to this screen it

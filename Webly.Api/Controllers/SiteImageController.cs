@@ -8,14 +8,19 @@ namespace Webly.Api.Controllers;
 /// <summary>
 /// A site's own photographs. Under the site, like everything else about one.
 ///
-/// There is no <c>GET</c> for the bytes here, and that is not an omission: an image lives in the site's
-/// repository, so the preview serves it from the site's own dev server and the published site serves it from
-/// its own domain. A second way to fetch it through Webly's origin would be a second URL for the same picture,
-/// and the one the customer's pages use is the one that has to work.
+/// There is a <c>GET</c> for the bytes, and it is <b>the editor's, never the site's</b>. A published page
+/// serves its own photographs from its own domain, out of the export, and a page that fetched one through
+/// here would stop working the moment a visitor who is not signed in loaded it. What this is for is the one thing the
+/// site's own URL cannot do: show a picture from a site nobody has published yet, or whose sandbox is asleep,
+/// to the person deciding whether to delete it.
 /// </summary>
 [ApiController]
 [Route("api/sites/{siteNanoid}/images")]
-public class SiteImageController(UploadSiteImages uploadImages, ListSiteImages listImages) : ControllerBase
+public class SiteImageController(
+    UploadSiteImages uploadImages,
+    ListSiteImages listImages,
+    ReadSiteImage readImage,
+    DeleteSiteImage deleteImage) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SiteImageResponse>>> List(
@@ -25,6 +30,37 @@ public class SiteImageController(UploadSiteImages uploadImages, ListSiteImages l
         var result = await listImages.ExecuteAsync(this.GetUserId(), siteNanoid, cancellationToken);
 
         return result.Succeeded ? Ok(result.Value) : Failure(result.Error, result.Detail);
+    }
+
+    /// <summary>
+    /// One image's bytes, for the editor's own thumbnails. See the class comment for why this exists and why
+    /// nothing in a customer's site may point at it.
+    ///
+    /// The file name is a route segment, so a name with a slash in it would not match this route at all — and
+    /// the use case refuses one anyway, because a route's shape is not a place to keep a security rule.
+    /// </summary>
+    [HttpGet("{fileName}")]
+    public async Task<IActionResult> Content(string siteNanoid, string fileName, CancellationToken cancellationToken)
+    {
+        var result = await readImage.ExecuteAsync(this.GetUserId(), siteNanoid, fileName, cancellationToken);
+
+        if (!result.Succeeded) return Failure(result.Error, result.Detail);
+
+        // No caching header, deliberately. A name can be reused by a later upload — the uniqueness is within a
+        // version, not for ever — and a stale thumbnail of somebody's replaced photograph is a worse bug than
+        // a second request.
+        return File(result.Value!.Content, result.Value.ContentType);
+    }
+
+    /// <summary>
+    /// Removes an image, as its own version. Refused while a page still uses it; the detail names the pages.
+    /// </summary>
+    [HttpDelete("{fileName}")]
+    public async Task<IActionResult> Delete(string siteNanoid, string fileName, CancellationToken cancellationToken)
+    {
+        var result = await deleteImage.ExecuteAsync(this.GetUserId(), siteNanoid, fileName, cancellationToken);
+
+        return result.Succeeded ? NoContent() : Failure(result.Error, result.Detail);
     }
 
     /// <summary>
@@ -71,6 +107,15 @@ public class SiteImageController(UploadSiteImages uploadImages, ListSiteImages l
             Title = detail ?? "That file is not an image Webly can put on a website."
         }),
         AssetError.TooLarge => BadRequest(new ProblemDetails { Title = detail ?? "That is too large to upload." }),
+        AssetError.NotFound => NotFound(new ProblemDetails { Title = "That image is not in this site." }),
+        AssetError.InUse => Conflict(new ProblemDetails
+        {
+            // Named, because "it is still used" without saying where is not something anybody can act on. The
+            // next step is a sentence in the chat, and this is the sentence.
+            Title = detail is null
+                ? "A page still uses that image. Ask the assistant to take it off the page first."
+                : $"A page still uses that image ({detail}). Ask the assistant to take it off the page first."
+        }),
         _ => StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
         {
             Title = "Those images could not be added."

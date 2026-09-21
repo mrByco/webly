@@ -5,11 +5,29 @@ import { SiteImageResponse } from '../api/models/site-image-response';
 import { UploadImagesResponse } from '../api/models/upload-images-response';
 import { Api } from '../api/api';
 import { apiSitesSiteNanoidImagesGet$Json } from '../api/fn/site-image/api-sites-site-nanoid-images-get-json';
+import { apiSitesSiteNanoidImagesFileNameDelete } from '../api/fn/site-image/api-sites-site-nanoid-images-file-name-delete';
 
 @Injectable({ providedIn: 'root' })
 export class ImageService {
   private readonly api = inject(Api);
   private readonly http = inject(HttpClient);
+
+  /**
+   * Where the editor loads a thumbnail from — <b>not</b> where the site's own pages do.
+   *
+   * A published page serves its photographs from its own domain, out of the export. This route is the
+   * editor's, and it exists for the one thing the site's URL cannot do: show a picture from a site nobody has
+   * published yet, or whose sandbox is asleep. Built as a string rather than fetched through the generated
+   * client because it goes straight into an `<img src>`, where the browser sends the session cookie itself.
+   */
+  contentUrl(siteNanoid: string, fileName: string): string {
+    return `/api/sites/${encodeURIComponent(siteNanoid)}/images/${encodeURIComponent(fileName)}`;
+  }
+
+  /** Removes it, as a version. Refused with a 409 naming the pages while one still uses it. */
+  remove(siteNanoid: string, fileName: string): Promise<void> {
+    return this.api.invoke(apiSitesSiteNanoidImagesFileNameDelete, { siteNanoid, fileName });
+  }
 
   list(siteNanoid: string): Promise<SiteImageResponse[]> {
     return this.api.invoke(apiSitesSiteNanoidImagesGet$Json, { siteNanoid });

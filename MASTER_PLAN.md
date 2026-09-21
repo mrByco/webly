@@ -194,9 +194,9 @@ to fetch**, because the files are simply in the tree it is seeded with. And the 
 browser** — a canvas re-encode before the upload — which keeps an image library out of the backend and means
 the megabytes never cross the network.
 
-What is left for a later round: a way to delete an image from the editor (an agent turn can do it today, and a
-delete that left a page pointing at nothing would need to say so), and thumbnails in the chat instead of
-paths. Video is deliberately not on that list — a git repository is the wrong place for it, and that is the
+Removing one landed with it: the settings screen lists the photographs with thumbnails — through a route for
+the bytes that is the editor's and never the site's — and a delete is refused while a page still uses it, with
+the pages named. What is left for a later round is thumbnails in the chat instead of paths. Video is deliberately not on that list — a git repository is the wrong place for it, and that is the
 point at which a blob store becomes the right answer after all.
 
 ## P6 — Export, then growth surface

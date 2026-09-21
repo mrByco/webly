@@ -200,4 +200,60 @@ public class SiteImageTests : AuthEndpointTestBase
         // 404, the rule every per-site route follows: a 403 would confirm the nanoid names a real site.
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
+
+    [Test]
+    public async Task An_image_is_removed_as_a_version_of_its_own()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        await UploadAsync(owner, site, ("shopfront.gif", Gif()));
+
+        var request = Request(HttpMethod.Delete, $"/api/sites/{site}/images/shopfront.gif",
+            (AuthCookies.AccessTokenName, owner));
+
+        var deleted = await Client.SendAsync(request);
+
+        Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.NoContent), await deleted.Content.ReadAsStringAsync());
+
+        var listed = await ReadAsync(await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/images", (AuthCookies.AccessTokenName, owner))));
+
+        Assert.That(listed.GetArrayLength(), Is.Zero);
+
+        // The history keeps it, which is what makes deleting the wrong photograph undoable rather than final.
+        var versions = await ReadAsync(await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/versions", (AuthCookies.AccessTokenName, owner))));
+
+        Assert.That(versions[0].GetProperty("summary").GetString(), Is.EqualTo("Removed shopfront.gif"));
+    }
+
+    [Test]
+    public async Task The_bytes_come_back_for_the_editor_and_only_for_the_owner()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var stranger = await AccountAsync("stranger@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        await UploadAsync(owner, site, ("shopfront.gif", Gif()));
+
+        var mine = await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/images/shopfront.gif", (AuthCookies.AccessTokenName, owner)));
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(mine.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+            // From the bytes, never from the name: serving what a file calls itself is how something that is
+            // not an image gets served as one, from our own origin.
+            Assert.That(mine.Content.Headers.ContentType?.MediaType, Is.EqualTo("image/gif"));
+            Assert.That(await mine.Content.ReadAsByteArrayAsync(), Is.EqualTo(Gif()));
+        });
+
+        var theirs = await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/images/shopfront.gif", (AuthCookies.AccessTokenName, stranger)));
+
+        Assert.That(theirs.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
 }
