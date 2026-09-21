@@ -529,6 +529,19 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     checks for errors can see.
 
 
+48. **Six of the seven emails said "Sent by Webly because of something on your account".** The footer slice had
+    decided that the footer belongs to the message — "if you did not ask for it, you can ignore it" is true
+    under a sign-up code and a lie under a notice about somebody's own website — and then left a
+    `DefaultFooter` in place, whose own comment claimed the exceptions passed their own. Only the sign-up code
+    did. So the password reset, which is the *other* message that can reach somebody who did nothing at all,
+    carried the vague line; so did "Ridgeway Joinery is live", which is where it was read during the walk.
+
+    Each message now passes its own, and the parameter is **required**: a default is how a decision that has to
+    be made per message stops being made, so there is nothing left to fall back to. `EmailTemplateTests` pins
+    the half a signature cannot — the two unsolicited ones give the reader the way out, and the ones about
+    somebody's own work do not offer to be ignored, which under a customer's enquiry would read as an insult.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

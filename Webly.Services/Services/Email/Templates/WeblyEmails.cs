@@ -56,7 +56,8 @@ public static class WeblyEmails
                 + EmailLayout.Button(link, "Set a new password")
                 + EmailLayout.Small("The link is valid for 1 hour and can only be used once.")
                 + EmailLayout.Paragraph("If you did not ask for this, there is nothing to do — your password stays as it is.")
-                + EmailLayout.FallbackLink(link)),
+                + EmailLayout.FallbackLink(link),
+                footer: "Somebody asked Webly for a new password for this address. If it was not you, ignore this email."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -85,7 +86,8 @@ public static class WeblyEmails
                 "Your password changed",
                 "A security notice about your Webly account.",
                 EmailLayout.Paragraph($"Hi {displayName}, the password on your Webly account has just been changed, and every device has been signed out.")
-                + EmailLayout.Paragraph("If that was you, there is nothing to do. If it was not, set a new password immediately from the sign-in page and check the security of your mailbox too.")),
+                + EmailLayout.Paragraph("If that was you, there is nothing to do. If it was not, set a new password immediately from the sign-in page and check the security of your mailbox too."),
+                footer: "Webly sends this whenever the password on an account changes, so a change nobody made does not go unnoticed."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -113,7 +115,8 @@ public static class WeblyEmails
                 "A security notice about your Webly account.",
                 EmailLayout.Paragraph($"Hi {displayName}, a Webly account was created with this email address some time ago, but the address was never confirmed.")
                 + EmailLayout.Paragraph("You have now signed in with Google, which proves the address is yours. As a precaution the old password on the account has been removed and every earlier session closed.")
-                + EmailLayout.Paragraph("From now on you sign in with Google. If you would also like a password, you can set one any time in your account settings.")),
+                + EmailLayout.Paragraph("From now on you sign in with Google. If you would also like a password, you can set one any time in your account settings."),
+                footer: "Webly sends this whenever the way an account signs in changes."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -144,7 +147,8 @@ public static class WeblyEmails
                 EmailLayout.Paragraph($"Hi {displayName}, the latest version of <strong>{siteName}</strong> has been published and is now serving visitors.")
                 + EmailLayout.Button(url, "Open your site")
                 + EmailLayout.Small("Every published version stays in your history, so you can roll back at any time.")
-                + EmailLayout.FallbackLink(url)),
+                + EmailLayout.FallbackLink(url),
+                footer: "Webly sends this each time one of your sites is published."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -182,7 +186,8 @@ public static class WeblyEmails
                 // below: the detail stayed on the settings screen, which is the one place the person reading
                 // this is not. It is the compiler's output, already made readable and trimmed by the caller.
                 + (string.IsNullOrWhiteSpace(detail) ? string.Empty : EmailLayout.Log(detail))
-                + EmailLayout.Paragraph("The version that was live before is still live and untouched. Open Webly and try publishing again — if it keeps failing, reply to this email.")),
+                + EmailLayout.Paragraph("The version that was live before is still live and untouched. Open Webly and try publishing again — if it keeps failing, reply to this email."),
+                footer: "Webly sends this when a publish does not finish, so a site you thought was updated is not quietly out of date."),
             TextBody =
                 $"""
                 Hi {displayName},
@@ -228,7 +233,8 @@ public static class WeblyEmails
                 + (replyTo is null
                     ? EmailLayout.Small("They did not leave an email address, so check the message for another way to reach them.")
                     : EmailLayout.Small("Reply to this email and your answer goes straight to them."))
-                + EmailLayout.Button(link, "See all your messages")),
+                + EmailLayout.Button(link, "See all your messages"),
+                footer: "Webly sends this when somebody fills in a form on one of your sites."),
             TextBody =
                 $"""
                 Hi {displayName},

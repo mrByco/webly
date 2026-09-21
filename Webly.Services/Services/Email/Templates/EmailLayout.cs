@@ -25,20 +25,20 @@ public static class EmailLayout
     private const string Paper = "#f2f3f7";
     private const string Edge = "#dcdee2";
 
-    /// <summary>
-    /// What most of these messages are: something the account asked for by using Webly. The two that are not —
-    /// a sign-up code and a password reset, which can both be sent to somebody who did not ask — pass their
-    /// own.
-    /// </summary>
-    public const string DefaultFooter = "Sent by Webly because of something on your account.";
-
     /// <param name="preheader">
     /// The grey line inboxes show after the subject. Hidden in the body itself — left unset, clients
     /// fill it with whatever text comes first, which is usually the logo alt text.
     /// </param>
     /// <param name="footer">
-    /// The small line under the rule. It belongs to the message: a confirmation code can honestly say "if you
-    /// did not ask for this, ignore it", and a notice about somebody's own website cannot.
+    /// The small line under the rule, and <b>every message passes its own</b>. It belongs to the message: a
+    /// confirmation code can honestly say "if you did not ask for this, ignore it", and a notice about
+    /// somebody's own website cannot.
+    ///
+    /// Required rather than defaulted, which is the point. There used to be a `DefaultFooter` — "Sent by Webly
+    /// because of something on your account" — and six of the seven messages took it, including the password
+    /// reset, which is one of the two that can reach somebody who did nothing at all. The comment above it
+    /// claimed the exceptions passed their own; only the sign-up code did. A default is how a decision that has
+    /// to be made per message stops being made, so there is nothing here to fall back to.
     /// </param>
     /// <remarks>
     /// Three things in the markup below are decisions rather than boilerplate, and they are explained here
@@ -56,7 +56,7 @@ public static class EmailLayout
     /// for — see its own note.</item>
     /// </list>
     /// </remarks>
-    public static string Wrap(string heading, string preheader, string bodyHtml, string footer = DefaultFooter) =>
+    public static string Wrap(string heading, string preheader, string bodyHtml, string footer) =>
         $"""
         <!doctype html>
         <html lang="en">

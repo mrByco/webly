@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 171-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 172-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -359,8 +359,12 @@ never the request host (host-header poisoning).
   fails on those values by name — a comment saying "do not put the paprika back" is not something a build can
   enforce. The palette lives in `EmailLayout` as hex, converted from the same OKLCH numbers `styles.css`
   uses, because email cannot read a variable: change one and change the other.
-- **The footer belongs to the message.** "If you did not ask for it, you can ignore it" is true under a
-  sign-up code and a lie under a notice about somebody's own website, which is where it sat.
+- **The footer belongs to the message**, and `EmailLayout.Wrap` **requires** one. "If you did not ask for it,
+  you can ignore it" is true under a sign-up code and a lie under a notice about somebody's own website, which
+  is where it sat. The first fix left a `DefaultFooter` behind and six of the seven messages took it — including
+  the password reset, the other message that can reach somebody who did nothing — so the decision the comment
+  described was being made once. A default is how a per-message decision stops being made; there is nothing to
+  fall back to now.
 - **A failed publish carries the build log.** The mail said "the error is below" with nothing below, because
   the detail stayed on the settings screen — the one place the person reading the mail is not.
 

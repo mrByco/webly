@@ -53,8 +53,16 @@ public class EmailTemplateTests
         });
     }
 
+    /// <summary>
+    /// Both bodies on every message.
+    ///
+    /// It used to also assert "says who it is from", by looking for one of two known footer strings — which was
+    /// only ever possible because six of the seven messages shared a default footer. They each carry their own
+    /// now, so whose it is is the header (pinned by the shell test above, which fails on the reference
+    /// project's colour) and what it is is the footer test below.
+    /// </summary>
     [Test]
-    public void Every_message_has_both_bodies_and_says_who_it_is_from()
+    public void Every_message_has_both_bodies()
     {
         Assert.Multiple(() =>
         {
@@ -65,7 +73,7 @@ public class EmailTemplateTests
                 // A plain-text part on every one: a mail with only HTML scores as spam and is unreadable in
                 // the clients that refuse to render it.
                 Assert.That(message.TextBody?.Trim(), Is.Not.Empty, name);
-                Assert.That(message.HtmlBody, Does.Contain("Sent by Webly").Or.Contain("signed up to Webly"), name);
+
             }
         });
     }
@@ -152,6 +160,52 @@ public class EmailTemplateTests
                 Assert.That(message.HtmlBody, Does.Not.Contain("<!--"), message.Subject);
                 Assert.That(message.TextBody, Does.Not.Contain("<!--"), message.Subject);
             }
+        });
+    }
+
+    /// <summary>
+    /// Every message says what it is, in its own footer.
+    ///
+    /// There used to be a `DefaultFooter` — "Sent by Webly because of something on your account" — and six of
+    /// the seven took it, including the password reset, which is one of the two messages that can land in front
+    /// of somebody who did nothing at all. The comment above that constant claimed the exceptions passed their
+    /// own; only the sign-up code did. The footer is a required parameter now, so a new message cannot fall back
+    /// to boilerplate, and this pins the half a signature cannot: that the two unsolicited ones give the reader
+    /// the way out, and that the ones about somebody's own site do not pretend they might be spam.
+    ///
+    /// Read out of a sent email during a walk through the product as a new customer. "Because of something on
+    /// your account" was the footer under "Ridgeway Joinery is live".
+    /// </summary>
+    [Test]
+    public void Each_message_carries_a_footer_that_belongs_to_it()
+    {
+        var unsolicited = new[]
+        {
+            WeblyEmails.VerifyEmail("a@example.com", "Ada", "https://webly.test/verify", "123456"),
+            WeblyEmails.ResetPassword("a@example.com", "Ada", "https://webly.test/reset"),
+        };
+
+        var aboutTheirOwnWork = new[]
+        {
+            WeblyEmails.SitePublished("a@example.com", "Ada", "Ridgeway Cycles", "https://ridgeway.example"),
+            WeblyEmails.DeploymentFailed("a@example.com", "Ada", "Ridgeway Cycles", "It did not compile."),
+            WeblyEmails.FormSubmitted(
+                "a@example.com", "Ada", "Ridgeway Cycles", [("Message", "Hello")],
+                replyTo: null, link: "https://webly.test/messages"),
+        };
+
+        Assert.Multiple(() =>
+        {
+            foreach (var message in unsolicited)
+                Assert.That(message.HtmlBody, Does.Contain("If it was not you, ignore this email"), message.Subject);
+
+            foreach (var message in unsolicited.Concat(aboutTheirOwnWork))
+                Assert.That(
+                    message.HtmlBody, Does.Not.Contain("because of something on your account"), message.Subject);
+
+            // And the one that would read as an insult under a customer's enquiry.
+            foreach (var message in aboutTheirOwnWork)
+                Assert.That(message.HtmlBody, Does.Not.Contain("ignore this email"), message.Subject);
         });
     }
 }
