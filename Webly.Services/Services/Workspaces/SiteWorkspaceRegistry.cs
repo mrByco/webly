@@ -21,6 +21,15 @@ public class SiteWorkspaceRegistry(
     public SiteWorkspace? Find(string siteNanoid) =>
         _workspaces.TryGetValue(siteNanoid, out var workspace) ? workspace : null;
 
+    public async Task<bool> IsPreviewReadyAsync(string siteNanoid, CancellationToken cancellationToken = default)
+    {
+        if (!_workspaces.TryGetValue(siteNanoid, out var workspace) || !workspace.DevServerStarted) return false;
+
+        var health = await workspace.Sandbox.ReadHealthAsync(cancellationToken);
+
+        return health is { Reachable: true, DevServerRunning: true };
+    }
+
     public async Task<IWorkspaceLease> AcquireAsync(
         Site site,
         Func<string, Task>? onProgress = null,

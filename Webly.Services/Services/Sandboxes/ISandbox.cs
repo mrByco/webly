@@ -37,6 +37,17 @@ public record DevServerLog(string Text, long Offset, bool Running = true)
     public static DevServerLog Empty { get; } = new(string.Empty, 0, false);
 }
 
+/// <summary>A sandbox's own account of itself.</summary>
+/// <param name="Reachable">Whether it answered. Everything else is meaningless when this is false.</param>
+/// <param name="DevServerRunning">
+/// Whether a dev server is up in it — <c>ready</c> or still starting. False covers both "never started" and
+/// "started and died", which are the same thing to a person looking at a preview pane.
+/// </param>
+public record SandboxHealth(bool Reachable, bool DevServerRunning)
+{
+    public static SandboxHealth Unreachable { get; } = new(false, false);
+}
+
 /// <summary>What a sandbox is asked for when it starts.</summary>
 /// <param name="SiteNanoid">Only for naming and logs; a sandbox never learns anything else about the site.</param>
 /// <param name="Environment">Injected into every command — where an agent's provider key lives for the run.</param>
@@ -130,6 +141,13 @@ public interface ISandbox : IAsyncDisposable
     Task<DevServerLog> ReadDevServerLogAsync(long since = 0, CancellationToken cancellationToken = default);
 
     Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// What the sandbox says about itself in one request: whether it answers at all, and what its dev server is
+    /// doing. Two facts because they fail apart — a sandbox the provider has reclaimed and a dev server the
+    /// machine killed look identical from here otherwise, and the editor shows a different thing for each.
+    /// </summary>
+    Task<SandboxHealth> ReadHealthAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>

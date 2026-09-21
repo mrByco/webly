@@ -33,6 +33,18 @@ public interface ISiteWorkspaceRegistry
     /// <summary>The workspace for a site if one is live, without starting one. What the preview proxy asks.</summary>
     SiteWorkspace? Find(string siteNanoid);
 
+    /// <summary>
+    /// Whether the site's preview can actually be shown: a workspace, a sandbox that answers, and a dev server
+    /// inside it. Asked of the sandbox rather than of this dictionary, because the dictionary is what was true
+    /// when the workspace started — and a machine that has since been reclaimed, or a dev server the
+    /// out-of-memory killer took, leaves the entry looking perfectly healthy. The editor believed it and put an
+    /// iframe over a 502.
+    ///
+    /// One request, on a screen that already makes several. The preview proxy deliberately does <i>not</i> call
+    /// this: it runs per chunk and per socket frame, and its own failure already tells it the same thing.
+    /// </summary>
+    Task<bool> IsPreviewReadyAsync(string siteNanoid, CancellationToken cancellationToken = default);
+
     IReadOnlyList<SiteWorkspace> All { get; }
 
     /// <summary>

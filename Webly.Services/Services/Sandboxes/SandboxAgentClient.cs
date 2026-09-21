@@ -263,6 +263,27 @@ public sealed class SandboxAgentClient(
             body?["running"]?.GetValue<bool>() ?? true);
     }
 
+    public async Task<SandboxHealth> ReadHealthAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, "health", null, cancellationToken);
+
+            if (!response.IsSuccessStatusCode) return SandboxHealth.Unreachable;
+
+            var body = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+
+            // "stopped" is the agent's word for no dev server; "ready" and "starting" both mean there is one.
+            var devServer = body?["devServer"]?.GetValue<string>();
+
+            return new SandboxHealth(true, devServer is not null and not "stopped");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            return SandboxHealth.Unreachable;
+        }
+    }
+
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
     {
         try

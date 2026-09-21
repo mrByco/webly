@@ -48,7 +48,7 @@ public class GetSite(
             HeadVersion = SiteMapper.ToVersion(head, site),
             PublishedVersion = published is null ? null : SiteMapper.ToVersion(published, site),
             Domains = [.. domains.Select(SiteMapper.ToDomain)],
-            WorkspaceReady = workspaces.Find(site.Nanoid) is not null
+            WorkspaceReady = await workspaces.IsPreviewReadyAsync(site.Nanoid, cancellationToken)
         });
     }
 }

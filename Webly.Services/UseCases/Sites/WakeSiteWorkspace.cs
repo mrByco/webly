@@ -35,7 +35,10 @@ public class WakeSiteWorkspace(
 
         if (site is null) return Result<SiteError, WakeWorkspaceResponse>.Fail(SiteError.NotFound);
 
-        if (workspaces.Find(site.Nanoid) is not null)
+        // Asked of the sandbox, not of the registry: a workspace whose machine has gone away or whose dev server
+        // died is in the dictionary and cannot show anybody a preview, and answering "already running" to that is
+        // how the pane ends up as an iframe over a 502. The lease below repairs both cases.
+        if (await workspaces.IsPreviewReadyAsync(site.Nanoid, cancellationToken))
             return Result<SiteError, WakeWorkspaceResponse>.Ok(new WakeWorkspaceResponse { AlreadyRunning = true });
 
         // Fire and forget, deliberately: nothing waits on this and nothing should. A second request while it is

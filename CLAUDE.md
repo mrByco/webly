@@ -518,7 +518,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   `previewKey` reloads the frame and is for the case where the whole tree moved — a commit or a restore;
   it is a counter rather than a timestamp so unrelated renders do not make it flicker.
 - **A cold preview is a sentence and a button, not a frame.** The pane shows "your preview is asleep" until
-  `SiteDetailResponse.workspaceReady` or a `WorkspaceProgress` event says otherwise — an iframe pointed at the 503
+  `SiteDetailResponse.workspaceReady` or a `WorkspaceProgress` event says otherwise — and that flag is now asked
+  of the sandbox (`ISiteWorkspaceRegistry.IsPreviewReadyAsync`: it answers, and it has a dev server) rather than
+  read off the registry's dictionary, which only records what was true when the workspace started. A machine the
+  provider has reclaimed and a dev server the out-of-memory killer took both leave the entry looking healthy, and
+  the editor put an iframe over a 502. The preview proxy deliberately does *not* make that call — it runs per
+  chunk and per socket frame, and its own failure tells it the same thing — an iframe pointed at the 503
   would render the browser's own error page. **"Wake it up" starts the workspace without changing anything**
   (`POST /api/sites/{nanoid}/workspace`, 202, then the client polls `workspaceReady`): before it, the only way to
   see a preview was to send a message, which costs a model call and writes a version — so looking at your own site
