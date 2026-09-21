@@ -525,6 +525,11 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   `CompilerOutput.Readable` and **then** trimmed to a tail, in that order: it reached the screen raw until a failed
   publish was watched in a browser, and trimming first sliced the middle out of SWC's backtrace, which left the
   frames in and the marker that identifies them out.
+- **A mistyped address on a published site gets that site's 404 page**, which took a middleware after the
+  static files: without it the request fell through to `MapReverseProxy`, so somebody who typed one character
+  wrong on a customer's shop website landed on **Webly's dashboard**, or on Webly's login page if they were
+  not signed in. The template has had a `404.html` in its export the whole time. Development only, like the
+  rest of the filesystem target — a real host serves the export's own 404.
 - **A locally published site is served under a path, and the build has to be told.** Next.js writes absolute
   URLs for its stylesheets and chunks, so `FileSystemDeploymentTarget` passes `WEBLY_PREVIEW_BASE` =
   `/published/{nanoid}` — without it every published site asked for `/_next/…` at the root of Webly's own

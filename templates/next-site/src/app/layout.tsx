@@ -13,7 +13,11 @@ const title = 'New site';
 const description = 'Tell Webly what this site is about and it will write this page for you.';
 
 export const metadata: Metadata = {
-  title,
+  // A template rather than a string, so that every other page's own title becomes "Contact · New site" rather
+  // than replacing the site's name entirely. Without it a shared link, a search result and a browser tab all
+  // say only what the page is and never whose it is — and the page name alone is the part a stranger cannot
+  // place. `default` is what the home page and anything with no title of its own gets.
+  title: { default: title, template: `%s · ${title}` },
   description,
 
   // The address the build was told about, so that canonical links, the sitemap and anything a social network

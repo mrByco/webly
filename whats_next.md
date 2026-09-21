@@ -117,6 +117,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     happened in this product, the first being the preview, which is why the fix is now asserted by a test that
     names the environment variable rather than by a comment.
 
+    The same afternoon's browser sweep found two more of the same shape: a mistyped address on a published
+    site fell past the static files to the catch-all proxy and served **Webly's own dashboard** instead of the
+    site's 404 page, and every page of a published site had the site's name as its whole title, so a shared
+    link to a contact page said "Contact" and nothing about whose contact page it was.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

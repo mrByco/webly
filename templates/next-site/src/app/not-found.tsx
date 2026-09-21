@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+// Its own title, because "New site" in the tab of a page that is not there tells a visitor nothing about what
+// happened. The layout's template turns this into "Page not found · New site".
+export const metadata: Metadata = { title: 'Page not found' };
 
 /**
  * The page a visitor gets for an address that is not here — a mistyped link, or one that pointed at a page

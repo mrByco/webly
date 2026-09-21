@@ -26,6 +26,11 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: var(--card-radius);
+
+  /* A form field is not a card. The two share a look, but a 1.5rem radius on a 2.5rem-tall input makes a
+   * pill, and a page of pills reads as a toy rather than as a business. Capped rather than given a number of
+   * its own so that "sharper corners" stays one edit in look.css. */
+  --radius-field: min(var(--card-radius), 0.75rem);
 }
 
 @layer base {
