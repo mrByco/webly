@@ -353,10 +353,13 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   app. The MCP bridge that would bring it back is in the plan, §1.3.)
 - **A turn is one version.** `AgentTurnService` runs the agent, then commits once from the tree the sandbox
   hands back: atomic, readable in the history, and free to cancel.
-- **Build errors are surfaced, not swallowed.** After a turn the dev server's log is scanned for
-  `Failed to compile`, `Module not found` and `Type error:`, and a `BuildFailed` event puts it on screen —
-  because the person's next message is what fixes it. The publish path does not depend on this: `vercel
-  build` runs there and a failure blocks the deployment.
+- **Build errors are surfaced, not swallowed.** After a turn the dev server's log is read from an offset
+  recorded before the turn started, and a `BuildFailed` event puts the compiler's own words on screen —
+  because the person's next message is what fixes it. `DevServerLogReader` owns both halves and both were
+  wrong until they were run against a real dev server: the markers it looks for begin with `⨯ ./`, which is
+  what a syntax error produces, and the three obvious phrases do not appear for one; and what reaches the chat
+  has the terminal's ANSI codes and SWC's seventeen-frame Rust backtrace stripped out of it. The publish path
+  does not depend on any of this: `vercel build` runs there and a failure blocks the deployment.
 - **One warm workspace per site**, shared by the chat and the preview. `SiteWorkspaceRegistry` leases it
   with a semaphore so two turns queue rather than interleave, re-seeds it when the head has moved under it
   (clearing the agent's session id, because a resumed session would remember a different tree), and

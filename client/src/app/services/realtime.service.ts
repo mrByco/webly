@@ -2,49 +2,27 @@ import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
+import { RunEvent } from '../api/models/run-event';
+import { RunEventEnvelope } from '../api/models/run-event-envelope';
+import { RunKind } from '../api/models/run-kind';
+import { RunSubscription } from '../api/models/run-subscription';
 
-/** Mirrors `RunKind` on the backend. Two kinds, one connection. */
-export type RunKind = 'Chat' | 'Deploy';
-
-/** Mirrors `RunEventType`. Kept as a union rather than imported from the generated client because the
- *  hub's payloads are not described by Swagger — see the note in docs/agent-plan.md about pinning them
- *  into the OpenAPI document, which is the change that lets this import them instead. */
-export type RunEventType =
-  | 'TextDelta'
-  | 'MessageCompleted'
-  | 'Activity'
-  | 'FileChanged'
-  | 'WorkspaceProgress'
-  | 'VersionCommitted'
-  | 'BuildFailed'
-  | 'DeploymentProgress'
-  | 'Completed'
-  | 'Failed';
-
-export interface RunEvent {
-  type: RunEventType;
-  text?: string | null;
-  /** A phrase, a path or a status — whatever the event type says it is. */
-  detail?: string | null;
-  error?: string | null;
-  versionNanoid?: string | null;
-  createdAt: string;
-}
-
-export interface RunEventEnvelope {
-  runKind: RunKind;
-  runId: string;
-  seq: number;
-  event: RunEvent;
-  isTerminal: boolean;
-}
-
-interface RunSubscription {
-  runKind: RunKind;
-  runId: string;
-  lastSeq: number;
-  isLive: boolean;
-}
+/**
+ * The realtime contract, generated like every other DTO.
+ *
+ * It used to be written out here by hand, because Swagger describes HTTP and a hub is not HTTP — with a
+ * comment admitting that `RunEventType` was a copy of an enum the client switches on, and that adding a value
+ * to it on the server changed nothing here until somebody remembered. `HubContractDocumentFilter` puts these
+ * types into the OpenAPI document instead, so a change on that side is a compile error on this one.
+ *
+ * Re-exported rather than imported at each use site: everything that watches a run already imports this
+ * service, and the types travel with it.
+ */
+export type { RunKind } from '../api/models/run-kind';
+export type { RunEventType } from '../api/models/run-event-type';
+export type { RunEvent } from '../api/models/run-event';
+export type { RunEventEnvelope } from '../api/models/run-event-envelope';
+export type { RunSubscription } from '../api/models/run-subscription';
 
 interface Watched {
   kind: RunKind;
@@ -114,7 +92,7 @@ export class RealtimeService {
     this.watched.set(runId, entry);
 
     const subscription = await hub.invoke<RunSubscription>('Subscribe', kind, runId, entry.lastSeq);
-    entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq);
+    entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
 
     return entry.events;
   }
@@ -192,6 +170,13 @@ export class RealtimeService {
   }
 
   private dispatch(envelope: RunEventEnvelope): void {
+    // Every field of the generated envelope is optional, because Swashbuckle reads a positional record's
+    // properties and its nullability lives on the constructor. The hub always fills them; this is what
+    // satisfies the compiler without pretending otherwise.
+    if (!envelope.runId || envelope.seq === undefined || !envelope.event) {
+      return;
+    }
+
     const entry = this.watched.get(envelope.runId);
 
     if (!entry || envelope.seq <= entry.lastSeq) {
@@ -217,7 +202,7 @@ export class RealtimeService {
           entry.lastSeq,
         );
 
-        entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq);
+        entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
       } catch {
         // The run finished and was evicted while the connection was down. Its terminal event was in the
         // replay the reconnect just missed, so the page is left showing a turn that ended — which the

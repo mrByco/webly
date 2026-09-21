@@ -333,16 +333,14 @@ public class AgentTurnService(
 
         if (text.Length == 0) return;
 
-        var hasError = text.Contains("Failed to compile", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("Module not found", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("Type error:", StringComparison.OrdinalIgnoreCase);
+        if (!DevServerLogReader.SaysTheBuildBroke(text)) return;
 
-        if (!hasError) return;
+        var detail = DevServerLogReader.Readable(text);
 
         await writer.WriteAsync(new RunEvent
         {
             Type = RunEventType.BuildFailed,
-            Detail = text.Length <= 2000 ? text : text[^2000..]
+            Detail = detail.Length <= 2000 ? detail : detail[^2000..]
         }, cancellationToken);
     }
 

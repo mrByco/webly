@@ -53,6 +53,11 @@ builder.Services.AddSwaggerGen(options =>
     // `Nullable` is enabled solution-wide precisely so that `string` and `string?` mean different things; this
     // is what carries the difference across the wire.
     options.SupportNonNullableReferenceTypes();
+
+    // The hub's own types, which no controller references and Swagger therefore never sees. See
+    // HubContractDocumentFilter: without it the client hand-declares the realtime contract, and a value added
+    // to RunEventType here changes nothing there until somebody remembers.
+    options.DocumentFilter<HubContractDocumentFilter>();
 });
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));

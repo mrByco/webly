@@ -687,14 +687,20 @@ try {
   });
 
   // -- 15. A broken build is caught --------------------------------------------------------------
+  //
+  // In the publish sandbox, not the warm one, and for a reason this step learned the hard way: `next build`
+  // and `next dev` share `.next`, so building in the sandbox the dev server is running in leaves that dev
+  // server unable to compile anything afterwards. Step 16 then failed to recover from a change it had
+  // nothing to do with. It is also what the product does — a publish is always a fresh sandbox — so this is
+  // the faithful version as well as the working one.
   await step('A broken build is caught rather than published', async () => {
-    const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
+    const page = join(publishSandbox.workspace, 'src', 'app', 'page.tsx');
     const good = readFileSync(page, 'utf8');
 
     try {
       writeFileSync(page, `${good}\nthis is not valid typescript(((`);
 
-      const build = await box.exec(sandbox, {
+      const build = await box.exec(publishSandbox, {
         command: 'npm',
         args: ['run', 'build'],
         env: { NEXT_TELEMETRY_DISABLED: '1' },
@@ -706,7 +712,7 @@ try {
 
       const log = await box.devLog(sandbox);
       check(typeof log.text === 'string',
-        `the dev server log is readable (${log.text.length} chars at offset ${log.offset}), which is what BuildFailed reports`);
+        `the editing sandbox's dev server log is readable (${log.text.length} chars at offset ${log.offset}), which is what BuildFailed reports`);
     } finally {
       writeFileSync(page, good);
     }
@@ -720,7 +726,10 @@ try {
     // before it starts and reads from there. This proves the mechanism the fix rests on.
     const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
     const good = readFileSync(page, 'utf8');
-    const markers = /Failed to compile|Module not found|Type error:/i;
+    // The same set DevServerLogReader looks for, and the reason it is that set rather than the obvious one is
+    // in its comment: a syntax error produces `⨯ ./` and `Caused by: Syntax Error`, and none of the three
+    // phrases anybody would guess.
+    const markers = /⨯ \.\/|Failed to compile|Module not found|Syntax Error|Type error:/i;
 
     try {
       // Break it with a syntax error, and wait for the dev server to say so — this is "the previous turn".
