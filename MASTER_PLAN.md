@@ -3,8 +3,9 @@
 What is built, what is next, in the order it makes sense to build it. `whats_next.md` is the handoff note
 saying where work actually stopped; this file is the map.
 
-Status: **P0 landed as a skeleton, unbuilt.** The repository was initialized in an environment with no .NET
-SDK, so no phase below has been compiled, run or seen working. That is the first task — see `whats_next.md`.
+Status: **P0 is running and P1 is most of the way through.** The whole loop has been driven in the running app
+and every screen of it pressed in a browser; what is left in P1 needs credentials or a Docker daemon, which is
+the only reason it is left. `whats_next.md` is where to start.
 
 Note that P0 was built twice. The first pass expressed a site as a structured jsonb document over a closed
 section catalogue, with a C# renderer; it was then replaced by real Next.js source edited by a coding agent.
@@ -54,7 +55,13 @@ CLI, `next dev`, the build — in sixteen asserted steps. `tools/e2e/turn.mjs` d
 running backend's own hub. Between them: a verified account, a site that is a bare repository, turns that
 commit one version each, a preview through Webly's origin, and a published page that says what the person
 typed. The backend compiles, `InitialSchema` is applied to a real Postgres with its ten deferrable
-constraints, 70 tests pass, and `client/src/app/api/` is generated and committed.
+constraints, 84 tests pass, and `client/src/app/api/` is generated and committed.
+
+**And every screen has been pressed by hand**, which is where most of the defects below came from: a turn
+reloaded mid-flight and stopped; publishing, succeeding and failing, with its progress and its build log;
+restore; domains end to end against the simulated provider; the code view and the git-bundle download, cloned
+and checked; the forgotten-password round trip including a replayed link; closing an account; waking a preview;
+and the app at 390 px and in dark mode.
 
 **Known gaps inside P0**, each with a note in the code:
 
@@ -64,7 +71,7 @@ constraints, 70 tests pass, and `client/src/app/api/` is generated and committed
 | `DockerSandboxProvider` and `E2bSandboxProvider` have never run; only `local` has | their class comments |
 | `VercelDeploymentTarget` is unverified in both halves — REST and CLI | `docs/deploy-plan.md` §6 |
 | The real agent has never run *inside the app* — every turn so far has been the mock | `whats_next.md` §1 |
-| Hub DTOs are declared by hand in the client | `docs/agent-plan.md` §3.3 |
+| Google sign-in and Resend are absent without their configuration, by design | `CLAUDE.md` "An unconfigured feature is absent" |
 
 Closed by running things rather than reading them, which is the only reason any of it is closed:
 `Directory.Build.props` was missing entirely, so nothing could have built; the preview proxy was broken twice
@@ -95,8 +102,11 @@ paragraphs are kept because each one names a thing to check again after a change
 4. ~~**One real turn through the app**~~ with the defaults and no credentials: register, verify, create a site,
    send a message, watch the version commit, fetch the preview, publish, open the published page. That is what
    `tools/e2e/turn.mjs` does, and it found four bugs that reading had not.
-5. **Then the same with `Agent:ClaudeCode:ApiKey` set**, and a reload mid-turn and Stop — the two paths that
-   only exist because a run outlives its connection. This is the next thing to do.
+5. ~~**A reload mid-turn and Stop**~~ — the two paths that only exist because a run outlives its connection,
+   driven in a browser against a cold workspace. The reload found nothing until the run's correlation id
+   stopped being assigned from a value that arrives when the turn is over. **Still to do: the same turn with
+   `Agent:ClaudeCode:ApiKey` set**, which is the next thing, and the only part of the chat path the mock cannot
+   stand in for.
 6. **Reconcile `VercelDeploymentTarget`** against a real token: publish, add a domain, verify it.
 7. **Build the sandbox image** and run the same turn with `Sandbox:Provider=docker`. The prebaked-dependencies
    bet — `npm ls --depth=0` passing without an install — is the one thing the local provider cannot tell you.
@@ -109,9 +119,13 @@ paragraphs are kept because each one names a thing to check again after a change
 - **Better diffs** in the history: per-file collapse, and a side-by-side for the file somebody clicks.
 - **Agent choice on screen**, if the second agent turns out to be worth offering rather than only worth
   having.
-- The hub-DTO OpenAPI document filter, so the client stops declaring them by hand.
-- **The cost dial.** A warm sandbox per open editor is the product's real unit cost; `Sandbox:IdleTimeout`
-  is currently a guess. Measure it before P7 prices anything.
+- ~~The hub-DTO OpenAPI document filter~~: done. `HubContractDocumentFilter` puts `RunEvent` and friends into
+  the document, so the client stops declaring the realtime contract by hand and a value added to `RunEventType`
+  is a compile error rather than a silent divergence.
+- **The cost dial.** A warm sandbox per open editor is the product's real unit cost; `Sandbox:IdleTimeout` is
+  still a guess. One side is measured — a cold turn is 16 s and a warm one 3.8 s with the local provider — and
+  the part that decides the timeout is what a real container adds to that. Measure it before P7 prices
+  anything.
 
 ## P3 — Make the agent good at this
 
