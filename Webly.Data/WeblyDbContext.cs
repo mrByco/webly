@@ -206,6 +206,17 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.SiteId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // One publish at a time per site, stated where it can be enforced. `PublishSite` already checked and
+            // then acted, which two clicks a millisecond apart walk straight through: both read no deploy in
+            // flight and both insert, and the product's most expensive operation — a sandbox, an npm ci and a
+            // real build — then runs twice for one press, ending with two "your site is live" emails.
+            //
+            // Partial, so finished deployments accumulate freely; only the live ones have to be unique.
+            deployment.HasIndex(x => x.SiteId)
+                .IsUnique()
+                .HasFilter("\"Status\" IN ('Queued', 'Preparing', 'Building')")
+                .HasDatabaseName("IX_Deployments_OneInFlightPerSite");
+
             // A version that has been deployed cannot be deleted out from under the record of it.
             // Deferred, like every other reference into the version chain.
             deployment.HasOne(x => x.SiteVersion)

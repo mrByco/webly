@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 112-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 113-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -530,6 +530,13 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **A publish uses a fresh sandbox**, not the warm editing one, seeded from the version being published and
   `npm ci`'d against its lockfile. A build must not inherit whatever an editing session left behind, and
   that is also what makes a retry mean something.
+- **A site publishes one thing at a time, and the index says so.** `PublishSite` read "is one in flight" and
+  then inserted, which two clicks a millisecond apart walk straight through: both ran, which is two sandboxes,
+  two `npm ci`s, two real builds and two "your site is live" emails for one press of one button. A partial
+  unique index on `(SiteId)` over the live statuses ends it, `PublishSite` answers the loser with the
+  deployment that is really running — so the editor watches the right run — and the supersede path saves its
+  cancellation before inserting, because a partial index is checked per statement and the order of two changes
+  inside one `SaveChanges` is EF's business rather than ours.
 - **`Site.PublishedVersionId` moves in exactly one place**, in `DeploymentJobRunner` after the provider
   reports success. A failed publish leaves the previous version live, and the email says so in its first
   line. The build log goes to `Deployment.ErrorDetail`, which the settings screen shows folded away — through

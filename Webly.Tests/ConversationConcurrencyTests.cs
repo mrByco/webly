@@ -103,3 +103,79 @@ public class ConversationConcurrencyTests : PostgresTestBase
         });
     }
 }
+
+/// <summary>
+/// Pressing Publish twice, which is what a double-click is.
+///
+/// A publish is the most expensive thing this product does — a sandbox, an <c>npm ci</c> and a real build —
+/// and before the index below, two clicks a millisecond apart ran all of it twice and sent two "your site is
+/// live" emails for one press of one button. The guard in <c>PublishSite</c> was a check and then an act.
+/// </summary>
+public class PublishConcurrencyTests : PostgresTestBase
+{
+    [Test]
+    public async Task A_site_cannot_have_two_publishes_in_flight()
+    {
+        await using var db = CreateContext();
+
+        var user = new User { Email = "owner@example.com", DisplayName = "Owner" };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var site = new Site { Name = "Koopman Cycles", Slug = $"koopman-{Guid.NewGuid():N}", OwnerId = user.Id };
+        db.Sites.Add(site);
+        await db.SaveChangesAsync();
+
+        var version = new Webly.Data.Models.Sites.SiteVersion
+        {
+            SiteId = site.Id,
+            CommitSha = new string('a', 40),
+            Summary = "Created",
+            Origin = Webly.Data.Models.Sites.SiteVersionOrigin.Template,
+            CreatedByUserId = user.Id
+        };
+
+        db.SiteVersions.Add(version);
+        await db.SaveChangesAsync();
+
+        db.Deployments.Add(new Webly.Data.Models.Deployments.Deployment
+        {
+            SiteId = site.Id,
+            SiteVersionId = version.Id,
+            Status = Webly.Data.Models.Deployments.DeploymentStatus.Queued,
+            TriggeredByUserId = user.Id
+        });
+
+        await db.SaveChangesAsync();
+
+        await using var second = CreateContext();
+
+        second.Deployments.Add(new Webly.Data.Models.Deployments.Deployment
+        {
+            SiteId = site.Id,
+            SiteVersionId = version.Id,
+            Status = Webly.Data.Models.Deployments.DeploymentStatus.Building,
+            TriggeredByUserId = user.Id
+        });
+
+        Assert.That(
+            async () => await second.SaveChangesAsync(),
+            Throws.InstanceOf<DbUpdateException>(),
+            "the database refuses a second live deployment; PublishSite answers with the first one");
+
+        // A finished one is not in flight, so history accumulates freely — which is what makes the index
+        // partial rather than a column somebody has to maintain.
+        await using var third = CreateContext();
+
+        third.Deployments.Add(new Webly.Data.Models.Deployments.Deployment
+        {
+            SiteId = site.Id,
+            SiteVersionId = version.Id,
+            Status = Webly.Data.Models.Deployments.DeploymentStatus.Ready,
+            TriggeredByUserId = user.Id,
+            FinishedAt = DateTime.UtcNow
+        });
+
+        Assert.That(async () => await third.SaveChangesAsync(), Throws.Nothing);
+    }
+}

@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Webly.Data;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Repositories.Deployments;
@@ -57,6 +59,11 @@ public class PublishSite(
             inFlight.Status = DeploymentStatus.Cancelled;
             inFlight.FinishedAt = DateTime.UtcNow;
             inFlight.Error = "Superseded by a newer publish.";
+
+            // Saved on its own, before the new row is inserted. A partial unique index says a site has at most
+            // one publish in flight, and it is checked per statement — so this has to have happened before the
+            // insert, and the order of two changes inside one SaveChanges is EF's business rather than ours.
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         var deployment = new Deployment
@@ -68,7 +75,29 @@ public class PublishSite(
         };
 
         deployments.Add(deployment);
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsOneInFlightViolation(exception))
+        {
+            // Two publishes a millisecond apart — a double-click, or two tabs. Both read no deploy in flight,
+            // both insert, and the index refuses the loser. Without it both ran: two sandboxes, two `npm ci`s,
+            // two real builds and two "your site is live" emails for one press of one button, which is the
+            // product's most expensive operation doubled for nothing.
+            //
+            // The other request is already publishing exactly this, so the honest answer is its deployment: the
+            // editor then watches the run that is really going to happen.
+            dbContext.Entry(deployment).State = EntityState.Detached;
+
+            var existing = await deployments.FindInFlightAsync(site.Id, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"Site {site.Nanoid} has no deployment in flight, and inserting one was refused.", exception);
+
+            return Result<DeployError, DeploymentResponse>.Ok(
+                DeploymentMapper.ToResponse(existing, site.HeadVersion));
+        }
 
         // The run exists from here, not from when the runner picks the row up.
         //
@@ -83,4 +112,12 @@ public class PublishSite(
         return Result<DeployError, DeploymentResponse>.Ok(
             DeploymentMapper.ToResponse(deployment, site.HeadVersion));
     }
+
+    /// <summary>
+    /// Whether this is the index that says one site publishes one thing at a time. Matched by name rather than
+    /// by <c>23505</c> alone, so that a different unique violation still fails loudly.
+    /// </summary>
+    private static bool IsOneInFlightViolation(DbUpdateException exception) =>
+        exception.InnerException is PostgresException { SqlState: "23505" } postgres
+        && postgres.ConstraintName == "IX_Deployments_OneInFlightPerSite";
 }

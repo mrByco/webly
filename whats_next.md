@@ -42,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 112 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 113 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -129,6 +129,10 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     built on the same parent would have moved the branch to a commit missing the first turn's work while that
     turn's version row stayed in the history pointing at an unreachable commit. Nothing had ever run two turns
     at once. Both now succeed, in order, and the third case fails cleanly if it ever arises.
+18. **And pressing Publish twice published twice.** The same check-then-act, on the product's most expensive
+    operation: two sandboxes, two `npm ci`s, two real builds and two "your site is live" emails for one press.
+    A partial unique index over the live statuses now says a site publishes one thing at a time, and the second
+    request is answered with the deployment that is really running.
 
 ## What is still intent
 
