@@ -35,7 +35,13 @@
           }
         </div>
 
-        <nav class="ml-auto flex gap-1">
+        <!--
+          Scrollable rather than wrapped below `lg`. Five tabs do not fit on a 390 px screen, and the row was
+          clipping the fifth: Settings was unreachable on a phone except by typing the URL, with a sliver of its
+          pill visible at the edge as the only evidence. Swiping the row is how the rest of the phone world does
+          this, and `ml-auto` is what pushes it to the right of the title from `lg` up.
+        -->
+        <nav class="-mx-1 flex w-full gap-1 overflow-x-auto px-1 lg:mx-0 lg:ml-auto lg:w-auto lg:overflow-x-visible lg:px-0">
           <a
             class="btn btn-ghost btn-sm"
             routerLinkActive="btn-active"
@@ -91,7 +97,14 @@
           the *height*, and it was also letting the chat be squeezed sideways whenever the pane beside it
           wanted room — opening History left the transcript about ninety pixels wide, one word per line.
         -->
-        <section class="flex min-h-0 basis-2/5 flex-col border-base-300 lg:w-96 lg:shrink-0 lg:basis-auto lg:border-r">
+        <!--
+          `max-lg:hidden` while a child route is showing: at phone width the chat and the child would be two
+          cramped halves of one screen, and the child is the thing that was just navigated to. From `lg` up they
+          sit side by side, which is the whole reason history and settings render in place of the preview.
+        -->
+        <section
+          class="flex min-h-0 basis-3/5 flex-col border-base-300 lg:w-96 lg:shrink-0 lg:basis-auto lg:border-r"
+          [class.max-lg:hidden]="outlet.isActivated">
           <app-site-chat
             [siteNanoid]="detail.summary.nanoid"
             (versionCommitted)="onVersionCommitted()"

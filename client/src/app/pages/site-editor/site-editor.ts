@@ -1,7 +1,8 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { map } from 'rxjs';
+import { Component, ElementRef, PLATFORM_ID, afterNextRender, computed, effect, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { SiteChat } from '../../components/site-chat/site-chat';
@@ -92,6 +93,13 @@ export class SiteEditorPage {
     void this.sites.reload();
   }
 
+  /**
+   * The tab row, found in the DOM rather than with a `viewChild`: the row is inside an `@if` and projected into
+   * `<app-shell>`, and the query resolved to undefined every time. One `querySelector` from the host does not
+   * care where in the tree the element ended up.
+   */
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   constructor() {
     // The load follows the route parameter rather than the component's lifetime, because the router reuses
     // this component between sites. The guard is what stops a re-render from re-fetching the same site.
@@ -107,6 +115,35 @@ export class SiteEditorPage {
       loaded = nanoid;
       void this.load(nanoid);
     });
+
+    // The open tab, brought into view. At phone width the five tabs are a row somebody swipes and the last of
+    // them sits off the right edge, so arriving on Settings — from a link, a reload or the back gesture — left the
+    // row showing Editor while the screen showed something else. Browser only; `block: 'nearest'` moves the row
+    // sideways without scrolling the page, and the timeout is because the active class is written by
+    // `routerLinkActive` after the navigation this is reacting to.
+    if (isPlatformBrowser(inject(PLATFORM_ID))) {
+      inject(Router).events
+        .pipe(filter(event => event instanceof NavigationEnd), takeUntilDestroyed())
+        .subscribe(() => this.centreOpenTab());
+
+      afterNextRender(() => this.centreOpenTab());
+    }
+  }
+
+  private centreOpenTab(): void {
+    setTimeout(() => {
+      const row = (this.host.nativeElement as HTMLElement).querySelector<HTMLElement>('header nav');
+      const open = row?.querySelector<HTMLElement>('.btn-active');
+
+      if (!row || !open) return;
+
+      // The row's own `scrollLeft`, rather than `scrollIntoView({ inline: 'center' })`, which did nothing here:
+      // measured against the two rectangles it is one line and it cannot decide to scroll something else.
+      const rowBox = row.getBoundingClientRect();
+      const openBox = open.getBoundingClientRect();
+
+      row.scrollLeft += openBox.left - rowBox.left - (rowBox.width - openBox.width) / 2;
+    });
   }
 
   private async load(nanoid: string): Promise<void> {
@@ -116,6 +153,10 @@ export class SiteEditorPage {
       this.workspaceProgress.set(undefined);
       this.previewKey.update(key => key + 1);
       this.error.set(undefined);
+
+      // Again here, because on a cold load the header does not exist yet when the navigation ends: the template
+      // is still showing "loading your site", so there is no tab row to scroll.
+      this.centreOpenTab();
     } catch (failure) {
       this.error.set(messageOf(failure));
     }
