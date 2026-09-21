@@ -88,6 +88,36 @@ public class SiteWorkspaceRegistry(
         }
     }
 
+    public async Task ReseedAsync(Site site, string headSha, CancellationToken cancellationToken = default)
+    {
+        if (!_workspaces.TryGetValue(site.Nanoid, out var workspace)) return;
+
+        // Behind the same gate a turn takes, so this cannot write a tree under an agent that is mid-edit: a restore
+        // arriving during a turn waits for it, and the turn's own commit then leaves the head where this put it.
+        await workspace.Gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            await SeedAsync(workspace.Sandbox, site, headSha, cancellationToken);
+
+            workspace.CommitSha = headSha;
+
+            // For the reason AcquireAsync does it: a resumed session would be reasoning about files that are gone.
+            workspace.AgentSessionId = null;
+            workspace.AgentKey = null;
+
+            // The dev server is still running and watching the files, so it recompiles by itself and the preview
+            // shows the restored site without anybody asking — which is the point of not releasing the workspace.
+            await EnsureDevServerAsync(workspace, site, onProgress: null, cancellationToken);
+
+            workspace.Touch();
+        }
+        finally
+        {
+            workspace.Gate.Release();
+        }
+    }
+
     /// <summary>
     /// Starts the dev server again if it has stopped.
     ///

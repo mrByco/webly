@@ -131,10 +131,21 @@ A real token, then publish a starter site, add a domain, check it. The build alr
 and fails honestly, so what is unverified is narrower than the whole path: the two provider calls and the
 CLI's output parsing.
 
-### 4. Measure `Sandbox:IdleTimeout`
+### 4. Measure `Sandbox:IdleTimeout` against a real provider
 
 Ten minutes is a guess, and it is the product's real unit cost. A warm sandbox bills by the second and a cold
-one costs a person tens of seconds of staring at "your preview is asleep". Nobody has measured either side.
+one costs a person tens of seconds of staring at "your preview is asleep".
+
+**One side is now measured**, with the local provider and the mock agent, so it is the floor rather than the
+number: a cold turn is **16 s** end to end (workspace, seed, `next dev`, the agent, the commit, and the first
+compile) and a warm one **3.8 s**, repeatably. So a cold start costs about twelve seconds more than a warm one
+before any container is involved — a Docker or E2B sandbox adds its own start to that, which is the part still
+unmeasured and the part that decides the timeout.
+
+Note where a third of the cold turn goes: the compile check asks the dev server for a page, and the *first*
+compile of a cold dev server takes about nine seconds. The answer has already been written to the chat by then,
+but the run's terminal event waits for it. Worth knowing before trying to make a cold turn feel faster — and
+worth keeping, because that request is the only reason a compile error ever reaches the chat.
 
 ### 5. Reconcile the Vercel domain attach with what the API answers
 

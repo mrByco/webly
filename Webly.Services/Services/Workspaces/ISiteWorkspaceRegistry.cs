@@ -35,6 +35,16 @@ public interface ISiteWorkspaceRegistry
 
     IReadOnlyList<SiteWorkspace> All { get; }
 
+    /// <summary>
+    /// Puts a warm workspace on a new commit, or does nothing if the site has none. What a restore calls.
+    ///
+    /// The alternative is to release the workspace, which is what a restore used to do — and the person who just
+    /// pressed "bring this back" then watched their preview become "your preview is not running, send a message to
+    /// wake it up". It also threw away a warm sandbox that costs about twelve seconds to replace. Re-seeding is the
+    /// same work the lease already does when it finds the head has moved, so this is that path, asked for directly.
+    /// </summary>
+    Task ReseedAsync(Site site, string headSha, CancellationToken cancellationToken = default);
+
     /// <summary>Stops a workspace and forgets it. Called by the reaper, and when a site is deleted.</summary>
     Task ReleaseAsync(string siteNanoid);
 }

@@ -312,7 +312,10 @@ changed-file count, who and which message — and duplicates nothing git already
   can disagree with both.
 - **Restore writes the old tree forward** as a new commit, never repoints the branch backwards: the
   intervening history stays reachable, the restore itself appears in the history, and undoing an undo is the
-  same operation again.
+  same operation again. It also **re-seeds the warm workspace** (`ISiteWorkspaceRegistry.ReseedAsync`) rather than
+  releasing it, so the dev server recompiles the restored files and the preview shows them by itself. Releasing was
+  the first shape and it failed in the most visible way there is: the preview somebody was looking at when they
+  pressed "bring this back" became "your preview is not running, send a message to wake it up".
 - **A version links to the chat message that produced it** and the message links back, which is what makes
   the history read as the conversation that caused it.
 - **`(SiteId, CommitSha)` is unique**, which is what stops a second row claiming the same commit and making

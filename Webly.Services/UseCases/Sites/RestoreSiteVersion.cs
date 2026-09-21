@@ -64,10 +64,13 @@ public class RestoreSiteVersion(
             restoredFromVersionId: source.Id,
             cancellationToken);
 
-        // The live workspace is now a commit behind, and its sandbox holds the tree this restore just replaced.
-        // Releasing it is cheaper and safer than re-seeding here: the next turn starts a fresh one from the new
-        // head, and an agent session that remembers the old files is not something to keep.
-        await workspaces.ReleaseAsync(site.Nanoid);
+        // The live workspace is now a commit behind, and its sandbox holds the tree this restore just replaced. It
+        // used to be released here, and that was wrong in the most visible way available: the preview the person
+        // was looking at when they pressed "bring this back" became "your preview is not running, send a message to
+        // wake it up", and a warm sandbox worth twelve seconds went with it. Re-seeded instead — the same work the
+        // next lease would have done, including clearing the agent's session — so the dev server recompiles the
+        // restored files and the preview shows them by itself.
+        await workspaces.ReseedAsync(site, version.CommitSha, cancellationToken);
 
         return Result<SiteError, SiteVersionResponse>.Ok(SiteMapper.ToVersion(version, site));
     }
