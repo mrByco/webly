@@ -20,12 +20,23 @@
 import { createServer, request as httpRequest } from 'node:http';
 import { connect } from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 
 const PORT = Number(process.env.WEBLY_AGENT_PORT ?? 8080);
 const TOKEN = process.env.WEBLY_AGENT_TOKEN ?? '';
 const WORKSPACE = process.env.WEBLY_WORKSPACE ?? '/workspace';
 const DEV_PORT = Number(process.env.WEBLY_DEV_PORT ?? 3000);
+
+/**
+ * Where to record the dev server's process id, if whoever started this agent asked for it.
+ *
+ * **Outside the workspace**, always: a file inside it would travel into the site's next commit and vanish on
+ * the next re-seed. It exists for the case the agent cannot clean up after itself — being killed with SIGKILL,
+ * or dying with the machine's memory — where the dev server is in its own process group and survives both. The
+ * starter can then take it down on the way past. In a container nobody sets it and nothing writes it, because
+ * stopping the container takes everything in it.
+ */
+const DEV_PIDFILE = process.env.WEBLY_DEV_PIDFILE ?? '';
 
 /**
  * This process's environment without the agent's own credential in it.
@@ -255,10 +266,27 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   devServer.stdout.on('data', record);
   devServer.stderr.on('data', record);
 
+  if (DEV_PIDFILE) {
+    try {
+      writeFileSync(DEV_PIDFILE, String(devServer.pid));
+    } catch (error) {
+      // Not worth failing a dev server over: the pidfile is a second line of defence, not the first.
+      console.error(`could not write ${DEV_PIDFILE}: ${error.message}`);
+    }
+  }
+
   devServer.on('close', (code, signal) => {
     devServer = null;
     devReady = false;
     devExit = { code, signal };
+
+    if (DEV_PIDFILE) {
+      try {
+        rmSync(DEV_PIDFILE, { force: true });
+      } catch {
+        // Gone already, or never written.
+      }
+    }
 
     // Recorded into the log itself, so one read answers both "what did it say" and "is it still there". A dev
     // server killed by the machine (the out-of-memory killer, on a box running several) says nothing on its way

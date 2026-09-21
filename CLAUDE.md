@@ -144,6 +144,13 @@ more than one restating what the line does.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
 - Logs and pidfiles live in `.run/` (gitignored). `Webly.Api` locks its build output while running —
   `app_build` handles stop/build/start.
+- **A stopped backend used to leave a `next dev` behind, once per open site.** The dev server is spawned
+  *detached*, in its own process group, so killing the sandbox agent's group misses it — and a killed agent
+  never runs the handler that would have taken it down. It records its process id in a `.devpid` file beside
+  the workspace (never inside: that file would travel into the site's next commit), and
+  `LocalSandboxProvider`'s first-use sweep kills what it finds before deleting the directories, in that order,
+  because a dev server whose workspace has just been deleted does not exit — it spins at 100% of a core for
+  ever. Sixteen of them is what a wedged development machine looks like, and nothing says why.
 - **Editing a site needs `node` and `git` on PATH**, and by default nothing else. `Sandbox:Provider` is
   `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace under
   `.run/workspaces`; set it to `docker` for real isolation (build the image first — see the table above) or
@@ -301,7 +308,12 @@ structured-document model it replaced was better at.
   — reaches the chat as a failed turn nobody can act on. A *leading dot* is deliberately fine: `.gitignore` and
   `.env.example` are ordinary files in a Next.js project.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
-  `npm run build`. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the
+  `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, `sitemap.ts`, a
+  `not-found.tsx` that is a page of the site rather than the host's default, and canonical and Open Graph
+  metadata. All of those need an absolute URL, and a static export has no server to ask for one later — so the
+  publish passes the site's **address** as `NEXT_PUBLIC_SITE_URL` (`src/site.ts` reads it) and the build is the
+  moment it is known. The address rather than the deployment's own URL, because a canonical that changed with
+  every publish is not a canonical. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the
   standing rules (never invent a fact, never write a testimonial nobody gave you, keep the build working,
   stay in the stack) and **`content/brand.md`** is where the agent records facts it learns, because its
   session does not outlive the workspace. `CLAUDE.md` in the template just points at `AGENTS.md`, so both

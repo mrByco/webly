@@ -32,6 +32,9 @@ const option = name => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 const keep = args.includes('--keep');
+
+// The address a publish tells the build about. Any absolute URL in the export has to come from here.
+const SITE_URL = 'https://kovacs-bakery.webly.site';
 const requestedAgent = option('agent') ?? 'claude';
 
 /**
@@ -605,13 +608,26 @@ try {
     const build = await box.exec(publishSandbox, {
       command: 'npm',
       args: ['run', 'build'],
-      env: { NEXT_TELEMETRY_DISABLED: '1' },
+      // `NEXT_PUBLIC_SITE_URL` as the real target passes it: the site's own address, which is the only moment
+      // a static export can learn where it will live.
+      env: { NEXT_TELEMETRY_DISABLED: '1', NEXT_PUBLIC_SITE_URL: SITE_URL },
       timeoutMs: 600_000,
     });
 
     if (!build.succeeded) process.stdout.write(`\n${build.output.slice(-3000)}\n`);
     check(build.succeeded, 'npm run build succeeded, so this version is publishable');
     check(existsSync(join(publishSandbox.workspace, 'out')), 'the build produced a static export in out/');
+
+    // What a published site owes a search engine, and the one thing the build cannot work out for itself.
+    const out = join(publishSandbox.workspace, 'out');
+
+    check(readFileSync(join(out, 'robots.txt'), 'utf8').includes(`${SITE_URL}/sitemap.xml`),
+      'robots.txt points at the sitemap on this site');
+    check(readFileSync(join(out, 'sitemap.xml'), 'utf8').includes(`${SITE_URL}/`),
+      'the sitemap names this site');
+    check(readFileSync(join(out, 'index.html'), 'utf8').includes(`<link rel="canonical" href="${SITE_URL}/"`),
+      'the home page says where it canonically lives');
+    check(existsSync(join(out, '404.html')), 'and a mistyped address gets a page of this site');
   });
 
   // -- 13. The publish: the built site copied out and served ------------------------------------

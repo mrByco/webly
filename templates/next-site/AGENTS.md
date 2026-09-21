@@ -26,6 +26,8 @@ actually confirmed.
    `content/brand.md` in the same turn. The next session starts from that file, not from this conversation.
 8. **Accessibility and responsiveness are not optional.** Real alt text, one `h1` per page, visible focus
    states, and every layout works at 390px.
+9. **A new page needs three things**, not one: the route, a link to it from the header or wherever somebody
+   would look for it, and a line in `src/app/sitemap.ts`. A page nothing links to is a page nobody visits.
 
 ## Check your work before you finish
 
@@ -47,6 +49,11 @@ before you finish. It is already compiling while you work.
 - `src/app/globals.css` — Tailwind plus the site's design tokens. Change colours and type **here**, once,
   rather than putting class names for one brand colour on forty elements.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
+- `src/app/sitemap.ts` — the list of this site's pages. **Add a line when you add a page**: a static export
+  cannot discover its own routes, so a page missing from here is a page search engines find late or not at all.
+- `src/site.ts` — where this site lives, as the build was told. Use it rather than writing a URL anywhere: the
+  address changes the day somebody connects their own domain, and a canonical link pointing at the old one
+  tells every search engine the real site is somewhere it is not.
 
 ## What you must not touch
 

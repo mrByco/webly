@@ -52,10 +52,17 @@ public interface IDeploymentTarget
     /// person — and the next agent turn — can see why.
     ///
     /// <paramref name="onOutput"/> is the build log as it happens, for the deployment's event stream.
+    ///
+    /// <paramref name="siteUrl"/> is the site's own address, and it reaches the build as
+    /// <c>NEXT_PUBLIC_SITE_URL</c>. Every absolute URL a published page contains — its canonical link, its
+    /// sitemap, what a social network reads when somebody shares it — is built from it, and the build is the
+    /// only moment that knows: a static export has no server to ask later. The <b>address</b> rather than the
+    /// deployment's own URL, because a canonical that changed with every publish is not a canonical.
     /// </summary>
     Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
+        string siteUrl,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default);
 

@@ -53,12 +53,22 @@ public class FileSystemDeploymentTarget(
     public async Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
+        string siteUrl,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
         var build = await sandbox.RunAsync(
             new SandboxCommand("npm", ["run", "build"], TimeSpan.FromMinutes(10),
-                new Dictionary<string, string> { ["NEXT_TELEMETRY_DISABLED"] = "1" }),
+                new Dictionary<string, string>
+                {
+                    ["NEXT_TELEMETRY_DISABLED"] = "1",
+
+                    // The site's own address. Locally it does not resolve — nothing serves a subdomain of the
+                    // production zone from a developer's machine — and the build is still told it, because a
+                    // canonical link is a statement about where the site belongs rather than about where this
+                    // copy of it happens to be.
+                    ["NEXT_PUBLIC_SITE_URL"] = siteUrl
+                }),
             output => onOutput?.Invoke(output.Text) ?? Task.CompletedTask,
             cancellationToken);
 

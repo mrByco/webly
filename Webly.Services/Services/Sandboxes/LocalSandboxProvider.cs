@@ -65,6 +65,14 @@ public class LocalSandboxProvider(
 
         if (!Directory.Exists(root)) return;
 
+        // The dev servers first, then their workspaces. The other order is the one that wedges a machine: a
+        // `next dev` whose workspace has just been deleted does not exit, it spins at 100% of a core retrying
+        // files that are not there any more.
+        foreach (var pidFile in Directory.EnumerateFiles(root, "*.devpid"))
+        {
+            KillRecordedDevServer(pidFile);
+        }
+
         foreach (var stale in Directory.EnumerateDirectories(root))
         {
             try
@@ -77,6 +85,45 @@ public class LocalSandboxProvider(
                 // Worth a line and nothing more: a directory that will not delete is disk, not correctness,
                 // and refusing to start a turn over it would be the worse failure.
                 logger.LogWarning(exception, "Could not remove the stale workspace {Workspace}.", stale);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Kills a dev server an earlier run recorded, and forgets the record.
+    ///
+    /// Development only, like everything in this class, and defensive by construction: a pid file from a
+    /// previous boot can name a process that has exited, or — after enough churn — one that belongs to
+    /// something else entirely. The group signal is sent to the negative pid, which is the group the agent put
+    /// `npm run dev` in; a pid that is no longer a group leader signals nothing, which is the outcome wanted
+    /// when the record is stale.
+    /// </summary>
+    private void KillRecordedDevServer(string pidFile)
+    {
+        try
+        {
+            if (int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid) && pid > 1)
+            {
+                using var process = Process.GetProcessById(pid);
+
+                process.Kill(entireProcessTree: true);
+                logger.LogInformation("Killed the dev server {Pid}, left by an earlier run.", pid);
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+            or IOException or UnauthorizedAccessException or FormatException)
+        {
+            // The process is gone, or the file is unreadable. Either way there is nothing to kill.
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(pidFile);
+            }
+            catch (IOException)
+            {
+                // Disk, not correctness.
             }
         }
     }
@@ -129,6 +176,13 @@ public class LocalSandboxProvider(
         startInfo.Environment["WEBLY_AGENT_TOKEN"] = token;
         startInfo.Environment["WEBLY_DEV_PORT"] = devPort.ToString();
 
+        // Where the agent records its dev server's process id, beside the workspace rather than inside it — a
+        // file in the workspace would travel into the site's next commit. It is the sweep's only way to find a
+        // dev server whose agent was killed outright: `next dev` is spawned into its own process group, so a
+        // backend that was stopped rather than asked leaves one behind, holding a port and a few hundred
+        // megabytes, once per open site.
+        startInfo.Environment["WEBLY_DEV_PIDFILE"] = $"{workspace}.devpid";
+
         foreach (var (key, value) in spec.Environment) startInfo.Environment[key] = value;
 
         var process = Process.Start(startInfo)
@@ -168,6 +222,15 @@ public class LocalSandboxProvider(
                 catch (InvalidOperationException)
                 {
                     // Already gone. Nothing to do, and nothing worth logging.
+                }
+
+                try
+                {
+                    File.Delete($"{workspace}.devpid");
+                }
+                catch (IOException)
+                {
+                    // Disk, not correctness. The sweep at the next start will find it.
                 }
 
                 if (!_local.DeleteWorkspaceOnStop)

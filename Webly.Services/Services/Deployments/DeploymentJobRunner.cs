@@ -123,9 +123,16 @@ public class DeploymentJobRunner(
 
             site.ProviderProjectId ??= await target.EnsureProjectAsync(site.Nanoid, site.Name, stoppingToken);
 
+            // The address, resolved before the build rather than after it: the published pages carry it, so the
+            // build has to be told. `UrlFor` and not `LiveUrlFor` — a canonical link that changed with every
+            // deployment would tell search engines the site moves every time somebody fixes a headline.
+            var primary = await domains.FindPrimaryAsync(site.Id, stoppingToken);
+            var address = mapper.UrlFor(site, primary);
+
             var deployed = await target.BuildAndDeployAsync(
                 sandbox,
                 site.ProviderProjectId,
+                address,
                 // The build log, streamed: a build is the longest wait in the product, and a person watching a
                 // progress bar with no output assumes it has hung.
                 text => sink.EmitAsync(deployment.Nanoid, new RunEvent
@@ -149,8 +156,6 @@ public class DeploymentJobRunner(
 
             // The address the whole product prints, arranged rather than assumed. See EnsureAddressAsync.
             await EnsureAddressAsync(target, site, sites.Value.HostFor(site.Slug), dbContext, stoppingToken);
-
-            var primary = await domains.FindPrimaryAsync(site.Id, stoppingToken);
 
             // Where it can be opened, which is not always its address — see `SiteMapper`. The email and the
             // terminal event carry the same one the header links, because a link in an email that 404s is worse

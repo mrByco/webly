@@ -72,10 +72,19 @@ public class VercelDeploymentTarget(
     public async Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
+        string siteUrl,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
-        var environment = new Dictionary<string, string> { ["VERCEL_TOKEN"] = _vercel.Token };
+        var environment = new Dictionary<string, string>
+        {
+            ["VERCEL_TOKEN"] = _vercel.Token,
+
+            // Read by the site's own `next build` for its canonical link and its sitemap. Passed in the
+            // environment rather than configured at the provider, because it is this build's input and a
+            // project setting is one more thing that can disagree with the site row.
+            ["NEXT_PUBLIC_SITE_URL"] = siteUrl
+        };
 
         if (_vercel.TeamId.Length > 0) environment["VERCEL_ORG_ID"] = _vercel.TeamId;
 

@@ -4,7 +4,7 @@
 // SDK. See tools/e2e/README.md.
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, createWriteStream } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, createWriteStream } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -27,6 +27,9 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
   const agentPort = port || (await freePort());
   const devServerPort = devPort || (await freePort());
 
+  // Beside the workspace rather than in it: a file inside would travel into the tree the agent hands back.
+  const devPidFile = `${workspace}.devpid`;
+
   const child = spawn(process.execPath, [AGENT], {
     env: {
       ...process.env,
@@ -34,6 +37,7 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
       WEBLY_AGENT_PORT: String(agentPort),
       WEBLY_AGENT_TOKEN: token,
       WEBLY_DEV_PORT: String(devServerPort),
+      WEBLY_DEV_PIDFILE: devPidFile,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so disposing can kill the group. The dev server is a *grandchild* — the agent
@@ -56,7 +60,26 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
     devPort: devServerPort,
     get log() { return log; },
     async dispose() {
-      // The negative pid is the process group: the agent and whatever it started.
+      // SIGTERM to the agent first, because its own handler is what takes the dev server down: `next dev` is
+      // spawned **detached**, in its own process group, so the group kill below never reached it. Five stray
+      // dev servers with deleted workspaces, each spinning on files that are not there, is what that looked
+      // like from outside — and it is why this waits before falling back.
+      try {
+        process.kill(child.pid, 'SIGTERM');
+        await Promise.race([once(child, 'exit'), new Promise(resolve => setTimeout(resolve, 2000))]);
+      } catch {
+        // Already gone.
+      }
+
+      // The pidfile is the backstop for the case the agent could not act on that signal at all.
+      try {
+        const pid = Number(readFileSync(devPidFile, 'utf8'));
+        if (pid > 0) process.kill(-pid, 'SIGKILL');
+      } catch {
+        // No dev server, or it is already gone.
+      }
+
+      // The negative pid is the process group: the agent and whatever it started in it.
       try {
         process.kill(-child.pid, 'SIGKILL');
       } catch {
@@ -72,6 +95,7 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
       ]).catch(() => undefined);
 
       rmSync(workspace, { recursive: true, force: true });
+      rmSync(devPidFile, { force: true });
     },
   };
 
