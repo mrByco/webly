@@ -72,12 +72,27 @@ Two harnesses drive it, and they answer different questions:
 
 - **`OpenCodeAgent` and `VercelDeploymentTarget`** — written against another product's documented interface,
   never executed. `docs/deploy-plan.md` §6 says what to reconcile in the Vercel one first.
-- **`DockerSandboxProvider` and `E2bSandboxProvider`** — only `local` has run. The contract they all speak is
-  the one `tools/e2e` exercises, which is the point of having it.
+- **`E2bSandboxProvider`** — never run. The contract every provider speaks is the one `tools/e2e` exercises,
+  which is the point of having it. **`DockerSandboxProvider` has now run**: a container started, published a
+  loopback port, answered `/health`, took a seeded tree, ran a turn's agent and handed the tree back, and a
+  version was committed from it. Two things it had wrong are fixed below. What has still not run in it is a
+  `next dev` — see the note on the font.
 - **The real agent inside the app.** `ClaudeStreamJsonParser` is covered by a recorded transcript and the
   `claude` CLI has run under `tools/e2e/run.mjs`, but every turn through the running app so far has been the
   mock. That needs `Agent:ClaudeCode:ApiKey` in user secrets and nothing else.
 - **Google sign-in and Resend**, which are configuration away and absent by design without it.
+
+### Docker here, and what it is actually good for
+
+A daemon **can** be started in this kind of container — `dockerd --iptables=false --ip6tables=false`, as
+root — and containers run. What does not work is the **image registry**: a pull answers 403 at the egress
+proxy. So `docker build` on `deploy/sandbox/Dockerfile` is out, because its base image cannot be fetched.
+
+The way round it, when the Docker provider needs exercising: assemble a rootfs on the host — the node
+install, `git`, a handful of `/bin` tools with their libraries, `tools/sandbox-agent`, and the template's
+`node_modules` under `/workspace` — `tar` it, and `docker import --change 'CMD …'`. That is how
+`DockerSandboxProvider` was first run. It is not the real image and it does not have to be: what it proves is
+the provider's plumbing, not the Dockerfile's.
 
 ### Getting a .NET SDK where there is not one
 
@@ -589,6 +604,20 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   is why a warm turn only pays about a second for the check; and `*.tsbuildinfo` is in the sandbox agent's
   `IGNORED`, which is what actually decides what a commit can contain. Belt and braces deliberately — that list
   must not depend on one setting in one file the agent is asked not to edit.
+- **`DockerSandboxProvider` had two defects that only running it could show.** It read the child's stdout to
+  the end and *then* its stderr, which is a deadlock as soon as the other pipe fills — and `docker run` is the
+  command that fills it, because the first run on any machine pulls the image and a pull writes megabytes of
+  progress to stderr. `GitSiteRepositoryStore` has always drained both at once, because it has always been
+  run. And it had no first-use sweep, so every restart of the API left one container per open site running
+  with a `next dev` inside it, for ever; `LocalSandboxProvider` has had that sweep since sixteen orphaned dev
+  servers wedged a machine.
+- **`next/font/google` needs egress at build time**, which the sandbox is exactly the place not to have. Seen
+  in a container with no route out: `next dev` logs "Failed to download Inter from Google Fonts. Using
+  fallback font instead" and carries on, so the site builds and publishes in a font nobody chose. The
+  template's comment — "self-hosted at build time by next/font, so a published page makes no request to a font
+  CDN" — is true of the *published page* and not of the build. Either the sandbox gets that one host, or the
+  template moves to `next/font/local` with the file committed, which is the stronger answer and needs the
+  `.woff2` in the repository.
 - **The sandbox contract is ours** (`tools/sandbox-agent`, zero dependencies, baked into the image). A
   provider's job is "start this image, give me a URL"; files, exec and preview all go through one HTTP
   contract we can test. That is what makes E2B → Fly → Daytona a class nobody else has to know about.

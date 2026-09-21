@@ -236,6 +236,21 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     The proper fix is a separate origin for previews. It needs a wildcard DNS record and a certificate, which
     is why it is written down rather than done.
 
+31. **The Docker sandbox provider ran for the first time, and had two defects.** It read a child's stdout to
+    the end before its stderr — a deadlock the moment the other pipe fills, which `docker run` does on the
+    first run of any machine, because a pull writes its progress to stderr. And it had no first-use sweep, so
+    every restart of the API left a container per open site running with a `next dev` inside it; the local
+    provider has had that sweep since sixteen orphaned dev servers wedged a machine. Both fixed, both watched
+    working against a real daemon.
+
+    Getting there is written down in CLAUDE.md: a daemon starts fine here, the registry is what is blocked, and
+    a rootfs assembled on the host and `docker import`ed is enough to exercise the provider.
+
+    One thing that run showed and nothing else would have: **`next/font/google` fetches at build time**. In a
+    sandbox with no egress `next dev` says "Failed to download Inter… Using fallback font instead" and carries
+    on, so a site builds and publishes in a font nobody chose. The fix is `next/font/local` with the file
+    committed, which needs the `.woff2` in the repository.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
