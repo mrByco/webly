@@ -38,15 +38,20 @@ Two harnesses drive it, and they answer different questions:
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
-  error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, or **a 404 on anything the page
-  asked for** — which is the defect it was
+  error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, **an obvious accessibility
+  mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
+  page with no `h1` or several), or **a 404 on anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
   that was perfect. It skips the published screens for a site nobody has published, and asserts they answer
   404 instead, because a harness that is red when the product is right is one nobody reads.
   The sideways-scroll rule reads class names rather than computed style, deliberately: CSS gives `overflow-x`
   the used value `auto` the moment `overflow-y` is not visible, so a column that scrolls vertically and a strip
   meant to scroll horizontally are reported identically by the browser, and only the author's intent — which
-  this app writes in its classes — tells them apart. It exists because five defects in one afternoon — an unstyled published
+  this app writes in its classes — tells them apart. The accessibility rules are deliberately a handful rather
+  than an audit: a real audit needs a dependency and produces a report somebody has to triage, and what is
+  here is the set that is unambiguous, that a component can regress silently, and that each make a page
+  unusable for somebody. They apply to the published site too, which is the half `AGENTS.md` asks the agent
+  for. It exists because five defects in one afternoon — an unstyled published
   site, a 404 that served Webly's dashboard, a title that named no site, pill-shaped form fields, a deleted
   site still serving — had all been "checked" by reading HTML that was perfect.
 - **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it

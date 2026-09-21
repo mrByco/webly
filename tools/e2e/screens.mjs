@@ -156,6 +156,69 @@ async function sidewaysScroll(page) {
   });
 }
 
+/**
+ * The accessibility mistakes that are worth failing a build for, and only those.
+ *
+ * Not an audit — a real one needs a dependency and produces a report somebody has to triage, and the whole
+ * point of this file is a check that is green or red. What is here is the handful that are unambiguous, that
+ * a template or a component can regress silently, and that each make the page unusable for somebody: a
+ * control nothing can announce, a picture with nothing to say instead, a field with no label, and a page with
+ * no heading to land on.
+ *
+ * `templates/next-site/AGENTS.md` tells the agent that accessibility is not optional. This is the half of
+ * that sentence the product can actually check, and it checks Webly's own screens by the same rule.
+ */
+async function accessibility(page) {
+  return page.evaluate(() => {
+    const problems = [];
+    const visible = element => {
+      const box = element.getBoundingClientRect();
+
+      return box.width > 0 && box.height > 0 && getComputedStyle(element).visibility !== 'hidden';
+    };
+
+    const named = element =>
+      (element.textContent ?? '').trim().length > 0
+      || element.getAttribute('aria-label')?.trim()
+      || element.getAttribute('title')?.trim()
+      || element.getAttribute('aria-labelledby');
+
+    const describe = element => {
+      const classes = (element.className?.toString?.() ?? '').trim().split(/\s+/).slice(0, 2).join('.');
+
+      return `${element.tagName.toLowerCase()}${classes ? '.' + classes : ''}`;
+    };
+
+    for (const image of document.querySelectorAll('img')) {
+      // An empty alt is a decision — "this picture says nothing a reader needs" — and a missing one is not.
+      if (image.getAttribute('alt') === null) problems.push(`${describe(image)} has no alt (${image.src.slice(-40)})`);
+    }
+
+    for (const control of document.querySelectorAll('button, a[href], [role="button"]')) {
+      if (!visible(control)) continue;
+      if (!named(control)) problems.push(`${describe(control)} has no accessible name`);
+    }
+
+    for (const field of document.querySelectorAll('input:not([type="hidden"]), textarea, select')) {
+      if (!visible(field)) continue;
+
+      const labelled = field.labels?.length
+        || field.getAttribute('aria-label')
+        || field.getAttribute('aria-labelledby')
+        || field.getAttribute('placeholder');
+
+      if (!labelled) problems.push(`${describe(field)} has nothing naming it`);
+    }
+
+    const headings = [...document.querySelectorAll('h1')].filter(visible);
+
+    if (headings.length === 0) problems.push('no h1 on the page');
+    if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+
+    return problems.slice(0, 4);
+  });
+}
+
 async function shot(page, name, width) {
   await page.setViewportSize({ width, height: width < 700 ? 844 : 950 });
   await page.waitForTimeout(600);
@@ -237,6 +300,11 @@ try {
 
       for (const pane of await sidewaysScroll(page))
         problems.push(`${name} @${width}: ${pane} — content is being cut off`);
+
+      // Only at one width: these are questions about the markup, and asking them twice reports each answer
+      // twice.
+      if (width === 1400)
+        for (const failing of await accessibility(page)) problems.push(`${name}: ${failing}`);
     }
 
     process.stdout.write(`  · ${name}\n`);
