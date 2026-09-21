@@ -64,8 +64,12 @@ shows up.
 - `src/app/` — routes. `page.tsx` is the home page; a new page is a folder with a `page.tsx`.
 - `src/app/layout.tsx` — the shell: header, footer, fonts, metadata.
 - `src/components/` — reusable pieces. Keep them small and typed.
-- `src/app/globals.css` — Tailwind plus the site's design tokens. Change colours and type **here**, once,
-  rather than putting class names for one brand colour on forty elements.
+- `src/app/look.css` — this site's colour and corner radius, as three numbers. "Make it green", "something
+  warmer", "softer corners" are edits to **this file and nothing else**: the whole palette, neutrals included,
+  is derived from the hue and chroma. Webly picks them when the site is created so that two new sites are not
+  identical, and they are yours to change from the first message onwards.
+- `src/app/globals.css` — Tailwind plus the tokens derived from `look.css`. Change *how* a token is derived
+  here, once, rather than putting class names for one brand colour on forty elements.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
 - `src/app/sitemap.ts` — the list of this site's pages. **Add a line when you add a page**: a static export
   cannot discover its own routes, so a page missing from here is a page search engines find late or not at all.

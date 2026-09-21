@@ -1,0 +1,16 @@
+/*
+ * This site's look: one colour and one shape, as three numbers.
+ *
+ * Webly writes this file once, when the site is created, so that two businesses that have never edited
+ * anything do not have identical websites. It is the only file here whose contents are chosen rather than
+ * written, and it is deliberately tiny — everything else in `globals.css` is derived from these.
+ *
+ * "Make it green", "make it feel more serious", "softer corners" are all edits to this file and nothing else.
+ * The hue is an OKLCH angle: 25 is terracotta, 145 green, 220 sea blue, 265 indigo, 330 plum. Chroma is how
+ * much colour there is at all — 0.03 reads as a near-black ink, 0.19 as a confident brand.
+ */
+:root {
+  --brand-hue: 268;
+  --brand-chroma: 0.19;
+  --card-radius: 0.875rem;
+}

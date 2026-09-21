@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./look.css";
 
 /*
  * The site's design tokens, in one place.
@@ -6,20 +7,25 @@
  * Change a colour or the type here and the whole site follows. That is what keeps "make it warmer" a one-line
  * edit instead of a class-name hunt across forty elements — and it is the first thing to read before styling
  * anything new.
+ *
+ * Every colour is derived from the two numbers in `look.css`, on purpose: a palette whose neutrals ignore the
+ * brand hue looks like a brand colour dropped onto somebody else's site, and eight hand-picked colours are
+ * eight things to change in step when somebody asks for a different one. The lightness and chroma of each
+ * line are what make it a palette rather than one colour at eight opacities.
  */
 @theme {
-  --color-brand: oklch(52% 0.19 268);
-  --color-brand-strong: oklch(44% 0.19 268);
-  --color-brand-soft: oklch(95% 0.03 268);
+  --color-brand: oklch(52% var(--brand-chroma) var(--brand-hue));
+  --color-brand-strong: oklch(44% var(--brand-chroma) var(--brand-hue));
+  --color-brand-soft: oklch(95% calc(var(--brand-chroma) * 0.16) var(--brand-hue));
 
-  --color-ink: oklch(24% 0.012 268);
-  --color-ink-muted: oklch(48% 0.012 268);
-  --color-page: oklch(99.5% 0.002 268);
-  --color-edge: oklch(91% 0.008 268);
+  --color-ink: oklch(24% 0.012 var(--brand-hue));
+  --color-ink-muted: oklch(48% 0.012 var(--brand-hue));
+  --color-page: oklch(99.5% 0.002 var(--brand-hue));
+  --color-edge: oklch(91% 0.008 var(--brand-hue));
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
-  --radius-card: 0.875rem;
+  --radius-card: var(--card-radius);
 }
 
 @layer base {

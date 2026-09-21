@@ -145,8 +145,14 @@ The phase that is now the product rather than a catalogue expansion:
   makes the report true when it did not. Ask the mock agent to "break the types" to see it. It also found the
   bug that asking had already introduced: `tsc --incremental` writes its cache beside `tsconfig.json`, so every
   turn that obeyed would have committed it into the customer's history.
-- **Starter variety.** One template produces one shape of website. A handful of templates, chosen by what
-  the person says in their first message, is the smallest honest answer.
+- ~~**Starter variety.**~~ Done, and not as this line imagined it. A handful of templates would be a handful
+  of copies of every convention — the contact form, the images rule, the SEO files — to keep in step the next
+  time one changes, which is a cost paid on every future rule rather than once. So it is **one template and
+  five looks**: `SiteLooks` writes a hue, a chroma and a card radius into `src/app/look.css` at creation, and
+  the palette including the neutrals derives from them. Two new sites no longer look alike, and "make it
+  green" is an edit to one file rather than a theme system. What this does not give is a different *shape* of
+  site — a restaurant's menu page, a tradesperson's service list — and that is the agent's job on the first
+  turn, which is the thing to judge once there is a model key.
 - **Regression tests for turns**, which means recorded transcripts and assertions about the tree, not about
   the prose.
 

@@ -57,11 +57,31 @@ public class FileSystemDeploymentTarget(
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
+        // The site's nanoid, which is what the project id is made of — not its slug, although the directory
+        // reads like one. A slug can be reused by a later site once an old one is deleted; a nanoid never is,
+        // and a published directory outliving the site that wrote it must not become a different site's.
+        var directory = projectId.StartsWith("local-", StringComparison.Ordinal)
+            ? projectId["local-".Length..]
+            : projectId;
+
         var build = await sandbox.RunAsync(
             new SandboxCommand("npm", ["run", "build"], TimeSpan.FromMinutes(10),
                 new Dictionary<string, string>
                 {
                     ["NEXT_TELEMETRY_DISABLED"] = "1",
+
+                    // Where this copy of the site is served from, which here is a path under the dev host
+                    // rather than the root of a domain. Next.js writes **absolute** URLs for its stylesheets
+                    // and its chunks, so without this every published site asked for `/_next/...` at the root
+                    // of Webly's own origin and rendered as unstyled HTML — the same mistake the preview made,
+                    // found the same way, by looking at the page instead of reading it. The real target sets
+                    // nothing here, because a site published to a domain is served from its root.
+                    //
+                    // The variable says "preview" because the template and the sandbox agent have called it
+                    // that since it was only the preview's; what it means is "the path this build is served
+                    // under". Renaming it would break the preview of every site created before the rename,
+                    // since each one carries its own `next.config.ts`.
+                    ["WEBLY_PREVIEW_BASE"] = $"/published/{directory}",
 
                     // The site's own address. Locally it does not resolve — nothing serves a subdomain of the
                     // production zone from a developer's machine — and the build is still told it, because a
@@ -85,13 +105,6 @@ public class FileSystemDeploymentTarget(
             throw new DeploymentFailedException(
                 "Your site did not build, so nothing was published. The error is below — ask the assistant to fix it.",
                 build.Output);
-
-        // The site's nanoid, which is what the project id is made of — not its slug, although the directory
-        // reads like one. A slug can be reused by a later site once an old one is deleted; a nanoid never is,
-        // and a published directory outliving the site that wrote it must not become a different site's.
-        var directory = projectId.StartsWith("local-", StringComparison.Ordinal)
-            ? projectId["local-".Length..]
-            : projectId;
 
         var target = Path.Combine(Path.GetFullPath(_local.Root), directory);
 

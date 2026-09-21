@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 103-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 109-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -307,6 +307,15 @@ structured-document model it replaced was better at.
   nobody connects to it, and git's own sentence — `fatal: git update-index: --cacheinfo cannot add ../evil.txt`
   — reaches the chat as a failed turn nobody can act on. A *leading dot* is deliberately fine: `.gitignore` and
   `.env.example` are ordinary files in a Next.js project.
+- **One template, five looks.** `SiteLooks` rewrites three numbers in `src/app/look.css` — an OKLCH hue, a
+  chroma and a card radius — in the template's tree on the way to a site's first commit, at random. The whole
+  palette including the neutrals is derived from those, so a site's character changes without a line of its
+  markup changing, and "make it green" stays an edit to one small file. Random rather than asked for: the
+  first screen of this product asks for a name and nothing else, and a palette picker before anybody has
+  described their business is a decision about something that does not exist yet. A template whose file has
+  moved or been reshaped is left exactly as it is — a site with the default look is a small disappointment and
+  a site whose stylesheet we corrupted is a broken website. Four full templates were the alternative, and they
+  would be four copies of every convention to keep in step the next time a rule changes.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
   `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, `sitemap.ts`, a
   `not-found.tsx` that is a page of the site rather than the host's default, and canonical and Open Graph
@@ -516,6 +525,15 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   `CompilerOutput.Readable` and **then** trimmed to a tail, in that order: it reached the screen raw until a failed
   publish was watched in a browser, and trimming first sliced the middle out of SWC's backtrace, which left the
   frames in and the marker that identifies them out.
+- **A locally published site is served under a path, and the build has to be told.** Next.js writes absolute
+  URLs for its stylesheets and chunks, so `FileSystemDeploymentTarget` passes `WEBLY_PREVIEW_BASE` =
+  `/published/{nanoid}` — without it every published site asked for `/_next/…` at the root of Webly's own
+  origin and rendered as unstyled HTML. That was true from the first publish and nobody saw it, because every
+  check until now read the HTML and the HTML was perfect; it took opening one in a browser. The same mistake,
+  in the same product, for the same reason as the preview's. The Vercel target passes nothing, because a site
+  on its own domain is served from the root. The variable is named for the preview because the template and
+  the sandbox agent have called it that since it was only the preview's, and renaming it would break the
+  preview of every site created before the rename — each one carries its own `next.config.ts`.
 - **The CLIs are pinned in the image**, and the deployment target calls `vercel` rather than `npx vercel`:
   a publish that works on Tuesday and not on Wednesday, with no diff to blame, is the failure that costs
   the most to diagnose.

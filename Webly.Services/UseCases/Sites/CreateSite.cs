@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Webly.Data;
 using Webly.Data.Models.Sites;
@@ -39,7 +40,8 @@ public class CreateSite(
     ISiteTemplateSource templates,
     SiteMapper mapper,
     IOptions<SitesOptions> sites,
-    WeblyDbContext dbContext)
+    WeblyDbContext dbContext,
+    ILogger<CreateSite> logger)
 {
     public async Task<Result<SiteError, SiteSummaryResponse>> ExecuteAsync(
         int userId,
@@ -71,10 +73,19 @@ public class CreateSite(
 
         const string summary = "Created from the Webly starter template";
 
+        // One template, but not one look: every site would otherwise be the same indigo page until somebody
+        // asked for something else, and a product whose customers' sites look alike is a template mill. Three
+        // numbers in one stylesheet, chosen here and never stored — the site's source is where its colour
+        // lives, which is what makes "make it green" an ordinary edit. See SiteLooks.
+        var look = SiteLooks.Choose();
+        var template = SiteLooks.Applied(await templates.ReadAsync(cancellationToken), look);
+
+        logger.LogInformation("Creating {Site} with the {Look} look.", site.Nanoid, look.Name);
+
         var commit = await repositories.InitializeAsync(
             site.Nanoid,
             site.DefaultBranch,
-            await templates.ReadAsync(cancellationToken),
+            template,
             new CommitAuthor(user.DisplayName, user.Email),
             summary,
             cancellationToken);

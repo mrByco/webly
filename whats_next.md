@@ -42,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 103 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 109 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -109,6 +109,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     `tsc --incremental` writes its cache next to `tsconfig.json`, so the instruction Webly had been giving would
     have put a machine-readable dump of the project in every commit. It had never happened only because every
     turn through the app so far was the mock agent's.
+16. **Every locally published site had been unstyled since the first one.** A static export writes absolute
+    URLs for its stylesheet and its chunks, and the development target serves each site under
+    `/published/{nanoid}/` — so every one of them asked for `/_next/…` at the root of Webly's own origin and
+    rendered as black-on-white HTML. Nothing caught it because every check ever made read the page's HTML,
+    and the HTML was perfect; it took opening one in a browser. This is the second time this exact mistake has
+    happened in this product, the first being the preview, which is why the fix is now asserted by a test that
+    names the environment variable rather than by a comment.
 
 ## What is still intent
 
