@@ -5,39 +5,55 @@ using Webly.Services.Services.Repositories;
 namespace Webly.Services.UseCases.Sites;
 
 /// <summary>
-/// Keeps the agent's standing instructions current in a site that was created before they changed.
+/// Keeps the handful of files Webly owns current in a site that was created before they changed.
 ///
-/// <b><c>AGENTS.md</c> is the closest thing this product has to a prompt</b>, and it lives in each site's own
-/// repository — which is what makes a site self-contained and what makes the instructions go stale. A site
-/// created last month has last month's rules: it would not know that a form must use <c>ContactForm</c>
-/// because the site it is editing cannot receive a post any other way, or that photographs live in
-/// <c>public/images</c>. That is not a cosmetic drift; it is the agent confidently doing the thing the rules
-/// were written to prevent.
+/// A site is self-contained — its rules and its build contract are files in its own repository, which is what
+/// makes it a real project somebody can clone and keep. The cost of that is drift: a site created last month
+/// has last month's copies of both.
 ///
-/// So the instructions are refreshed before a turn, and <b>as their own version</b>. The obvious cheaper thing
+/// <b><c>AGENTS.md</c> is the closest thing this product has to a prompt.</b> A site whose copy is old does
+/// not know that a form must use <c>ContactForm</c> because the site cannot receive a post any other way, or
+/// that photographs live in <c>public/images</c>. That is not cosmetic drift; it is the agent confidently
+/// doing the thing the rule was written to prevent.
+///
+/// <b><c>next.config.ts</c> is the build contract</b>, and the template's <c>AGENTS.md</c> is what makes
+/// rewriting it safe: it is on the list of files the agent must not touch, so the only copy that can exist is
+/// ours. A fix there — the static export's settings, or turning off the dev badge that Next drew on top of
+/// every customer's preview of their own site — would otherwise reach new sites only, for ever.
+///
+/// So they are refreshed before a turn, and <b>as their own version</b>. The obvious cheaper thing
 /// — letting the update ride along in the turn's own commit — is the mistake this codebase has already made
 /// once: <c>npm install</c> rewrote <c>package-lock.json</c> during seeding and a turn's diff became the
 /// headline somebody asked for plus eighty-four lines they did not. A person's version says what they asked
 /// for; this one says what it is.
 ///
 /// It is deliberately not a background job over every site. A site nobody is editing does not need current
-/// instructions, and a migration that touched every repository at once would be a write to thousands of
-/// histories for a file no visitor ever sees.
+/// files, and a migration that touched every repository at once would be a write to thousands of histories
+/// for files no visitor ever sees.
 /// </summary>
-public class SyncSiteInstructions(
+public class SyncWeblyOwnedFiles(
     ISiteTemplateSource templates,
     ISiteRepositoryStore repositories,
     CommitSiteVersion commitSiteVersion,
-    ILogger<SyncSiteInstructions> logger)
+    ILogger<SyncWeblyOwnedFiles> logger)
 {
     /// <summary>
-    /// What counts as the instructions: the rules, and the file that points at them.
+    /// The agent's standing rules, and the one-line file that points at them.
     ///
-    /// <c>CLAUDE.md</c> is one line long and exists so that both CLIs read the same file — which means it is
-    /// also the file that would silently stop pointing anywhere if the rules were ever renamed. Listed here so
-    /// that the pair moves together.
+    /// <c>CLAUDE.md</c> exists so that both CLIs read the same file — which means it is also the file that
+    /// would silently stop pointing anywhere if the rules were ever renamed. Listed beside them so the pair
+    /// moves together.
     /// </summary>
-    public static readonly string[] Paths = ["AGENTS.md", "CLAUDE.md"];
+    public static readonly string[] Instructions = ["AGENTS.md", "CLAUDE.md"];
+
+    /// <summary>
+    /// The build contract: what Webly's publish and the editor's preview both depend on. Safe to rewrite
+    /// because the template's own rules put it on the list the agent must not touch.
+    /// </summary>
+    public static readonly string[] BuildContract = ["next.config.ts"];
+
+    /// <summary>Everything above, which is the whole of what Webly owns inside a site.</summary>
+    public static readonly string[] Paths = [.. Instructions, .. BuildContract];
 
     /// <summary>
     /// Commits the current instructions if this site's differ. Returns the version it wrote, or null — the
@@ -92,8 +108,8 @@ public class SyncSiteInstructions(
             author,
             userId,
             SiteVersionOrigin.Template,
-            "Updated the editing instructions",
-            details: "Webly's own guidance for the assistant that edits this site: "
+            SummaryFor(stale),
+            details: "Files Webly keeps up to date in every site: "
                 + string.Join(", ", stale.Select(x => x.Path)) + ".",
             cancellationToken: cancellationToken);
 
@@ -105,5 +121,23 @@ public class SyncSiteInstructions(
                 version.Nanoid);
 
         return version;
+    }
+
+    /// <summary>
+    /// What the history entry says. Written for the person reading it — "Updated the editing instructions"
+    /// next to "Set the headline to …" tells them something; the file names are in the details underneath.
+    /// </summary>
+    private static string SummaryFor(IEnumerable<WorkspaceFile> stale)
+    {
+        var paths = stale.Select(x => x.Path).ToList();
+        var rules = paths.Any(Instructions.Contains);
+        var build = paths.Any(BuildContract.Contains);
+
+        return (rules, build) switch
+        {
+            (true, true) => "Updated the editing instructions and the build settings",
+            (false, true) => "Updated this site's build settings",
+            _ => "Updated the editing instructions"
+        };
     }
 }

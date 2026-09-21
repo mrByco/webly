@@ -165,6 +165,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     **no extension**, which a static file middleware will not serve — so the card 404ed while the markup
     swore it was there, which is the same shape of defect as every other one on this list.
 
+23. **Next's dev badge sat on top of every customer's preview.** A floating button in the corner of the
+    preview pane, put there by `next dev`, offering route types and build activity to somebody who was told
+    they would never have to touch code. `devIndicators: false` turns it off — and the interesting half is
+    that `next.config.ts` lives in each site's own repository, so the fix would have reached new sites only.
+    `SyncWeblyOwnedFiles` (was `SyncSiteInstructions`) now carries the build contract alongside `AGENTS.md`,
+    which is safe precisely because the rules the agent reads put that file on the list it must not touch.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

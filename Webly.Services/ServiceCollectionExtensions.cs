@@ -71,7 +71,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<SiteMapper>();
         services.AddScoped<CommitSiteVersion>();
-        services.AddScoped<SyncSiteInstructions>();
+        services.AddScoped<SyncWeblyOwnedFiles>();
         services.AddScoped<CreateSite>();
         services.AddScoped<ListSites>();
         services.AddScoped<GetSite>();

@@ -25,6 +25,16 @@ const config: NextConfig = {
    */
   basePath: process.env.WEBLY_PREVIEW_BASE || undefined,
   images: { unoptimized: true },
+  /**
+   * Next's own dev badge, off.
+   *
+   * It is a floating button in the corner of every page `next dev` serves — and in this product that page is
+   * the **customer's preview of their own website**, inside the editor. It is Next.js talking to a developer
+   * about route types and build activity, to somebody who was told they would never have to touch code, and
+   * pressing it opens tooling that means nothing to them. Nothing else about `next dev` leaks into the
+   * preview; this did.
+   */
+  devIndicators: false,
   // Trailing slashes keep `/about` and `/about/` the same page on a static host, which is what stops a shared
   // link from 404ing depending on how somebody typed it.
   trailingSlash: true,

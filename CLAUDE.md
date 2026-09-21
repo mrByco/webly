@@ -446,7 +446,7 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   was at risk — the agent has a shell in there — but speaking as the control plane on its own machine is one
   step it should not have towards speaking as the control plane anywhere else. `tools/e2e/run.mjs` asserts a
   command cannot see it.
-- **`AGENTS.md` is refreshed before a turn, as its own version.** It ships inside each site's repository —
+- **The files Webly owns inside a site are refreshed before a turn, each as its own version.** It ships inside each site's repository —
   which is what makes a site self-contained and what makes its rules as old as the site. The forms rule
   ("never write a server for one; this site is a static export") would have reached no existing site at all,
   and a stale rule is the agent confidently doing the thing the rule exists to prevent. `SyncSiteInstructions`
@@ -456,6 +456,11 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   that put eighty-four lines of lockfile into somebody's headline change. Two `cat-file`s decide the usual
   case, so the whole tree is only read when something really changed; and `CommitSiteVersion` now updates
   `Site.HeadVersion` as well as the id, or the workspace would be seeded with the tree that commit replaced.
+  **`next.config.ts` travels the same way**, with its own summary ("Updated this site's build settings"). It
+  is the build contract, and what makes rewriting it safe is that the template's own rules put it on the list
+  the agent must not touch — so the only copy that can exist is ours. Without it a fix there reaches new sites
+  only, for ever: turning off Next's floating dev badge, which `next dev` drew on top of every customer's
+  preview of their own website, would have left every existing site with it.
 - **`AGENTS.md` in the site's repository is the other half of it.** A tool list cannot say "never write a
   testimonial nobody gave you", and a plausible invention published on a real business's website is the
   worst thing this product can do. The agent asks in its reply and the turn ends; the answer is the
