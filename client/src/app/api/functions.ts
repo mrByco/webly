@@ -93,6 +93,10 @@ export type { ApiSitesNanoidPut$Params as ApiSitesNanoidPut$Params } from './fn/
 export { apiSitesNanoidPut as apiSitesNanoidPut } from './fn/site/api-sites-nanoid-put';
 export type { ApiSitesNanoidDelete$Params as ApiSitesNanoidDelete$Params } from './fn/site/api-sites-nanoid-delete';
 export { apiSitesNanoidDelete as apiSitesNanoidDelete } from './fn/site/api-sites-nanoid-delete';
+export type { ApiSitesNanoidWorkspacePost$Plain$Params as ApiSitesNanoidWorkspacePost$Plain$Params } from './fn/site/api-sites-nanoid-workspace-post-plain';
+export { apiSitesNanoidWorkspacePost$Plain as apiSitesNanoidWorkspacePost$Plain } from './fn/site/api-sites-nanoid-workspace-post-plain';
+export type { ApiSitesNanoidWorkspacePost$Json$Params as ApiSitesNanoidWorkspacePost$Json$Params } from './fn/site/api-sites-nanoid-workspace-post-json';
+export { apiSitesNanoidWorkspacePost$Json as apiSitesNanoidWorkspacePost$Json } from './fn/site/api-sites-nanoid-workspace-post-json';
 export type { ApiSitesNanoidOpenPost$Params as ApiSitesNanoidOpenPost$Params } from './fn/site/api-sites-nanoid-open-post';
 export { apiSitesNanoidOpenPost as apiSitesNanoidOpenPost } from './fn/site/api-sites-nanoid-open-post';
 export type { ApiSitesNanoidVersionsGet$Plain$Params as ApiSitesNanoidVersionsGet$Plain$Params } from './fn/site/api-sites-nanoid-versions-get-plain';

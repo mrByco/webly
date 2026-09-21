@@ -146,6 +146,54 @@ export class SiteEditorPage {
     });
   }
 
+  /**
+   * Starts the workspace because somebody wants to look at their site, not because they changed it.
+   *
+   * The endpoint answers immediately and the workspace takes tens of seconds, so this polls the site — the same
+   * `workspaceReady` the editor reads on load. Polling rather than a run on the hub: there is nothing to say
+   * while it happens beyond "still starting", and a run would mean a second kind of thing to reconnect to.
+   */
+  protected async wakePreview(): Promise<void> {
+    const nanoid = this.nanoid();
+
+    if (!nanoid || this.workspaceProgress()) return;
+
+    this.workspaceProgress.set('Waking up your site');
+
+    try {
+      const { alreadyRunning } = await this.sites.wake(nanoid);
+
+      if (alreadyRunning) {
+        this.workspaceReady.set(true);
+        this.workspaceProgress.set(undefined);
+
+        return;
+      }
+
+      // Two minutes, which is longer than a cold start has ever taken and short enough to stop rather than
+      // spin for ever if the machine never arrives.
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const site = await this.sites.load(nanoid);
+
+        if (site.workspaceReady) {
+          this.workspaceReady.set(true);
+          this.workspaceProgress.set(undefined);
+          this.previewKey.update(key => key + 1);
+
+          return;
+        }
+      }
+
+      this.workspaceProgress.set(undefined);
+      this.error.set('Your preview did not start. Try asking for a change instead.');
+    } catch (failure) {
+      this.workspaceProgress.set(undefined);
+      this.error.set(messageOf(failure));
+    }
+  }
+
   private async load(nanoid: string): Promise<void> {
     try {
       const site = await this.sites.load(nanoid);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
@@ -42,6 +42,13 @@ export class SitePreview {
 
   /** Changing this re-fetches the iframe. See the class comment. */
   readonly reloadKey = input<number>(0);
+
+  /**
+   * Somebody pressed "wake it up". Handled by the editor rather than here, because starting a workspace ends in
+   * the same place a turn does — the site reloaded, `workspaceReady` true — and that state belongs to the shell
+   * that owns the site.
+   */
+  readonly wake = output<void>();
 
   private readonly sites = inject(SiteService);
   private readonly sanitizer = inject(DomSanitizer);

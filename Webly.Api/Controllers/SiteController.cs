@@ -25,6 +25,7 @@ public class SiteController(
     GetSiteVersion getSiteVersion,
     RestoreSiteVersion restoreSiteVersion,
     ReadSiteFiles readSiteFiles,
+    WakeSiteWorkspace wakeSiteWorkspace,
     ExportSite exportSite) : ControllerBase
 {
     [HttpGet]
@@ -47,6 +48,20 @@ public class SiteController(
         var result = await getSite.ExecuteAsync(this.GetUserId(), nanoid, cancellationToken);
 
         return result.Succeeded ? Ok(result.Value) : Failure(result.Error);
+    }
+
+    /// <summary>
+    /// Starts the site's preview without changing anything.
+    ///
+    /// 202, not 200: a workspace takes tens of seconds and the client watches <c>workspaceReady</c> rather than
+    /// this response. Under the site, like everything else about one — and a POST because it starts a machine.
+    /// </summary>
+    [HttpPost("{nanoid}/workspace")]
+    public async Task<ActionResult<WakeWorkspaceResponse>> Wake(string nanoid, CancellationToken cancellationToken)
+    {
+        var result = await wakeSiteWorkspace.ExecuteAsync(this.GetUserId(), nanoid, cancellationToken);
+
+        return result.Succeeded ? Accepted(result.Value) : Failure(result.Error);
     }
 
     [HttpPut("{nanoid}")]

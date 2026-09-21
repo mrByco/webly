@@ -93,6 +93,12 @@
 
                 <span class="min-w-0 flex-1 truncate">{{ deployment.siteVersionSummary }}</span>
 
+                <!-- When, because a list of publishes with no times is not a history. The finish, or the start
+                     for one that is still going. -->
+                <span class="shrink-0 text-xs text-base-content/55">
+                  {{ (deployment.finishedAt ?? deployment.createdAt) | date: 'd MMM, HH:mm' }}
+                </span>
+
                 @if (deployment.error) {
                   <span class="text-xs font-semibold text-error">{{ deployment.error }}</span>
                 }

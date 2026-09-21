@@ -507,9 +507,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   own dev server, so hot reload puts the agent's edits on screen with nothing on this side asking. Bumping
   `previewKey` reloads the frame and is for the case where the whole tree moved — a commit or a restore;
   it is a counter rather than a timestamp so unrelated renders do not make it flicker.
-- **A cold preview is a sentence, not a frame.** Only a turn starts a workspace, so the pane shows "your
-  preview is asleep" until `SiteDetailResponse.workspaceReady` or a `WorkspaceProgress` event says
-  otherwise. An iframe pointed at the 503 would render the browser's own error page.
+- **A cold preview is a sentence and a button, not a frame.** The pane shows "your preview is asleep" until
+  `SiteDetailResponse.workspaceReady` or a `WorkspaceProgress` event says otherwise — an iframe pointed at the 503
+  would render the browser's own error page. **"Wake it up" starts the workspace without changing anything**
+  (`POST /api/sites/{nanoid}/workspace`, 202, then the client polls `workspaceReady`): before it, the only way to
+  see a preview was to send a message, which costs a model call and writes a version — so looking at your own site
+  and editing it were the same button.
 - **The chat's hard part is disagreement between the page and the run.** A turn is started, then watched, as
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on

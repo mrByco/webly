@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,7 +19,7 @@ import { DeploymentResponse } from '../../api/models/deployment-response';
  */
 @Component({
   selector: 'app-site-settings',
-  imports: [FormsModule, Icon, Modal],
+  imports: [DatePipe, FormsModule, Icon, Modal],
   templateUrl: './site-settings.html',
 })
 export class SiteSettingsPage {

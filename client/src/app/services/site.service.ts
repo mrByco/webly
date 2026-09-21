@@ -5,6 +5,7 @@ import { apiSitesPost$Json } from '../api/fn/site/api-sites-post-json';
 import { apiSitesNanoidGet$Json } from '../api/fn/site/api-sites-nanoid-get-json';
 import { apiSitesNanoidPut } from '../api/fn/site/api-sites-nanoid-put';
 import { apiSitesNanoidOpenPost } from '../api/fn/site/api-sites-nanoid-open-post';
+import { apiSitesNanoidWorkspacePost$Json } from '../api/fn/site/api-sites-nanoid-workspace-post-json';
 import { apiSitesNanoidDelete } from '../api/fn/site/api-sites-nanoid-delete';
 import { apiSitesNanoidVersionsGet$Json } from '../api/fn/site/api-sites-nanoid-versions-get-json';
 import { apiSitesNanoidVersionsVersionNanoidGet$Json } from '../api/fn/site/api-sites-nanoid-versions-version-nanoid-get-json';
@@ -65,6 +66,16 @@ export class SiteService {
   async rename(nanoid: string, name: string): Promise<void> {
     await this.api.invoke(apiSitesNanoidPut, { nanoid, body: { name } });
     await this.reload();
+  }
+
+  /**
+   * Starts the site's preview without changing anything, for somebody who came to look rather than to edit.
+   *
+   * It answers before the workspace is ready — starting one is tens of seconds — so the caller watches
+   * `SiteDetailResponse.workspaceReady` by reloading the site, which is what the editor does anyway.
+   */
+  wake(nanoid: string): Promise<{ alreadyRunning: boolean }> {
+    return this.api.invoke(apiSitesNanoidWorkspacePost$Json, { nanoid });
   }
 
   /** Makes this the site the app opens on. See `User.CurrentSiteId` on the backend. */

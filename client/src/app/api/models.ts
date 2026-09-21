@@ -37,3 +37,4 @@ export type { SiteVersionOrigin } from './models/site-version-origin';
 export type { SiteVersionResponse } from './models/site-version-response';
 export type { VerifyEmailCodeRequest } from './models/verify-email-code-request';
 export type { VerifyEmailRequest } from './models/verify-email-request';
+export type { WakeWorkspaceResponse } from './models/wake-workspace-response';

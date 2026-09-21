@@ -56,8 +56,19 @@
           <app-icon class="size-7 text-base-content/40" name="eye" />
           <p class="text-sm font-semibold">Your preview is asleep</p>
           <p class="max-w-xs text-xs text-base-content/60">
-            Send a message and it wakes up with your site running in it.
+            It runs on its own machine, and one starts when you ask for a change — or now, if you only want a
+            look.
           </p>
+
+          <!--
+            Looking and changing used to be the same button. The only way to see a preview was to send a
+            message, which starts an agent turn: a model call and a version, because somebody wanted to check
+            what they had published.
+          -->
+          <button class="btn btn-sm mt-1" type="button" (click)="wake.emit()">
+            <app-icon class="size-4" name="eye" />
+            Wake it up
+          </button>
         }
       </div>
     }

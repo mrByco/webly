@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<RestoreSiteVersion>();
         services.AddScoped<ReadSiteFiles>();
         services.AddScoped<ExportSite>();
+        services.AddScoped<WakeSiteWorkspace>();
 
         services.AddScoped<AddDomain>();
         services.AddScoped<ListDomains>();

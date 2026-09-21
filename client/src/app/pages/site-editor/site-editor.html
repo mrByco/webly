@@ -129,7 +129,8 @@
               [siteNanoid]="detail.summary.nanoid"
               [ready]="workspaceReady()"
               [progress]="workspaceProgress()"
-              [reloadKey]="previewKey()" />
+              [reloadKey]="previewKey()"
+              (wake)="wakePreview()" />
           }
         </section>
       </div>
