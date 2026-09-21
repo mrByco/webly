@@ -57,6 +57,26 @@
       </a>
     </div>
 
+    <!--
+      What the assistant has written down about this business. Shown because it is the most consequential
+      text in the site and the only one nobody could see: every turn starts from it, so a fact recorded
+      wrongly shapes every page written afterwards. Folded away, because on a normal visit to this screen it
+      is not what somebody came for.
+    -->
+    @if (brand(); as facts) {
+      <details class="surface p-4" [open]="brandOpen()" (toggle)="brandOpen.set($any($event.target).open)">
+        <summary class="cursor-pointer list-none">
+          <span class="text-sm font-bold">What Webly knows about your business</span>
+          <p class="text-sm text-base-content/65">
+            The assistant reads this before it writes anything. Tell it in the chat if something here is
+            wrong.
+          </p>
+        </summary>
+
+        <pre class="mt-3 overflow-x-auto rounded-field bg-base-200/60 p-3 text-xs leading-relaxed whitespace-pre-wrap">{{ facts }}</pre>
+      </details>
+    }
+
     <div>
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-bold">Publishing history</h3>

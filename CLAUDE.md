@@ -699,6 +699,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   including `RunEventType`, a union the client switches on, which meant adding a value on the server changed
   nothing here until somebody remembered. `HubContractDocumentFilter` puts those types into the document;
   `realtime.service.ts` re-exports them, because everything that watches a run already imports that service.
+- **The settings screen shows what the assistant believes.** `content/brand.md` is the agent's memory — its
+  session does not outlive a turn, so what it learns goes in that file and every later turn starts from it —
+  which makes it the most consequential text in the site and, until this panel, the only one nobody could
+  see. A fact recorded wrongly shapes every page written afterwards, and the person it belongs to had no way
+  of knowing. Read from the head commit through the existing file endpoint, folded away, and read-only for
+  the Code tab's reason: correcting it is a sentence in the chat, which is how it got there.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts, and a `build` block carrying the

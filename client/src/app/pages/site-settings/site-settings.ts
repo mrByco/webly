@@ -43,6 +43,20 @@ export class SiteSettingsPage {
   protected readonly republishing = signal(false);
 
   /**
+   * What the assistant believes about this business, as it wrote it down.
+   *
+   * `content/brand.md` is the agent's memory — its session does not outlive a turn, so anything it learns
+   * goes in that file and every later turn starts from it. That makes it the most consequential text in the
+   * site and the only one nobody could see: a fact recorded wrongly ("closes at six" when it is five) shapes
+   * every page written afterwards, and the person it belongs to had no way of knowing it was in there.
+   *
+   * Read-only, like the Code tab and for the same reason — a second way to change a site would be a second
+   * definition of a version. Correcting it is a sentence in the chat, which is also how it got there.
+   */
+  protected readonly brand = signal<string | undefined>(undefined);
+  protected readonly brandOpen = signal(false);
+
+  /**
    * Whether "Publish again" is worth offering: the site has been published and there is nothing newer to
    * publish, which is exactly when the editor's own Publish button is unavailable. With unpublished changes
    * that button is the thing to press, and a second one beside it would only be a way to publish less.
@@ -58,6 +72,13 @@ export class SiteSettingsPage {
       .list(this.siteNanoid)
       .then(list => this.history.set(list))
       .catch(() => this.history.set([]));
+
+    // Failure is silence: a site whose agent has never run, or whose agent deleted the file, simply has no
+    // facts panel. An error about a missing file would be noise on a screen about something else.
+    void this.sites
+      .file(this.siteNanoid, 'content/brand.md')
+      .then(file => this.brand.set(file.text ?? undefined))
+      .catch(() => this.brand.set(undefined));
   }
 
   /**
