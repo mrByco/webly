@@ -30,6 +30,7 @@ public class PublishSite(
     public async Task<Result<DeployError, DeploymentResponse>> ExecuteAsync(
         int userId,
         string siteNanoid,
+        PublishSiteRequest request,
         CancellationToken cancellationToken = default)
     {
         // Asked of the target, not of a configuration key: which credential publishing needs is the target's
@@ -44,7 +45,8 @@ public class PublishSite(
         if (site.HeadVersionId is not { } headVersionId || site.HeadVersion is null)
             return Result<DeployError, DeploymentResponse>.Fail(DeployError.NothingToPublish);
 
-        if (site.PublishedVersionId == headVersionId)
+        // Unless the person asked for exactly this. See PublishSiteRequest.Republish.
+        if (site.PublishedVersionId == headVersionId && !request.Republish)
             return Result<DeployError, DeploymentResponse>.Fail(DeployError.NothingToPublish);
 
         if (await deployments.FindInFlightAsync(site.Id, cancellationToken) is { } inFlight)

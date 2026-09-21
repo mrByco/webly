@@ -21,9 +21,12 @@ public class DeploymentController(PublishSite publishSite, ListDeployments listD
     /// </summary>
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Deploy)]
-    public async Task<ActionResult<DeploymentResponse>> Publish(string siteNanoid, CancellationToken cancellationToken)
+    public async Task<ActionResult<DeploymentResponse>> Publish(
+        string siteNanoid,
+        PublishSiteRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await publishSite.ExecuteAsync(this.GetUserId(), siteNanoid, cancellationToken);
+        var result = await publishSite.ExecuteAsync(this.GetUserId(), siteNanoid, request, cancellationToken);
 
         return result.Succeeded
             ? Accepted(result.Value)
@@ -46,7 +49,7 @@ public class DeploymentController(PublishSite publishSite, ListDeployments listD
         DeployError.NothingToPublish => Conflict(new ProblemDetails
         {
             Title = "This site is already published as it is.",
-            Detail = "Make a change first."
+            Detail = "Make a change first, or publish it again from Settings."
         }),
         DeployError.PublishingUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
         {

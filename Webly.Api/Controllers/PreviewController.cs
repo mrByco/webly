@@ -66,11 +66,11 @@ public class PreviewController(
             // 503 with a sentence rather than starting one: a workspace takes tens of seconds, and an <iframe>
             // that hangs for that long looks broken. The editor starts it by sending a message or by asking for
             // it explicitly, and shows its progress while it does.
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
-            {
-                Title = "Your site's preview is not running.",
-                Detail = "Send a message to wake it up."
-            });
+            return Unavailable(
+                StatusCodes.Status503ServiceUnavailable,
+                "Your site's preview is not running.",
+                "Send a message to wake it up.",
+                retry: false);
 
         var destination = new Uri(workspace.Sandbox.AgentUrl, "preview/").ToString();
 
@@ -90,14 +90,62 @@ public class PreviewController(
             // The response may already have started, in which case there is nothing left to say — returning a
             // result here would throw over the top of a half-written body.
             if (!Response.HasStarted)
-                return StatusCode(StatusCodes.Status502BadGateway, new ProblemDetails
-                {
-                    Title = "The preview is not answering.",
-                    Detail = "It may still be compiling. Wait a moment and reload."
-                });
+                return Unavailable(
+                    StatusCodes.Status502BadGateway,
+                    "Your site is compiling.",
+                    "This page will come back on its own.",
+                    retry: true);
         }
 
         return Empty;
+    }
+
+    /// <summary>
+    /// What to answer when there is no dev server to forward to.
+    ///
+    /// <b>HTML when a browser asked for a page</b>, because this endpoint's usual caller is an
+    /// <c>&lt;iframe&gt;</c> in the editor, and what it renders is whatever comes back: a <c>ProblemDetails</c>
+    /// body puts raw JSON on screen inside somebody's preview. A retrying page instead, since the interesting
+    /// case is transient — the dev server recompiling after a commit takes a couple of seconds and the frame
+    /// was pointed at it at exactly that moment.
+    ///
+    /// A request for anything else — a chunk, a stylesheet, the hot-reload socket — still gets the problem
+    /// document. Those are not shown to anybody, and a client that is not a browser should read a status code
+    /// and a machine-readable body rather than a page of markup.
+    /// </summary>
+    private IActionResult Unavailable(int status, string title, string detail, bool retry)
+    {
+        var wantsHtml = Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+        if (!wantsHtml)
+            return StatusCode(status, new ProblemDetails { Title = title, Detail = detail });
+
+        Response.StatusCode = status;
+
+        // No framework, no stylesheet, no script beyond the reload: this page is served when the thing that
+        // serves pages is not answering, so it cannot depend on anything.
+        var refresh = retry ? """<meta http-equiv="refresh" content="2">""" : string.Empty;
+
+        // `$$"""` so that the stylesheet's braces are literal and the two values interpolate as `{{name}}`.
+        return Content(
+            $$"""
+            <!doctype html>
+            <html lang="en">
+              <head>
+                <meta charset="utf-8">
+                {{refresh}}
+                <title>{{title}}</title>
+                <style>
+                  body { margin: 0; display: grid; place-items: center; height: 100vh;
+                         font: 14px/1.5 system-ui, sans-serif; color: #6b6b6b; background: #fbfbfc; }
+                  p { margin: 0; text-align: center; }
+                  strong { display: block; color: #2b2b2b; font-size: 15px; margin-bottom: 4px; }
+                </style>
+              </head>
+              <body><p><strong>{{title}}</strong>{{detail}}</p></body>
+            </html>
+            """,
+            "text/html; charset=utf-8");
     }
 
     /// <summary>

@@ -19,6 +19,7 @@ export type { JsonNodeOptions } from './models/json-node-options';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { MessageRole } from './models/message-role';
+export type { PublishSiteRequest } from './models/publish-site-request';
 export type { RegisterRequest } from './models/register-request';
 export type { RenameSiteRequest } from './models/rename-site-request';
 export type { ResetPasswordRequest } from './models/reset-password-request';

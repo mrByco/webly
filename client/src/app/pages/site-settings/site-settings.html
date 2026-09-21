@@ -47,7 +47,25 @@
     </div>
 
     <div>
-      <h3 class="mb-2 text-sm font-bold">Publishing history</h3>
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-bold">Publishing history</h3>
+
+        <!--
+          Only when there is nothing new to publish, because that is the only time the editor's own Publish
+          button is unavailable and this is the case it leaves nowhere to go: what is live is the current
+          version, and what the provider is serving is wrong or gone. It builds the same commit again.
+        -->
+        @if (canRepublish()) {
+          <button class="btn btn-ghost btn-xs" type="button" [disabled]="republishing()" (click)="republish()">
+            @if (republishing()) {
+              <span class="loading loading-spinner loading-xs"></span>
+            } @else {
+              <app-icon class="size-3.5" name="rocket" />
+            }
+            Publish again
+          </button>
+        }
+      </div>
 
       @if (history().length === 0) {
         <p class="text-sm text-base-content/60">Nothing published yet.</p>

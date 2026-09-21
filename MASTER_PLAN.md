@@ -65,7 +65,6 @@ constraints, 70 tests pass, and `client/src/app/api/` is generated and committed
 | `VercelDeploymentTarget` is unverified in both halves — REST and CLI | `docs/deploy-plan.md` §6 |
 | The real agent has never run *inside the app* — every turn so far has been the mock | `whats_next.md` §1 |
 | Hub DTOs are declared by hand in the client | `docs/agent-plan.md` §3.3 |
-| A published version cannot be republished: 409, and no way to retry a lost deployment | `whats_next.md` |
 
 Closed by running things rather than reading them, which is the only reason any of it is closed:
 `Directory.Build.props` was missing entirely, so nothing could have built; the preview proxy was broken twice

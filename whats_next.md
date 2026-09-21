@@ -132,9 +132,6 @@ by hand is exactly the kind of thing that stops being true quietly.
 
 - **The code view is read-only.** A save button there would be a second way for a site to change, and so a
   second definition of what a version is. If hand editing lands it lands through `CommitSiteVersion`.
-- **A published version cannot be republished.** `POST /deployments` answers 409 "make a change first",
-  which is right for the common case and leaves no way to retry a deployment whose output was lost. The fix
-  is a flag on that request, not a second endpoint.
 - **The agent cannot ask a blocking question.** It asks in its reply and the turn ends; the answer is the
   person's next message. The MCP bridge that would make it a tool again is `docs/agent-plan.md` §1.3.
 - **One template**, so every site starts the same shape. P3.

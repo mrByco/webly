@@ -8,15 +8,18 @@ import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
 import { DeploymentResponse } from '../../models/deployment-response';
+import { PublishSiteRequest } from '../../models/publish-site-request';
 
 export interface ApiSitesSiteNanoidDeploymentsPost$Json$Params {
   siteNanoid: string;
+      body?: PublishSiteRequest
 }
 
 export function apiSitesSiteNanoidDeploymentsPost$Json(http: HttpClient, rootUrl: string, params: ApiSitesSiteNanoidDeploymentsPost$Json$Params, context?: HttpContext): Observable<StrictHttpResponse<DeploymentResponse>> {
   const rb = new RequestBuilder(rootUrl, apiSitesSiteNanoidDeploymentsPost$Json.PATH, 'post');
   if (params) {
     rb.path('siteNanoid', params.siteNanoid, {});
+    rb.body(params.body, 'application/*+json');
   }
 
   return http.request(

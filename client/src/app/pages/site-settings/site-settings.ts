@@ -39,12 +39,46 @@ export class SiteSettingsPage {
   protected readonly error = signal<string | undefined>(undefined);
   protected readonly history = signal<DeploymentResponse[]>([]);
   protected readonly confirmingDelete = signal(false);
+  protected readonly republishing = signal(false);
+
+  /**
+   * Whether "Publish again" is worth offering: the site has been published and there is nothing newer to
+   * publish, which is exactly when the editor's own Publish button is unavailable. With unpublished changes
+   * that button is the thing to press, and a second one beside it would only be a way to publish less.
+   */
+  protected readonly canRepublish = computed(() => {
+    const summary = this.site()?.summary;
+
+    return summary !== undefined && summary.publishedAt != null && !summary.hasUnpublishedChanges;
+  });
 
   constructor() {
     void this.deployments
       .list(this.siteNanoid)
       .then(list => this.history.set(list))
       .catch(() => this.history.set([]));
+  }
+
+  /**
+   * Builds and uploads the live version again. For a deployment whose output the provider lost — or one this
+   * app recorded as Ready and wrote somewhere it could not serve from. See `PublishSiteRequest.Republish`.
+   */
+  protected async republish(): Promise<void> {
+    if (this.republishing()) {
+      return;
+    }
+
+    this.republishing.set(true);
+    this.error.set(undefined);
+
+    try {
+      const deployment = await this.deployments.publish(this.siteNanoid, true);
+      this.history.update(list => [deployment, ...list]);
+    } catch (failure) {
+      this.error.set(messageOf(failure));
+    } finally {
+      this.republishing.set(false);
+    }
   }
 
   protected async rename(): Promise<void> {
