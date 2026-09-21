@@ -36,8 +36,12 @@ public class SiteWorkspaceRegistry(
         Func<string, Task>? onProgress = null,
         CancellationToken cancellationToken = default)
     {
-        var headSha = site.HeadVersion?.CommitSha
-            ?? await repositories.ResolveHeadAsync(site.Nanoid, site.DefaultBranch, cancellationToken)
+        // From git rather than from the entity, and the order matters. `site` is a snapshot taken before this
+        // call — possibly before another turn on the same site committed — and seeding from a stale snapshot
+        // writes the tree that turn just replaced back into the sandbox, so the preview shows somebody's change
+        // being undone. The branch is what a commit actually moves, so the branch is what to ask.
+        var headSha = await repositories.ResolveHeadAsync(site.Nanoid, site.DefaultBranch, cancellationToken)
+            ?? site.HeadVersion?.CommitSha
             ?? throw new SandboxException("This site has no commits yet.");
 
         var workspace = _workspaces.TryGetValue(site.Nanoid, out var existing) ? existing : null;

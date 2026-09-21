@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 109-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 112-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -419,6 +419,17 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   app. The MCP bridge that would bring it back is in the plan, §1.3.)
 - **A turn is one version.** `AgentTurnService` runs the agent, then commits once from the tree the sandbox
   hands back: atomic, readable in the history, and free to cancel.
+- **Two turns on one site at the same moment is a real case**, and it broke three things, each found by
+  starting two turns a millisecond apart against the running app. Both turns see no open thread and both
+  insert one — the partial unique index refuses the loser, so `FindOrCreateActiveAsync` returns the thread the
+  winner just made. Both compute the same next message sequence — `AppendMessageAsync` holds a Postgres
+  **advisory lock** on the conversation across the read and the insert, rather than retrying against the
+  index, because retries degrade exactly when contention rises. And both build a tree from the same parent —
+  `update-ref` is given the expected old value, so git refuses the second atomically instead of moving the
+  branch to a commit that does not contain the first's work and leaving that turn's version row naming a
+  commit nobody can reach. Alongside those: the workspace seeds from the **branch** rather than from the site
+  entity a turn read minutes ago, and the turn re-reads its site row before committing, so the parent it names
+  is the tip its tree came from. Two simultaneous turns now both succeed, in order.
 - **Build errors are surfaced, not swallowed.** After a turn the dev server's log is read from an offset
   recorded before the turn started, and a `BuildFailed` event puts the compiler's own words on screen —
   because the person's next message is what fixes it. `CompilerOutput` owns both halves and both were

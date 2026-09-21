@@ -125,9 +125,49 @@ public class GitSiteRepositoryStore(
         if (tree == parentTree) return null;
 
         var sha = await CommitTreeAsync(path, tree, parentSha, author, summary, details: null, cancellationToken);
-        await RunAsync(path, cancellationToken, "update-ref", $"refs/heads/{branch}", sha);
+
+        await MoveBranchAsync(path, branch, sha, parentSha, cancellationToken);
 
         return new CommitResult(sha, await CountChangedFilesAsync(path, sha, cancellationToken));
+    }
+
+    /// <summary>
+    /// Moves the branch, <b>but only if it is still where the caller thought it was</b>.
+    ///
+    /// <c>update-ref</c> takes an expected old value and git checks it atomically, which turns the one race
+    /// this design has into a clean failure. Two turns on one site can each build a tree from the same parent —
+    /// a second browser tab, or a turn that started while another was committing — and without the old value
+    /// the second <c>update-ref</c> silently moves the branch to a commit that does not contain the first's
+    /// work. The first turn's <c>SiteVersion</c> row is then still in the history, naming a commit no longer
+    /// reachable from the branch: a change the person watched happen, with an entry in their history, simply
+    /// gone from their site.
+    ///
+    /// An empty expected value means "this ref must not exist yet", which is exactly right for a site's first
+    /// commit: a second initialize for the same site is refused by git rather than by a check-then-act.
+    /// </summary>
+    private async Task MoveBranchAsync(
+        string repository,
+        string branch,
+        string commitSha,
+        string? expectedSha,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RunAsync(
+                repository,
+                cancellationToken,
+                "update-ref",
+                $"refs/heads/{branch}",
+                commitSha,
+                expectedSha ?? string.Empty);
+        }
+        catch (RepositoryException exception)
+        {
+            throw new RepositoryException(
+                "Your site changed while this was being saved, so nothing was written. Please try again.",
+                exception.Detail ?? exception.Message);
+        }
     }
 
     /// <summary>
@@ -271,7 +311,8 @@ public class GitSiteRepositoryStore(
             }
 
             var commitSha = await CommitTreeAsync(repository, treeSha, parentSha, author, summary, details, cancellationToken);
-            await RunAsync(repository, cancellationToken, "update-ref", $"refs/heads/{branch}", commitSha);
+
+            await MoveBranchAsync(repository, branch, commitSha, parentSha, cancellationToken);
 
             return new CommitResult(commitSha, parentSha is null
                 ? tree.Files.Count

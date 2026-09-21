@@ -111,22 +111,16 @@ public class AgentTurnService(
         var user = await users.FindByIdAsync(userId, cancellationToken)
             ?? throw new InvalidOperationException($"User {userId} disappeared mid-turn.");
 
-        var conversation = await conversations.FindActiveAsync(site.Id, cancellationToken);
-
-        if (conversation is null)
-        {
-            conversation = new Conversation
-            {
-                SiteId = site.Id,
-                UserId = userId,
-                // Derived from the first message rather than asked of the model: a second provider call for a
-                // label nobody reads twice.
-                Title = request.Message.Length <= 60 ? request.Message : $"{request.Message[..57]}..."
-            };
-
-            conversations.Add(conversation);
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
+        // Found or created in one call, because two turns starting at the same moment — a second tab, a
+        // double-click — both see no thread, both insert, and the index that says a site has one open thread
+        // refuses the loser. That reached the person as "something went wrong" on a message that was fine.
+        var conversation = await conversations.FindOrCreateActiveAsync(
+            site.Id,
+            userId,
+            // Derived from the first message rather than asked of the model: a second provider call for a
+            // label nobody reads twice.
+            request.Message.Length <= 60 ? request.Message : $"{request.Message[..57]}...",
+            cancellationToken);
 
         // Before anything that takes time, because this is what a reload looks the run up by.
         onConversation(conversation.Nanoid);
@@ -137,12 +131,10 @@ public class AgentTurnService(
         {
             ConversationId = conversation.Id,
             Role = MessageRole.User,
-            Sequence = await conversations.NextSequenceAsync(conversation.Id, cancellationToken),
             Text = request.Message
         };
 
-        conversations.AddMessage(userMessage);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await conversations.AppendMessageAsync(userMessage, cancellationToken);
 
         // From here the turn reaches a sandbox, another product's CLI and a git repository, so it can fail for
         // reasons this app does not control. However it ends, the thread has to end up describing it: the person's
@@ -251,12 +243,10 @@ public class AgentTurnService(
         {
             ConversationId = conversation.Id,
             Role = MessageRole.Assistant,
-            Sequence = await conversations.NextSequenceAsync(conversation.Id, cancellationToken),
             Text = reply
         };
 
-        conversations.AddMessage(assistantMessage);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await conversations.AppendMessageAsync(assistantMessage, cancellationToken);
 
         var version = await CommitAsync(site, workspace, user, outcome, assistantMessage.Id, cancellationToken);
 
@@ -290,15 +280,14 @@ public class AgentTurnService(
     {
         try
         {
-            conversations.AddMessage(new ConversationMessage
-            {
-                ConversationId = conversationId,
-                Role = MessageRole.System,
-                Sequence = await conversations.NextSequenceAsync(conversationId, CancellationToken.None),
-                Text = text
-            });
-
-            await dbContext.SaveChangesAsync(CancellationToken.None);
+            await conversations.AppendMessageAsync(
+                new ConversationMessage
+                {
+                    ConversationId = conversationId,
+                    Role = MessageRole.System,
+                    Text = text
+                },
+                CancellationToken.None);
         }
         catch (Exception exception)
         {
@@ -316,6 +305,14 @@ public class AgentTurnService(
         CancellationToken cancellationToken)
     {
         var tree = await workspace.Sandbox.ReadTreeAsync(cancellationToken);
+
+        // The site row as it is *now*, not as it was when this turn started. Another turn on the same site can
+        // have committed while this one queued on the workspace lease — a second tab, a double-click — and the
+        // parent this commit names has to be the tip the sandbox's tree was seeded from. Without it the commit
+        // is built on a version that is no longer the branch, which git refuses (see `MoveBranchAsync`): a
+        // failed turn for a message that was perfectly fine.
+        await dbContext.Entry(site).ReloadAsync(cancellationToken);
+        await dbContext.Entry(site).Reference(x => x.HeadVersion).LoadAsync(cancellationToken);
 
         var version = await commitSiteVersion.ExecuteAsync(
             site,

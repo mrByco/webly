@@ -332,4 +332,38 @@ public class GitSiteRepositoryStoreTests
 
         return output;
     }
+
+    /// <summary>
+    /// Two turns that each built a tree from the same parent. One of them wins and the other is refused — the
+    /// alternative is what this used to do: move the branch anyway, to a commit that does not contain the
+    /// first's work, leaving that turn's version row naming a commit nobody can reach.
+    /// </summary>
+    [Test]
+    public async Task A_commit_on_a_parent_that_is_no_longer_the_tip_is_refused()
+    {
+        var first = await _store.InitializeAsync(
+            "site1", "main", Tree(("page.tsx", "one\n")), Author, "Created");
+
+        var winner = await _store.CommitAsync(
+            "site1", "main", first.Sha, Tree(("page.tsx", "two\n")), Author, "The first turn", null);
+
+        Assert.That(winner, Is.Not.Null);
+
+        // The second turn's tree, built from the same parent the first started from.
+        Assert.That(
+            async () => await _store.CommitAsync(
+                "site1", "main", first.Sha, Tree(("page.tsx", "three\n")), Author, "The second turn", null),
+            Throws.InstanceOf<RepositoryException>().With.Message.Contains("changed while this was being saved"));
+
+        // And the winner is still the branch, with the loser's work nowhere in it — which is the point: the
+        // failure is clean, and nothing that was reported as saved has quietly stopped being true.
+        var head = await _store.ResolveHeadAsync("site1", "main");
+        var tree = await _store.ReadTreeAsync("site1", head!);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(head, Is.EqualTo(winner!.Sha));
+            Assert.That(tree.Find("page.tsx")!.AsText(), Is.EqualTo("two\n"));
+        });
+    }
 }

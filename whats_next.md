@@ -42,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 109 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 112 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -121,6 +121,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     site fell past the static files to the catch-all proxy and served **Webly's own dashboard** instead of the
     site's 404 page, and every page of a published site had the site's name as its whole title, so a shared
     link to a contact page said "Contact" and nothing about whose contact page it was.
+
+17. **Two turns at once lost, three times over.** Sending two messages on one site a millisecond apart — a
+    second tab, a double-click — failed with "something went wrong" on a message that was fine: both turns
+    inserted a conversation and the index refused one; then, fixed, both took the same message sequence and the
+    index refused one again; and underneath both, `update-ref` had no expected old value, so a second commit
+    built on the same parent would have moved the branch to a commit missing the first turn's work while that
+    turn's version row stayed in the history pointing at an unreachable commit. Nothing had ever run two turns
+    at once. Both now succeed, in order, and the third case fails cleanly if it ever arises.
 
 ## What is still intent
 
