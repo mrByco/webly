@@ -134,10 +134,19 @@ paragraphs are kept because each one names a thing to check again after a change
 
 The phase that is now the product rather than a catalogue expansion:
 
-- **Iterate on `AGENTS.md` against real turns.** It is the closest thing to a prompt this product has, and
-  it ships in every site's repository — so a change applies to existing sites immediately.
-- **Give the agent the build's own feedback loop**: today it reads a dev server log; a `npm run typecheck`
-  it is told to run before finishing is probably cheaper than a failed publish.
+- **Iterate on `AGENTS.md` against real turns.** It is the closest thing to a prompt this product has — and
+  note what an earlier version of this line got wrong: it ships in every site's repository, so a change reaches
+  **new sites only**. `CreateSite` copies the template once and nothing refreshes it afterwards. Either that is
+  fine and it is a fact to know, or the fix is a step that commits an updated `AGENTS.md` into every existing
+  site, which is a version in everyone's history for a file their visitors never see. Decide it before the
+  first iteration, not after.
+- ~~**Give the agent the build's own feedback loop**~~ — done, and it is a check rather than an instruction.
+  The turn runs `npm run typecheck` in the workspace after the dev-server log check and reports what it says as
+  the same `BuildFailed` event, because the dev server compiles with SWC and cannot see a type error at all.
+  `AGENTS.md` still asks the agent to run it — its run is what fixes the error before finishing, ours is what
+  makes the report true when it did not. Ask the mock agent to "break the types" to see it. It also found the
+  bug that asking had already introduced: `tsc --incremental` writes its cache beside `tsconfig.json`, so every
+  turn that obeyed would have committed it into the customer's history.
 - **Starter variety.** One template produces one shape of website. A handful of templates, chosen by what
   the person says in their first message, is the smallest honest answer.
 - **Regression tests for turns**, which means recorded transcripts and assertions about the tree, not about

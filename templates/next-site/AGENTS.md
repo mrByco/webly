@@ -33,13 +33,17 @@ actually confirmed.
 
 Run `npm run typecheck` as your last step, and fix whatever it reports.
 
-It takes a few seconds. The alternative is that the person presses Publish, the build fails, their site does
-not go live, and the first they hear of it is an email saying so — which costs them a wait and you another
-turn. A type error you introduced is the single most likely way for that to happen, and it is the one kind of
-mistake a machine can catch for you.
+It takes a few seconds, and **Webly runs it again after your turn ends**. Whatever it says then goes straight
+into the chat, as a block telling the person their site is not compiling — so a type error you leave behind is
+not invisible, it is a message saying you broke their website. Fixing it now costs you a minute; leaving it
+costs them a scare and another turn.
+
+The dev server cannot help you here: it compiles with SWC, which strips types instead of checking them, so a
+page with a type error serves perfectly and its log says nothing. `npm run typecheck` is the only way to know.
 
 If you changed a page's structure or copy, also look at the running dev server's output for a compile error
-before you finish. It is already compiling while you work.
+before you finish. It is already compiling while you work, and that is where a syntax error or a bad import
+shows up.
 
 ## Shape of the project
 

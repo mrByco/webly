@@ -9,6 +9,7 @@ using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
 using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Sandboxes;
 using Webly.Services.Services.Workspaces;
 using Webly.Services.UseCases.Sites;
 
@@ -90,6 +91,12 @@ public class AgentTurnService(
 
     /// <summary>What a stopped turn says. Not an error: the person asked for it, and nothing was committed.</summary>
     public const string StoppedNote = "Stopped. Nothing was changed.";
+
+    /// <summary>
+    /// How much of a compiler's opinion reaches the chat. Long enough for an error with its import trace, short
+    /// enough that the thread is still a conversation.
+    /// </summary>
+    private const int DetailLimit = 2000;
 
     public async Task RunAsync(
         SendMessageRequest request,
@@ -258,7 +265,7 @@ public class AgentTurnService(
             }, cancellationToken);
         }
 
-        await ReportBuildErrorsAsync(workspace, logOffset, cancellationToken);
+        await ReportBreakageAsync(workspace, logOffset, version is not null, cancellationToken);
     }
 
     /// <summary>
@@ -328,21 +335,35 @@ public class AgentTurnService(
     }
 
     /// <summary>
-    /// Shows the person a compile error if <i>this turn</i> left one.
+    /// Shows the person a compile error if <i>this turn</i> left one, from the two places one can hide.
     ///
-    /// The dev server is the build gate that the editor can see, and a Next.js compile error is both the most
-    /// useful thing to put on screen and the exact text the next message should carry back to the agent. Read
-    /// rather than inferred: the agent may sincerely believe it is finished.
+    /// The dev server is the build gate the editor can see, and a Next.js compile error is both the most useful
+    /// thing to put on screen and the exact text the next message should carry back to the agent. But it only sees
+    /// half: <c>next dev</c> compiles with SWC, which strips types rather than checking them, so a type error
+    /// serves a page happily and shows up nowhere until somebody presses Publish and gets an email saying the build
+    /// failed. So the types are checked too, by the same command <c>AGENTS.md</c> asks the agent to run.
     ///
-    /// <paramref name="since"/> is the whole reason this is not a one-line check. The log is cumulative for the
-    /// life of the dev server, so reading all of it would find the error a turn three messages ago left behind
-    /// and report it again — telling somebody their site is broken every time they speak to it, no matter how
-    /// many times they have it fixed. Only output that arrived after the turn began can say anything about the
+    /// <b>Read rather than inferred</b> — the agent may sincerely believe it is finished, and may sincerely believe
+    /// it ran the typecheck.
+    ///
+    /// <paramref name="since"/> is the whole reason the first half is not a one-line check. The log is cumulative
+    /// for the life of the dev server, so reading all of it would find the error a turn three messages ago left
+    /// behind and report it again — telling somebody their site is broken every time they speak to it, no matter
+    /// how many times they have it fixed. Only output that arrived after the turn began can say anything about the
     /// turn.
     /// </summary>
-    private async Task ReportBuildErrorsAsync(
+    /// <param name="committed">
+    /// Whether the turn actually changed the site. A turn that changed nothing cannot have broken anything, and the
+    /// typecheck is the one check here that costs real seconds — so it is not run for a conversation that was a
+    /// question. It is also the honest cut for the other reason: <c>tsc</c> has no offset to read from, it only
+    /// answers about the tree as it stands now, so the claim it supports is "what this turn produced does not
+    /// compile" rather than "this turn broke it". Those differ when an earlier turn left the error, and the person's
+    /// next move is the same either way.
+    /// </param>
+    private async Task ReportBreakageAsync(
         SiteWorkspace workspace,
         long since,
+        bool committed,
         CancellationToken cancellationToken)
     {
         // Asked to compile before being asked what happened. `next dev` compiles on demand, so at this moment it
@@ -352,20 +373,60 @@ public class AgentTurnService(
         await workspace.Sandbox.TouchPreviewAsync(cancellationToken);
 
         var log = await workspace.Sandbox.ReadDevServerLogAsync(since, cancellationToken);
-        var text = log.Text;
 
-        if (text.Length == 0) return;
-
-        if (!CompilerOutput.SaysTheBuildBroke(text)) return;
-
-        var detail = CompilerOutput.Readable(text);
-
-        await writer.WriteAsync(new RunEvent
+        if (log.Text.Length > 0 && CompilerOutput.SaysTheBuildBroke(log.Text))
         {
-            Type = RunEventType.BuildFailed,
-            Detail = detail.Length <= 2000 ? detail : detail[^2000..]
-        }, cancellationToken);
+            var detail = CompilerOutput.Readable(log.Text);
+
+            await ReportAsync(detail.Length <= DetailLimit ? detail : detail[^DetailLimit..], cancellationToken);
+
+            // One block, not two. A file the compiler could not parse is a file tsc cannot check either, so it
+            // would report the same breakage in its own words — and two warning blocks about one mistake reads as
+            // two mistakes.
+            return;
+        }
+
+        if (!committed) return;
+
+        await ReportTypeErrorsAsync(workspace, cancellationToken);
     }
+
+    /// <summary>
+    /// Runs the site's own typecheck and puts what it says on screen.
+    ///
+    /// <c>--silent</c> so npm does not narrate itself into the middle of the answer, and a timeout because this is
+    /// on the path of every turn that changed something: <c>tsc</c> on a starter site takes about two seconds, and
+    /// a check that hung would hold a turn open for as long as the sandbox allows.
+    ///
+    /// <b>A failure that does not name a type error is Webly's, not the site's.</b> A missing
+    /// <c>node_modules</c>, a script that is not there, an <c>npm</c> that could not start — all exit non-zero, and
+    /// telling a customer their site does not compile because our sandbox is wrong is worse than saying nothing.
+    /// So it is logged for us and the chat stays quiet.
+    /// </summary>
+    private async Task ReportTypeErrorsAsync(SiteWorkspace workspace, CancellationToken cancellationToken)
+    {
+        var check = await workspace.Sandbox.RunAsync(
+            new SandboxCommand("npm", ["run", "--silent", "typecheck"], TimeSpan.FromMinutes(2)),
+            cancellationToken: cancellationToken);
+
+        if (check.Succeeded) return;
+
+        if (!CompilerOutput.SaysTheTypesBroke(check.Output))
+        {
+            logger.LogWarning(
+                "The typecheck in {Sandbox} exited {Code} without naming a type error, so nothing was reported: {Output}",
+                workspace.Sandbox.Id,
+                check.ExitCode,
+                check.Output);
+
+            return;
+        }
+
+        await ReportAsync(CompilerOutput.TypeErrors(check.Output), cancellationToken);
+    }
+
+    private Task ReportAsync(string detail, CancellationToken cancellationToken) =>
+        writer.WriteAsync(new RunEvent { Type = RunEventType.BuildFailed, Detail = detail }, cancellationToken);
 
     private static string Describe(ConversationMessage message) =>
         $"{(message.Role == MessageRole.User ? "They asked" : "You replied")}: {message.Text}";

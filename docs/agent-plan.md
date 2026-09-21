@@ -101,7 +101,7 @@ this at all: `vercel build` runs there and a failure blocks the deployment.
 Two things about that check are not obvious, and both were wrong in the first version:
 
 - **`next dev` compiles on demand.** Straight after a turn it has not looked at the agent's edits at all, so a
-  log read at that moment is empty — which reads as success. `ReportBuildErrorsAsync` therefore requests the
+  log read at that moment is empty — which reads as success. `ReportBreakageAsync` therefore requests the
   preview first (`ISandbox.TouchPreviewAsync`) and only then asks what happened. Without that, `BuildFailed`
   would essentially never fire and the person would find out at publish time.
 - **The log is cumulative.** Reading all of it finds the error a turn three messages ago left behind and reports
@@ -109,11 +109,35 @@ Two things about that check are not obvious, and both were wrong in the first ve
   fixed. So the turn records the log's offset before it starts and reads only what followed.
 
 And one thing the dev server cannot do for us: **it does not typecheck.** `next dev` compiles with SWC, which
-strips types without checking them, so a type error never reaches its output. What it reports is syntax errors
-and unresolvable imports. That is the division of labour: `BuildFailed` catches those, `AGENTS.md` tells the
-agent to run `npm run typecheck` as its last step — which the recorded turn did not do unprompted — and
-`next build` at publish time is the backstop for both. A type error costs seconds to find in the turn and a
-failed publish plus a wait to find later.
+strips types without checking them, so a type error never reaches its output — a page with one serves a 200,
+which `tools/e2e/run.mjs` step 18 asserts rather than assumes. What it reports is syntax errors and
+unresolvable imports.
+
+So the turn runs `npm run typecheck` itself, after the log check, and reports what it says in the same
+`BuildFailed` event. `AGENTS.md` asks the agent to run it too and that is not redundant: the agent's own run is
+what lets it fix the error before finishing, and Webly's run is what makes the report true when it did not — the
+recorded turn did not run it unprompted, and an agent may sincerely believe it did. Three things follow from
+where it sits:
+
+- **Only after a turn that changed something**, because `tsc` costs real seconds and a question that edited
+  nothing cannot have broken anything.
+- **Only when the dev server had nothing to say.** A file the compiler could not parse is a file `tsc` cannot
+  check either, so it would complain about the same mistake in its own words, and two warning blocks about one
+  mistake reads as two mistakes.
+- **Only when the output names a type error.** A missing `node_modules`, an absent script and an `npm` that
+  could not start all exit non-zero, and reporting one of those as "your site is not compiling" tells a customer
+  their site is broken when what is broken is our sandbox. `CompilerOutput.SaysTheTypesBroke` keys on `tsc`'s
+  own `(line,col): error TSxxxx`, and a failure without one is a log line for us and silence in the chat.
+
+It is cheap where it matters: about a second on a warm workspace, because `tsBuildInfoFile` points `tsc`'s
+incremental cache into `.next`, which the workspace keeps across re-seeds. That setting is also half of a real
+bug it would otherwise have caused — the cache defaults to sitting next to `tsconfig.json`, so every turn would
+have committed it into the customer's history and shown it in their diff. The other half is `*.tsbuildinfo` in
+the sandbox agent's ignore list, which is what actually decides what a commit can contain; belt and braces on
+purpose, because that list must not depend on one setting in one file the agent is asked not to edit.
+
+`next build` at publish time is still the backstop for both. A type error costs a second to find in the turn and
+a failed publish plus a wait to find later.
 
 ## 2. Where the agent runs: workspaces and sandboxes
 

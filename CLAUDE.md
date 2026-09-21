@@ -26,14 +26,14 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 70-test
+person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 89-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
 Two harnesses drive it, and they answer different questions:
 
 - **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
-  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in sixteen steps from "a
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in eighteen steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it
@@ -440,11 +440,25 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   rewrites everything under its own `/preview` onto it; the site template turns that variable into Next's
   `basePath`. Three files agree on one string, and the day they disagree the preview renders as unstyled text
   — which is exactly how it shipped, because the test read the HTML and the HTML was perfect.
-- **`next dev` catches less than it looks like.** It compiles with SWC, which strips types rather than
-  checking them: a type error never reaches its log, and neither does an *unused* broken import, which is
-  elided as possibly-a-type before anything resolves it. What `BuildFailed` can see is syntax and imports that
-  are used. Types are what `npm run typecheck` is for — `AGENTS.md` tells the agent to run it — and `next
-  build` at publish time is the backstop for both.
+- **`next dev` catches less than it looks like, so the turn also runs the site's own typecheck.** It compiles
+  with SWC, which strips types rather than checking them: a type error never reaches its log — the page serves a
+  200, which the harness asserts — and neither does an *unused* broken import, which is elided as
+  possibly-a-type before anything resolves it. So after the log check `AgentTurnService` runs
+  `npm run typecheck` in the workspace and reports what it says as the same `BuildFailed` event. Three
+  conditions, each with a reason: only when the turn **committed** something (`tsc` costs seconds and a question
+  cannot have broken anything), only when the dev server said **nothing** (a file the compiler cannot parse is
+  one `tsc` cannot check, and two blocks about one mistake reads as two mistakes), and only when the output
+  **names a type error** — a missing `node_modules` or an absent script also exits non-zero, and telling a
+  customer their site is broken when our sandbox is what is broken is worse than silence. `AGENTS.md` still asks
+  the agent to run it, and that is not redundant: its run is what fixes the error before finishing, ours is what
+  makes the report true when it did not. Ask the mock agent to "break the types" to see the path without a key.
+- **`tsc --incremental` writes a cache, and it must not reach a commit.** It defaults to sitting beside
+  `tsconfig.json`, so every turn that ran the typecheck — which `AGENTS.md` has asked for all along — would have
+  committed a machine-readable dump of the project into the customer's history and shown it in their diff. Two
+  things stop it: `tsBuildInfoFile` points it into `.next`, which the workspace keeps across re-seeds and which
+  is why a warm turn only pays about a second for the check; and `*.tsbuildinfo` is in the sandbox agent's
+  `IGNORED`, which is what actually decides what a commit can contain. Belt and braces deliberately — that list
+  must not depend on one setting in one file the agent is asked not to edit.
 - **The sandbox contract is ours** (`tools/sandbox-agent`, zero dependencies, baked into the image). A
   provider's job is "start this image, give me a URL"; files, exec and preview all go through one HTTP
   contract we can test. That is what makes E2B → Fly → Daytona a class nobody else has to know about.

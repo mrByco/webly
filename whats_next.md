@@ -32,7 +32,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 82 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 89 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -91,6 +91,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     server killed by the out-of-memory killer took the only record of itself with it, because the log hung off the
     child object. Both were invisible: the log read as empty and empty reads as healthy. Asking the mock agent to
     "break the build" is now how to see the whole path in one turn.
+15. **A type error was invisible until the publish email, and every turn that looked for one would have
+    committed a build artifact.** `next dev` compiles with SWC, so a page with a type error serves a 200 and its
+    log says nothing — asserted now, not assumed. `AGENTS.md` had asked the agent to run `npm run typecheck`
+    since the beginning, which covers the case where the agent remembers; nothing covered the case where it does
+    not, and that is the one the person pays for. The turn runs it now. Finding that also found the other half:
+    `tsc --incremental` writes its cache next to `tsconfig.json`, so the instruction Webly had been giving would
+    have put a machine-readable dump of the project in every commit. It had never happened only because every
+    turn through the app so far was the mock agent's.
 
 ## What is still intent
 

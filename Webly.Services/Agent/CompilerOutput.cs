@@ -3,12 +3,13 @@ using System.Text.RegularExpressions;
 namespace Webly.Services.Agent;
 
 /// <summary>
-/// Reads Next.js's own output for the two questions this product asks it: did that break the site, and what
-/// would you tell the person?
+/// Reads the toolchain's own output for the two questions this product asks it: did that break the site, and
+/// what would you tell the person?
 ///
-/// Both callers are here because both print the same thing. <c>next dev</c> is what a turn checks, so that a
-/// compile error reaches the chat while somebody can still say "fix it"; <c>next build</c> is what a publish
-/// runs, and its failure is the one that stops a site going live. Its tail becomes
+/// Three callers, two formats. <c>next dev</c> is what a turn checks, so that a compile error reaches the chat
+/// while somebody can still say "fix it"; <c>tsc</c> is the second half of that check, because the dev server
+/// cannot see a type error at all; and <c>next build</c> is what a publish runs, and its failure is the one that
+/// stops a site going live. The build's tail becomes
 /// <c>Deployment.ErrorDetail</c>, which the settings screen shows folded away — and it went there raw until a
 /// publish was watched in a browser, ANSI escapes, the build machine's absolute paths and SWC's Rust backtrace
 /// included.
@@ -31,8 +32,8 @@ public static partial class CompilerOutput
     ///
     /// A type error is deliberately not on this list, because it cannot be: <c>next dev</c> compiles with SWC,
     /// which strips types without checking them, so a file with a type error compiles and serves — verified,
-    /// not assumed. That is what <c>npm run typecheck</c> is for (<c>AGENTS.md</c> asks the agent to run it)
-    /// and <c>next build</c> at publish time is the backstop.
+    /// not assumed. <see cref="SaysTheTypesBroke"/> is the other half, reading <c>tsc</c>'s output instead, and
+    /// <c>next build</c> at publish time is the backstop for both.
     /// </summary>
     public static readonly string[] Markers =
         ["⨯ ./", "Failed to compile", "Module not found", "Syntax Error", "Type error:"];
@@ -86,9 +87,64 @@ public static partial class CompilerOutput
         return string.Join('\n', kept).Trim();
     }
 
+    /// <summary>
+    /// How many error lines reach the chat. A tsc run that is unhappy about a missing module is unhappy about it
+    /// once per import, and forty lines of the same complaint pushes the sentence explaining it off the screen.
+    /// </summary>
+    private const int MaxTypeErrorLines = 20;
+
+    /// <summary>
+    /// Whether a failed <c>npm run typecheck</c> failed because of the site rather than because of us.
+    ///
+    /// The exit code alone cannot answer that, and the difference matters more here than anywhere else in this
+    /// file: a missing <c>node_modules</c>, a script that is not there and an <c>npm</c> that could not start all
+    /// exit non-zero, and reporting one of those as "your site is not compiling" tells a customer their site is
+    /// broken when what is broken is Webly's sandbox. So the claim is made only when <c>tsc</c> names a file and a
+    /// diagnostic code, which is the one thing nothing else prints.
+    /// </summary>
+    public static bool SaysTheTypesBroke(string output) => TypeErrorLine().IsMatch(output);
+
+    /// <summary>
+    /// <c>tsc</c>'s complaints, as something to put in a chat.
+    ///
+    /// The head rather than the tail, which is the opposite of what the dev server's log wants and for the same
+    /// reason: a compile error is the last thing <c>next dev</c> says, and a type error is the <i>first</i> thing
+    /// <c>tsc</c> says — everything after it is often the same mistake seen from another file. The count is kept
+    /// when the rest is dropped, because "and 60 more" is the difference between a typo and a rename that went
+    /// wrong.
+    ///
+    /// npm's two banner lines are dropped as well. The command asks for <c>--silent</c>, which suppresses them,
+    /// and they are dropped here anyway: which lines an npm prints about itself is not a thing to depend on, and
+    /// a block that opens with <c>&gt; tsc --noEmit</c> is talking about the tool rather than the site.
+    /// </summary>
+    public static string TypeErrors(string output)
+    {
+        var lines = AnsiCodes().Replace(output, string.Empty)
+            .Split('\n')
+            .Select(line => line.TrimEnd('\r'))
+            .Where(line => !line.StartsWith("> ", StringComparison.Ordinal))
+            .SkipWhile(line => line.Trim().Length == 0)
+            .ToList();
+
+        if (lines.Count <= MaxTypeErrorLines) return string.Join('\n', lines).Trim();
+
+        var dropped = lines.Count - MaxTypeErrorLines;
+
+        return string.Join('\n', lines[..MaxTypeErrorLines]).Trim()
+            + $"\n\n…and {dropped} more line{(dropped == 1 ? string.Empty : "s")}.";
+    }
+
     [GeneratedRegex("\u001b\\[[0-9;]*m")]
     private static partial Regex AnsiCodes();
 
     [GeneratedRegex(@"^\s*\d+: ")]
     private static partial Regex StackFrame();
+
+    /// <summary>
+    /// <c>src/app/page.tsx(11,7): error TS2322: …</c> — the shape every <c>tsc</c> diagnostic has and nothing else
+    /// does. The file and position are not read, only required: it is their presence that says tsc got as far as
+    /// checking the site.
+    /// </summary>
+    [GeneratedRegex(@"\(\d+,\d+\): error TS\d+", RegexOptions.Multiline)]
+    private static partial Regex TypeErrorLine();
 }

@@ -47,15 +47,18 @@ build — are all exercised for real. What is mocked is the part written in the 
    stylesheet, under the base path the dev server was started with.
 7. A turn runs the agent in the workspace.
 8. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
-   *(`--agent claude` only, so a mock run has thirteen steps rather than fourteen.)*
+   *(`--agent claude` only, so a mock run has seventeen steps rather than eighteen.)*
 9. The tree comes back and becomes exactly one commit, authored by the person, with a diff.
-10. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
-11. Restoring an earlier version writes it forward and keeps the history reachable.
-12. The publish gate: the site really builds.
-13. Publishing copies the export out and **the published page says what the person typed**.
-14. The site exports as a git bundle that **clones into a working project** with its history.
-15. A broken build is caught rather than published, and the log says why.
-16. A compile error is reported when it happens and **stops being reported once it is fixed**.
+10. Hot reload puts the change on screen with nothing on Webly's side asking for it.
+11. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
+12. Restoring an earlier version writes it forward and keeps the history reachable.
+13. The publish gate: the site really builds.
+14. Publishing copies the export out and **the published page says what the person typed**.
+15. The site exports as a git bundle that **clones into a working project** with its history.
+16. A broken build is caught rather than published, and the log says why.
+17. A compile error is reported when it happens and **stops being reported once it is fixed**.
+18. A type error **serves a page happily** and only `npm run typecheck` catches it — and the check leaves no
+    `.tsbuildinfo` in the tree that becomes a commit.
 
 ## Things it has already caught
 
@@ -91,11 +94,16 @@ build — are all exercised for real. What is mocked is the part written in the 
   `next dev` compiles *on demand*, so right after a turn it has never looked at the agent's edits and the log is
   empty — which reads as "no errors"; the turn now requests the preview first. And the log is *cumulative*, so
   reading all of it re-reports an error from three turns ago for ever; the turn now records an offset before it
-  starts. Step 16 covers both, and writing it turned up a third thing worth knowing: `next dev` does not
-  typecheck at all, which is why `AGENTS.md` asks the agent to run `npm run typecheck` itself. A third
-  attempt at breaking a file taught the rest of it: an *unused* broken import is elided as possibly-a-type
-  before anything resolves it, so the dev server recompiles it happily. What the compile check can see is
-  syntax errors and imports that are used — `CompilerOutput` has the full list and the markers to match.
+  starts. Step 17 covers both, and writing it turned up a third thing worth knowing: `next dev` does not
+  typecheck at all, which is why a turn runs `npm run typecheck` as well (step 18). A third attempt at breaking
+  a file taught the rest of it: an *unused* broken import is elided as possibly-a-type before anything resolves
+  it, so the dev server recompiles it happily. What the compile check can see is syntax errors and imports that
+  are used — `CompilerOutput` has the full list and the markers to match.
+- **Every turn would have committed the typecheck's cache.** `AGENTS.md` asks the agent to run
+  `npm run typecheck`, and `tsc --incremental` writes its cache next to `tsconfig.json` — so a machine-readable
+  dump of the project would have travelled out in the tree, into the customer's history, and shown up in their
+  diff. It had not happened yet only because every turn driven through the app so far was the mock agent's,
+  which does not run it. Step 18 asserts the tree that becomes a commit has no `.tsbuildinfo` in it.
 - **The export bundle cloned into an empty directory.** `git bundle create - <branch>` records the commits and
   the ref but no `HEAD`, so `git bundle verify` says "complete history" and `git clone` checks out *nothing*.
   The export endpoint — the feature whose whole point is that a customer can leave with their site — shipped
@@ -118,6 +126,6 @@ is not, the CLI's output shape changed and the parser needs looking at.
 ## When to delete this
 
 When `dotnet test` runs, most of it is redundant: `GitSiteRepositoryStoreTests` covers the versioning from the
-side that ships, and the real orchestration can be driven through the running app. Keep steps 3–6 and 12–14 in
+side that ships, and the real orchestration can be driven through the running app. Keep steps 3–6 and 13–15 in
 some form even then — they cover the sandbox contract and the build, which no C# test touches — and delete
 `git-store.mjs`, which is the only file here that duplicates logic and can therefore drift.

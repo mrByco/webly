@@ -3,7 +3,7 @@ using Webly.Services.Agent;
 namespace Webly.Tests;
 
 /// <summary>
-/// The compile check, against what <c>next dev</c> actually prints.
+/// The compile check, against what <c>next dev</c> and <c>tsc</c> actually print.
 ///
 /// The samples below are copied from a real dev server's output, not written from memory, and that is the
 /// point of the test: the first version of this check looked for "Failed to compile", "Module not found" and
@@ -44,8 +44,8 @@ public class CompilerOutputTests
 
     /// <summary>
     /// A type error, which compiles and serves. SWC strips types rather than checking them, so this is not a
-    /// gap in the marker list — it is a gap in what the dev server can possibly know, and the reason
-    /// <c>AGENTS.md</c> asks the agent to run <c>npm run typecheck</c> itself.
+    /// gap in the marker list — it is a gap in what the dev server can possibly know, and the reason a turn runs
+    /// <c>npm run typecheck</c> as well (<see cref="CompilerOutput.SaysTheTypesBroke"/>).
     /// </summary>
     private const string TypeError =
         " ✓ Compiled in 187ms (944 modules)\n GET / 200 in 193ms\n";
@@ -128,6 +128,71 @@ public class CompilerOutputTests
 
             // The text after the backtrace is kept: it names the file that could not be imported.
             Assert.That(readable, Does.Contain("Import trace for requested module"));
+        });
+    }
+
+    /// <summary>
+    /// What <c>npm run --silent typecheck</c> printed for a file with one type error, copied from a real run —
+    /// and the reason the typecheck exists at all: the same file served a 200 from <c>next dev</c>, which
+    /// compiles with SWC and does not look at types.
+    /// </summary>
+    private const string TypeCheckFailure =
+        "src/app/page.tsx(40,7): error TS2322: Type 'number' is not assignable to type 'string'.\n";
+
+    [Test]
+    public void A_type_error_is_recognised_and_a_broken_check_is_not()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(CompilerOutput.SaysTheTypesBroke(TypeCheckFailure), Is.True);
+
+            // Everything below exits non-zero and says nothing about the site. Reporting one of these as "your
+            // site is not compiling" tells a customer their site is broken when what is broken is our sandbox.
+            Assert.That(
+                CompilerOutput.SaysTheTypesBroke("npm error Missing script: \"typecheck\""),
+                Is.False,
+                "a template without the script");
+
+            Assert.That(
+                CompilerOutput.SaysTheTypesBroke("sh: 1: tsc: not found"),
+                Is.False,
+                "a workspace whose dependencies never installed");
+
+            Assert.That(CompilerOutput.SaysTheTypesBroke(string.Empty), Is.False);
+
+            // The dev server's own wording for a type error, which `next build` prints and `tsc` does not. It is a
+            // marker for the log reader and must not be what this one keys on, or "Type error:" in a page's copy
+            // would be a failing typecheck.
+            Assert.That(CompilerOutput.SaysTheTypesBroke("Type error: something"), Is.False);
+        });
+    }
+
+    [Test]
+    public void Type_errors_reach_the_chat_without_npm_talking_about_itself()
+    {
+        // npm's banner, which `--silent` suppresses and which is dropped anyway, because which lines a version of
+        // npm prints about itself is not a thing to depend on.
+        var readable = CompilerOutput.TypeErrors(
+            "\n> webly-site@1.0.0 typecheck\n> tsc --noEmit\n\n" + TypeCheckFailure);
+
+        Assert.That(readable, Is.EqualTo(TypeCheckFailure.Trim()));
+    }
+
+    [Test]
+    public void A_wall_of_type_errors_is_cut_off_and_says_how_much_was_left()
+    {
+        // One mistake in a shared component is one error per importer. The first few are the ones to act on; the
+        // count is what says whether this is a typo or a rename that went wrong.
+        var many = string.Concat(Enumerable.Range(0, 30).Select(i =>
+            $"src/components/hero.tsx({i + 1},7): error TS2322: Type 'number' is not assignable to type 'string'.\n"));
+
+        var readable = CompilerOutput.TypeErrors(many);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(readable, Does.Contain("hero.tsx(1,7)"), "the first one is kept");
+            Assert.That(readable, Does.Not.Contain("hero.tsx(30,7)"), "the thirtieth is not");
+            Assert.That(readable, Does.EndWith("…and 11 more lines."), "and the count includes the trailing newline");
         });
     }
 }

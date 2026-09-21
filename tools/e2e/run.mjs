@@ -821,6 +821,64 @@ try {
     }
   });
 
+  // -- 17. The check the dev server cannot make --------------------------------------------------
+  await step('A type error serves a page happily and only the typecheck catches it', async () => {
+    // The premise of running `npm run typecheck` after every turn, made runnable. `next dev` compiles with SWC,
+    // which strips types rather than checking them — so the mistake most likely to stop a publish is the one the
+    // dev server's log can never mention, and until this ran that was an argument rather than a fact.
+    const page = join(sandbox.workspace, 'src', 'app', 'page.tsx');
+    const good = readFileSync(page, 'utf8');
+    const before = await box.devLog(sandbox);
+
+    try {
+      // Not exported, deliberately: Next.js constrains a page's exports in a generated type, so an exported const
+      // also produces a complaint about a file in `.next/types` with a four-hundred-character type name in it.
+      // True, and not what anybody should read. This is the mistake without the noise.
+      writeFileSync(page, `${good}\n\nconst mistyped: string = 42;\n`);
+
+      const served = await box.waitFor(async () => {
+        const attempt = await box.preview(sandbox);
+        if (!attempt.ok) return null;
+        const html = await attempt.text();
+        return html.includes('<h1') ? html : null;
+      }, 90_000, 'the preview never came back');
+
+      check(typeof served === 'string', 'the dev server serves the page with the type error in it');
+
+      const log = await box.devLog(sandbox, before.offset);
+      check(!/⨯ \.\/|Failed to compile|error TS/i.test(log.text),
+        'and says nothing about it, which is the whole gap');
+
+      const failed = await box.exec(sandbox, {
+        command: 'npm',
+        args: ['run', '--silent', 'typecheck'],
+        timeoutMs: 300_000,
+      });
+
+      check(!failed.succeeded, `the typecheck fails (exit ${failed.exitCode})`);
+      check(/\(\d+,\d+\): error TS\d+/.test(failed.output),
+        'naming a file, a position and a diagnostic code — the shape CompilerOutput keys on');
+      check(!/^> /m.test(failed.output), '--silent keeps npm from narrating itself into the answer');
+
+      // And it leaves nothing behind. `tsc --incremental` writes a cache file, and a turn that committed one
+      // would have put a machine-readable dump of the project into the customer's history and shown it in their
+      // diff. Two things stop it and this asserts the one that decides what a commit can contain.
+      const tree = await box.readTree(sandbox);
+      check(!tree.some(file => file.path.endsWith('.tsbuildinfo')),
+        `no typecheck cache in the tree that becomes a commit (${tree.length} files)`);
+    } finally {
+      writeFileSync(page, good);
+    }
+
+    const fixed = await box.exec(sandbox, {
+      command: 'npm',
+      args: ['run', '--silent', 'typecheck'],
+      timeoutMs: 300_000,
+    });
+
+    check(fixed.succeeded, 'and it goes quiet again once the file is right');
+  });
+
   process.stdout.write(`\n${'='.repeat(78)}\nAll ${stepNumber} steps passed.\n`);
 
   if (globalThis.__streamFindings) {

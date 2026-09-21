@@ -61,16 +61,32 @@ public class MockCodingAgent(
     /// there was no way to see it happen without a model key and a deliberately unhelpful prompt. So the mock
     /// takes the instruction literally.
     ///
-    /// The snippet is the one shape that works, and the two obvious alternatives do not: <c>next dev</c> compiles
-    /// with SWC, which strips types rather than checking them, so a type error never reaches the log and an
-    /// <i>unused</i> broken import is elided as possibly-a-type before anything resolves it. An unterminated
-    /// expression is a syntax error, which is what the compiler complains about out loud.
+    /// An unterminated expression, because that is a <i>syntax</i> error, which is what <c>next dev</c> complains
+    /// about out loud. A broken import that nothing uses would not do: it is elided as possibly-a-type before
+    /// anything resolves it.
     /// </summary>
     public const string BreakPhrase = "break the build";
+
+    /// <summary>
+    /// The other half of the same idea, for the check the dev server cannot make.
+    ///
+    /// <c>next dev</c> compiles with SWC, which strips types rather than checking them, so this snippet serves a
+    /// page perfectly and appears in no log — verified against a real dev server, which answered 200 — which is
+    /// exactly why a turn runs <c>npm run typecheck</c> as well, and why that path needs its own way to be driven
+    /// without a model key.
+    ///
+    /// Not <c>export</c>ed, and that is the whole difference between one error and two. Next.js generates a type in
+    /// <c>.next/types</c> that constrains a page's exports to the ones it knows, so an extra exported const also
+    /// produces a complaint about a generated file with a four-hundred-character type name in it — true, and useless
+    /// to read. A file-scope const is the mistake without the noise.
+    /// </summary>
+    public const string BreakTypesPhrase = "break the types";
 
     private const string BreakMarker = "// Added by the mock agent on purpose. Ask for anything else and it goes.";
 
     private const string BreakSnippet = $"\n\n{BreakMarker}\nexport const broken = (\n";
+
+    private const string BreakTypesSnippet = $"\n\n{BreakMarker}\nconst mistyped: string = 42;\n";
 
     public async Task<CodingAgentOutcome> RunAsync(
         ISandbox sandbox,
@@ -92,9 +108,12 @@ public class MockCodingAgent(
         var before = Repaired(Encoding.UTF8.GetString(file.Content));
 
         var breaking = request.Message.Contains(BreakPhrase, StringComparison.OrdinalIgnoreCase);
+        var mistyping = request.Message.Contains(BreakTypesPhrase, StringComparison.OrdinalIgnoreCase);
         var headline = Headline(request.Message);
 
-        var after = breaking ? before + BreakSnippet : ReplaceFirstHeadline(before, headline);
+        var after = breaking ? before + BreakSnippet
+            : mistyping ? before + BreakTypesSnippet
+            : ReplaceFirstHeadline(before, headline);
 
         if (after is null)
             throw new SandboxException(
@@ -110,19 +129,21 @@ public class MockCodingAgent(
 
         var reply = breaking
             ? "I left an unfinished expression in the home page, so it will not compile. Ask me for anything else and I will take it out."
-            : $"I put \"{headline}\" at the top of the home page.";
+            : mistyping
+                ? "I put a number where the home page wants a string. The page still renders, so only the typecheck will notice. Ask me for anything else and I will take it out."
+                : $"I put \"{headline}\" at the top of the home page.";
 
         await onEvent(new CodingAgentEvent.Text(reply));
 
         logger.LogInformation(
-            breaking
+            breaking || mistyping
                 ? "The mock agent broke {Path} on purpose."
                 : "The mock agent set the headline to {Headline}.",
-            breaking ? TargetPath : headline);
+            breaking || mistyping ? TargetPath : headline);
 
         return new CodingAgentOutcome(
             reply,
-            Summary: breaking
+            Summary: breaking || mistyping
                 ? "Broke the home page on purpose"
                 : $"Set the headline to \"{Shorten(headline, 40)}\"",
             Details: "Written by the mock agent, which has no model behind it.",

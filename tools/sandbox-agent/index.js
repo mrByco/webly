@@ -55,9 +55,16 @@ const INHERITED_ENV = (() => {
 
 // What never travels back to git. Build output and dependencies are reproducible from the tree, and a
 // stray .env would put a customer's secret in their history for ever.
+//
+// `*.tsbuildinfo` is the one that is not obvious, and it is not hypothetical: `AGENTS.md` asks the agent to run
+// `npm run typecheck` before finishing and Webly runs it too, and `tsc --noEmit --incremental` writes its cache
+// next to the tsconfig. So every turn would have committed a machine-readable dump of the project into the
+// customer's history and shown it in their diff. The template points that file into `.next` as well, which is
+// belt and braces on purpose: this list is what decides what a commit *can* contain, and it must not depend on
+// one setting in one file the agent is asked not to edit.
 const IGNORED = [
   '.git', 'node_modules', '.next', '.vercel', '.turbo', 'dist', 'out',
-  '.env', '.env.local', '.env.*.local', '*.log', '.DS_Store', '.claude', '.opencode',
+  '.env', '.env.local', '.env.*.local', '*.log', '*.tsbuildinfo', '.DS_Store', '.claude', '.opencode',
 ];
 
 mkdirSync(WORKSPACE, { recursive: true });
