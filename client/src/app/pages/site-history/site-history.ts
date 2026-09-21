@@ -7,6 +7,7 @@ import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
 import { DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
 import { messageOf } from '../../models/problem-details';
+import { isWideScreen } from '../../shared/wide-screen';
 import { SiteVersionResponse } from '../../api/models/site-version-response';
 
 /**
@@ -32,6 +33,8 @@ export class SiteHistoryPage {
 
   protected readonly versions = signal<SiteVersionResponse[]>([]);
   protected readonly selected = signal<SiteVersionResponse | undefined>(undefined);
+
+  private readonly wide = isWideScreen();
   protected readonly diff = signal<string | undefined>(undefined);
   protected readonly loading = signal(true);
   protected readonly loadingDiff = signal(false);
@@ -72,11 +75,13 @@ export class SiteHistoryPage {
       this.error.set(undefined);
 
       // `?version=` is how the chat links the turn that produced a version, so it outranks the head: somebody
-      // following that link is asking about that one. An id that no longer names anything falls back rather
-      // than showing an empty pane — a stale link should still open the history.
-      const chosen = versions.find(version => version.nanoid === this.asked())
-        ?? versions.find(version => version.isHead)
-        ?? versions[0];
+      // following that link is asking about that one, and it opens on a phone as well — they asked for it.
+      const asked = versions.find(version => version.nanoid === this.asked());
+
+      // The head, only where there is a pane beside the list. Below `lg` the two stack and one shows at a
+      // time, so opening on a diff would land somebody on a diff with the list hidden behind a back button.
+      // An id that no longer names anything falls back to the list rather than to an empty pane.
+      const chosen = asked ?? (this.wide ? versions.find(version => version.isHead) ?? versions[0] : undefined);
 
       if (chosen) {
         this.select(chosen);

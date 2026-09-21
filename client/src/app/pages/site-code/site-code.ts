@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
 import { ImageService } from '../../services/image.service';
+import { isWideScreen } from '../../shared/wide-screen';
 import { messageOf } from '../../models/problem-details';
 import { SiteFileEntryResponse } from '../../api/models/site-file-entry-response';
 
@@ -27,6 +28,7 @@ export class SiteCodePage {
   private readonly route = inject(ActivatedRoute);
   private readonly sites = inject(SiteService);
   private readonly images = inject(ImageService);
+  private readonly wide = isWideScreen();
 
   /** The parent route holds the site: this screen is a child of the editor shell. */
   protected readonly siteNanoid = this.route.parent?.snapshot.paramMap.get('nanoid') ?? '';
@@ -79,10 +81,12 @@ export class SiteCodePage {
       this.error.set(undefined);
 
       // Opens on the home page rather than on nothing: it is the file somebody came to look at, and an empty
-      // pane beside a list is a screen that asks a question instead of answering one.
+      // pane beside a list is a screen that asks a question instead of answering one. Only where there *is* a
+      // pane beside the list — below `lg` the two stack and one shows at a time, so opening on a file would
+      // land somebody on source code with the list of files hidden behind a back button.
       const first = entries.find(entry => entry.path === 'src/app/page.tsx') ?? entries[0];
 
-      if (first) await this.open(first.path);
+      if (first && this.wide) await this.open(first.path);
     } catch (failure) {
       this.error.set(messageOf(failure));
     } finally {

@@ -1,5 +1,14 @@
+<!--
+  Two panes from `lg` up, one at a time below it.
+
+  Stacked, the list grew to its own height — twenty-odd files, about 1200px — and pushed the file somebody
+  had just picked off the bottom of a phone screen. Picking a file appeared to do nothing. So below `lg` this
+  is a master/detail pair: the list until something is chosen, then the file, with a way back.
+-->
 <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-  <div class="flex min-h-0 basis-1/2 flex-col overflow-y-auto border-base-300 p-4 lg:max-w-xs lg:border-r">
+  <div
+    class="flex min-h-0 basis-1/2 flex-col overflow-y-auto border-base-300 p-4 lg:max-w-xs lg:border-r"
+    [class.max-lg:hidden]="selected()">
     <h2 class="text-base font-bold">Your site's code</h2>
     <p class="mb-3 text-xs text-base-content/60">
       A real Next.js project. You never have to touch it — but it is yours.
@@ -39,10 +48,17 @@
     }
   </div>
 
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-base-200">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-base-200" [class.max-lg:hidden]="!selected()">
     @if (selected(); as path) {
       <div class="flex items-center gap-2 border-b border-base-300 px-4 py-3">
-        <app-icon class="size-4 text-base-content/55" name="code" />
+        <!-- Only where the list is not beside it. On a wide screen the list is right there and a back button
+             would be a control that undoes nothing. -->
+        <button class="btn btn-ghost btn-xs lg:hidden" type="button" (click)="selected.set(undefined)">
+          <app-icon class="size-4" name="chevron-left" />
+          Files
+        </button>
+
+        <app-icon class="size-4 text-base-content/55 max-lg:hidden" name="code" />
         <p class="min-w-0 flex-1 truncate font-mono text-sm">{{ path }}</p>
         <span class="text-xs text-base-content/50">{{ humanSize() }}</span>
       </div>

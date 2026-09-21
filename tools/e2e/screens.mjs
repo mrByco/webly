@@ -233,13 +233,31 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
 
 /**
- * One screen: go there, let it settle, shoot it at both widths, and ask the three questions.
+ * One screen: go there, let it settle, optionally press something, shoot it at both widths, and ask the
+ * three questions.
+ *
+ * <b>The `open` step exists because opening a screen is not using it.</b> Three defects in a row were found
+ * by clicking once on a screen this sweep had walked clean a dozen times — a photograph in the Code tab that
+ * said "there is nothing to show", a diff clipped at the window edge, a domain that could not be removed.
+ * Every one of them was behind a single click, and the sweep had never made one.
+ *
+ * It is deliberately one click and never a sequence: a harness that drives a flow is a test that breaks when
+ * the flow changes, and this one's job is to *look*. If the thing is not there, nothing happens.
  */
-async function walk(page, name, url) {
+async function walk(page, name, url, open) {
   current = name;
 
   await page.goto(url, { waitUntil: 'networkidle' }).catch(error => problems.push(`${name}: ${error.message}`));
   await page.waitForTimeout(1200);
+
+  if (open) {
+    const target = open(page).last();
+
+    if (await target.count()) {
+      await target.click().catch(error => problems.push(`${name}: could not open anything — ${error.message}`));
+      await page.waitForTimeout(1500);
+    }
+  }
 
   const text = await page.locator('body').innerText().catch(() => '');
 
@@ -315,11 +333,14 @@ try {
     return response.ok ? Boolean((await response.json()).summary?.publishedAt) : false;
   }, { base: origin, id: nanoid });
 
+  // The third entry, where there is one, is what to press once the screen has loaded. See `walk`.
   const screens = [
     ['sites', `${origin}/`],
     ['editor', `${origin}/sites/${nanoid}`],
-    ['history', `${origin}/sites/${nanoid}/history`],
-    ['code', `${origin}/sites/${nanoid}/code`],
+    // Both of these screens open on something already, so the click has to reach what the default does not:
+    // the *oldest* version rather than the newest, and a photograph rather than the source file it starts on.
+    ['history', `${origin}/sites/${nanoid}/history`, page => page.getByText('Created from the Webly starter')],
+    ['code', `${origin}/sites/${nanoid}/code`, page => page.getByText(/\.(png|jpg|jpeg|webp|gif)$/)],
     ['messages', `${origin}/sites/${nanoid}/messages`],
     ['domains', `${origin}/sites/${nanoid}/domains`],
     ['settings', `${origin}/sites/${nanoid}/settings`],
@@ -335,7 +356,7 @@ try {
       : []),
   ];
 
-  for (const [name, url] of screens) await walk(page, name, url);
+  for (const [name, url, open] of screens) await walk(page, name, url, open);
 
   // Nothing published, so the assertion is the other one — and it is worth making, because it is what a
   // *deleted* site has to answer too: a 404, never Webly's own app. A request rather than a screenshot,
