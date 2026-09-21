@@ -4,7 +4,7 @@
 .DESCRIPTION
   1. Reuses a backend already serving Swagger on :5000, or starts one in the background.
   2. Waits for Swagger to be reachable.
-  3. Runs ng-openapi-gen to regenerate client/src/app/api/.
+  3. Runs client/regen-api.mjs, which regenerates client/src/app/api/.
   4. Stops only a backend this script started (never one that was already running), so it
      composes with run-app.ps1 instead of fighting it for the port.
 #>
@@ -68,34 +68,20 @@ try {
     Write-Host 'Regenerating Angular API client...' -ForegroundColor Cyan
     Push-Location $ClientDir
     try {
-        $genConfigPath = Join-Path $ClientDir 'open-api-gen.json'
-        $genConfig = Get-Content $genConfigPath -Raw | ConvertFrom-Json
-        $genConfig.input = $SwaggerUrl
-        $tempConfigPath = Join-Path $ClientDir 'open-api-gen.temp.json'
-        # BOM-less: Windows PowerShell 5.1 -Encoding UTF8 emits a BOM, which the generator's JSON parser rejects.
-        [System.IO.File]::WriteAllText(
-            $tempConfigPath,
-            ($genConfig | ConvertTo-Json -Depth 5),
-            (New-Object System.Text.UTF8Encoding $false))
-        $prevTlsReject = $env:NODE_TLS_REJECT_UNAUTHORIZED
+        # client/regen-api.mjs does the work, so this script's job is only "make sure a backend is serving
+        # swagger, then call it". It exports the dev certificate and points node at it, rather than turning
+        # certificate verification off for the process the way this used to — and because it takes the URL as
+        # an argument, the temporary copy of open-api-gen.json that used to carry it is gone too.
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         try {
-            # Backend uses the self-signed Kestrel dev cert; Node rejects it unless this is disabled.
-            $env:NODE_TLS_REJECT_UNAUTHORIZED = '0'
-            $prevEap = $ErrorActionPreference
-            $ErrorActionPreference = 'Continue'
-            try {
-                & npx ng-openapi-gen --config open-api-gen.temp.json 2>&1 | ForEach-Object { "$_" }
-            }
-            finally {
-                $ErrorActionPreference = $prevEap
-            }
-            if ($LASTEXITCODE -ne 0) {
-                throw "ng-openapi-gen exited with code $LASTEXITCODE."
-            }
+            & node regen-api.mjs --input $SwaggerUrl 2>&1 | ForEach-Object { "$_" }
         }
         finally {
-            $env:NODE_TLS_REJECT_UNAUTHORIZED = $prevTlsReject
-            Remove-Item $tempConfigPath -ErrorAction SilentlyContinue
+            $ErrorActionPreference = $prevEap
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "regen-api.mjs exited with code $LASTEXITCODE."
         }
     }
     finally {

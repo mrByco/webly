@@ -25,6 +25,11 @@ namespace Webly.Services.Services.Sandboxes;
 /// behave exactly as they do in production — which is the whole reason the provider boundary is where it is.
 /// <c>tools/e2e/sandbox.mjs</c> starts it the same way from node, and <c>tools/e2e/run.mjs</c> drives a full
 /// turn through it.
+///
+/// One cost to know about: a cold workspace here installs the site's dependencies, which is minutes and half a
+/// gigabyte, because there is no image to have prebaked them. The workspace is then warm until it is reaped,
+/// so it is the first turn after a restart that waits. <see cref="DockerSandboxProvider"/> is the fast path and
+/// it is one configuration key away.
 /// </summary>
 public class LocalSandboxProvider(
     IHttpClientFactory httpClientFactory,
@@ -38,6 +43,43 @@ public class LocalSandboxProvider(
 
     private readonly SandboxOptions _options = options.Value;
     private readonly LocalSandboxOptions _local = localOptions.Value;
+
+    private int _sweptWorkspaceRoot;
+
+    /// <summary>
+    /// Removes every workspace left behind by a previous process, once, before the first sandbox starts.
+    ///
+    /// A workspace is deleted when its sandbox stops, which covers the ordinary path and nothing else: a
+    /// crash, a stopped debugger or a <c>kill -9</c> leaves a directory holding a full <c>node_modules</c> —
+    /// half a gigabyte each, one per site per run. Two of them had accumulated by the second day of anybody
+    /// using this, which is the whole argument for the sweep.
+    ///
+    /// It is safe because this provider is per process in the same way <c>RunRegistry</c> is: every workspace
+    /// under this root belongs to a sandbox this process started, so at the moment this process starts, none
+    /// of them is owned by anybody. The exception is two instances sharing one root, which is not a thing
+    /// development does and is another reason this provider refuses to run in production.
+    /// </summary>
+    private void SweepWorkspaceRootOnce(string root)
+    {
+        if (Interlocked.Exchange(ref _sweptWorkspaceRoot, 1) == 1) return;
+
+        if (!Directory.Exists(root)) return;
+
+        foreach (var stale in Directory.EnumerateDirectories(root))
+        {
+            try
+            {
+                Directory.Delete(stale, recursive: true);
+                logger.LogInformation("Removed the workspace {Workspace}, left by an earlier run.", stale);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Worth a line and nothing more: a directory that will not delete is disk, not correctness,
+                // and refusing to start a turn over it would be the worse failure.
+                logger.LogWarning(exception, "Could not remove the stale workspace {Workspace}.", stale);
+            }
+        }
+    }
 
     public async Task<ISandbox> StartAsync(SandboxSpec spec, CancellationToken cancellationToken = default)
     {
@@ -55,8 +97,12 @@ public class LocalSandboxProvider(
 
         // The random suffix is not decoration: a timestamp to the second is not unique, and two sandboxes that
         // shared a workspace directory would edit each other's files while each believed it was alone.
+        var workspaceRoot = Path.GetFullPath(_local.WorkspaceRoot);
+
+        SweepWorkspaceRootOnce(workspaceRoot);
+
         var workspace = Path.Combine(
-            Path.GetFullPath(_local.WorkspaceRoot),
+            workspaceRoot,
             $"{spec.SiteNanoid}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}");
 
         Directory.CreateDirectory(workspace);

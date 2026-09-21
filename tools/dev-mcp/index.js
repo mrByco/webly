@@ -131,8 +131,11 @@ function diagnose(matched, stdout, stderr, limit = 30) {
 
 async function regenApiClient() {
     if (await probe(SERVICES.backend.url) !== 200) throw new Error('Backend is not serving swagger; start it first.')
+    // client/regen-api.mjs rather than ng-openapi-gen directly: it exports the dev certificate and points node
+    // at it, so the generator verifies the backend instead of being told to trust anything. It is also the
+    // same entry point as `yarn regen-api` and the PowerShell script, so there is one of these, not three.
     const { code, stdout, stderr } = await sh(
-        'cmd.exe', ['/c', 'set NODE_TLS_REJECT_UNAUTHORIZED=0&& npx ng-openapi-gen --config open-api-gen.json'],
+        'node', ['regen-api.mjs'],
         { cwd: CLIENT_DIR, timeoutMs: 600_000 })
     const removed = stdout.split(/\r?\n/).filter((l) => l.includes('Removed stale file'))
     const tail = (stdout.trim().split(/\r?\n/).slice(-2).join('\n')) || stderr.trim()
