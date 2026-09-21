@@ -7,9 +7,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Build, version and publish your website by describing it. No code, no templates to fight.">
 
-  <!-- The app's own indigo in light, its dark base in dark, so the browser chrome matches the page. -->
-  <meta name="theme-color" content="#4b4ddb" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#232433" media="(prefers-color-scheme: dark)">
+  <!--
+    The app's own indigo in light, its dark base in dark, so the browser chrome matches the page. As hex,
+    because a meta tag cannot read a CSS variable — these are `--color-primary` and the dark `--color-base-100`
+    from styles.css, converted. They were two other indigos for a while, close enough that nobody saw it and
+    far enough that the phone's address bar was a colour this app does not use.
+  -->
+  <meta name="theme-color" content="#3b5bd4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#202329" media="(prefers-color-scheme: dark)">
 
   <!--
     Source Sans 3. Preconnected because the font is on the critical path for the first paint, and the

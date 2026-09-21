@@ -232,12 +232,61 @@ const browser = await chromium.launch({
 
 const page = await browser.newPage({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
 
+/**
+ * One screen: go there, let it settle, shoot it at both widths, and ask the three questions.
+ */
+async function walk(page, name, url) {
+  current = name;
+
+  await page.goto(url, { waitUntil: 'networkidle' }).catch(error => problems.push(`${name}: ${error.message}`));
+  await page.waitForTimeout(1200);
+
+  const text = await page.locator('body').innerText().catch(() => '');
+
+  if (text.trim().length < 20) problems.push(`${name}: the page is empty`);
+
+  for (const width of [1400, 390]) {
+    await shot(page, name, width);
+
+    for (const pane of await sidewaysScroll(page))
+      problems.push(`${name} @${width}: ${pane} — content is being cut off`);
+
+    // Only at one width: these are questions about the markup, and asking them twice reports each answer
+    // twice.
+    if (width === 1400)
+      for (const failing of await accessibility(page)) problems.push(`${name}: ${failing}`);
+  }
+
+  process.stdout.write(`  · ${name}\n`);
+}
+
 try {
   watch(page);
-  current = 'login';
-  await page.goto(`${origin}/login`, { waitUntil: 'networkidle' });
-  await shot(page, 'login', 1400);
 
+  // The signed-out screens first, because they are the product's first five minutes and because walking them
+  // afterwards would mean signing out. They were missing from this sweep entirely: it went straight to the
+  // login form, filled it in, and never looked at register or forgotten-password at all — nor at login
+  // itself on a phone.
+  for (const [name, path] of [['login', '/login'], ['register', '/register'], ['forgot', '/forgot-password']])
+    await walk(page, name, `${origin}${path}`);
+
+  // The sign-in-with-Google branch, which no development machine renders: the button and the rule beside it
+  // appear only when `Authentication:Google:ClientId` is configured, and a fresh clone deliberately has no
+  // credentials. So nobody had ever looked at it — and it carried the word "vagy", Hungarian for "or",
+  // inherited from the reference project, on the two screens every new customer sees first.
+  //
+  // Answered here rather than configured: the harness stubs the one endpoint that decides, so the branch
+  // renders. It never presses the button, which is the only thing a real client id would buy.
+  await page.route(`${origin}/api/auth/providers`, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{"google":true}' }));
+
+  for (const [name, path] of [['login-google', '/login'], ['register-google', '/register']])
+    await walk(page, name, `${origin}${path}`);
+
+  await page.unroute(`${origin}/api/auth/providers`);
+
+  current = 'sign in';
+  await page.goto(`${origin}/login`, { waitUntil: 'networkidle' });
   await page.setViewportSize({ width: 1400, height: 950 });
   await page.getByPlaceholder('you@example.com').fill(email);
   await page.getByPlaceholder('Password').fill(password);
@@ -286,29 +335,7 @@ try {
       : []),
   ];
 
-  for (const [name, url] of screens) {
-    current = name;
-    await page.goto(url, { waitUntil: 'networkidle' }).catch(error => problems.push(`${name}: ${error.message}`));
-    await page.waitForTimeout(1200);
-
-    const text = await page.locator('body').innerText().catch(() => '');
-
-    if (text.trim().length < 20) problems.push(`${name}: the page is empty`);
-
-    for (const width of [1400, 390]) {
-      await shot(page, name, width);
-
-      for (const pane of await sidewaysScroll(page))
-        problems.push(`${name} @${width}: ${pane} — content is being cut off`);
-
-      // Only at one width: these are questions about the markup, and asking them twice reports each answer
-      // twice.
-      if (width === 1400)
-        for (const failing of await accessibility(page)) problems.push(`${name}: ${failing}`);
-    }
-
-    process.stdout.write(`  · ${name}\n`);
-  }
+  for (const [name, url] of screens) await walk(page, name, url);
 
   // Nothing published, so the assertion is the other one — and it is worth making, because it is what a
   // *deleted* site has to answer too: a 404, never Webly's own app. A request rather than a screenshot,
