@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 132-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 140-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -333,9 +333,13 @@ structured-document model it replaced was better at.
   and `SiteLooks` share: a file that has moved or been reshaped is left exactly as it is.
 - **One template, five looks.** `SiteLooks` rewrites three numbers in `src/app/look.css` — an OKLCH hue, a
   chroma and a card radius — in the template's tree on the way to a site's first commit, at random. **And the
-  same colour in `src/app/icon.svg`**, which is the one place the stylesheet cannot reach: an SVG the browser
-  fetches as a file has no access to the page's CSS variables, so the hue is a literal there and a rewrite that
-  skipped it would put an indigo tile on a terracotta site. The whole
+  same colour twice more**, in the two places the stylesheet cannot reach. `src/app/icon.svg` is a file the
+  browser fetches, so it has no access to the page's CSS variables; `src/app/opengraph-image.tsx` is drawn at
+  build time by Satori, which has no CSS engine at all and refuses `oklch()` outright — so that one carries a
+  **hex**, produced by `Oklch.ToHex`, whose test asserts against colours sampled out of a real browser. The
+  card's rewrite matches `const brand = '#…'` by **name**: matching "a background that is a hex" painted the
+  card's white rule brand-coloured on a brand background, which is an element still there and impossible to
+  see. Found by publishing a terracotta site and looking at its card. The whole
   palette including the neutrals is derived from those, so a site's character changes without a line of its
   markup changing, and "make it green" stays an edit to one small file. Random rather than asked for: the
   first screen of this product asks for a name and nothing else, and a palette picker before anybody has
@@ -346,7 +350,9 @@ structured-document model it replaced was better at.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
   `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, `sitemap.ts`, a
   `not-found.tsx` that is a page of the site rather than the host's default, canonical and Open Graph
-  metadata, and an `icon.svg` — Next's file convention works under `output: 'export'`, and without one every
+  metadata, a generated **share card** (`opengraph-image.tsx` — a link to a small business's site pasted into
+  a message was a grey rectangle with a URL under it, which is how a real website looks like a broken link),
+  and an `icon.svg` — Next's file convention works under `output: 'export'`, and without one every
   published Webly site showed the browser's blank-page icon in the tab, which is the first thing a visitor sees
   of a business and the last thing anybody thinks to check. All of those need an absolute URL, and a static export has no server to ask for one later — so the
   publish passes the site's **address** as `NEXT_PUBLIC_SITE_URL` (`src/site.ts` reads it) and the build is the
@@ -580,6 +586,16 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   project. Best-effort and logged, like the domain detach — a provider outage must not leave somebody unable
   to delete their own site — and idempotent, because a caller cannot tell an already-gone project from a
   refusal and neither can the customer.
+- **Next writes its generated metadata images with no extension**, so a static export contains a file called
+  `opengraph-image` that is a PNG — and a static file middleware decides the type from the extension and so
+  declined to serve it at all: the share card 404ed while the page's own `<meta property="og:image">` pointed
+  at it. `NextMetadataImageContentTypeProvider` names the two files Next produces rather than turning on
+  `ServeUnknownFileTypes`, which would serve *everything* unrecognised as an image. Development only, like the
+  rest of the filesystem target; a real host reads the build's own manifest.
+  One local-only oddity to not go hunting: because that target also sets a base path, the `og:image` URL in a
+  locally published page is the site's address with `/published/{nanoid}` in the middle of it. Nothing resolves
+  that, and nothing needs to — on a provider there is no base path, and the canonical link beside it is right
+  in both.
 - **A mistyped address on a published site gets that site's 404 page**, which took a middleware after the
   static files: without it the request fell through to `MapReverseProxy`, so somebody who typed one character
   wrong on a customer's shop website landed on **Webly's dashboard**, or on Webly's login page if they were

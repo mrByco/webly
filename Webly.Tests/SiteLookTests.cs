@@ -35,6 +35,22 @@ public class SiteLookTests
         </svg>
         """;
 
+    /// <summary>The share card, whose colour is a hex because the thing that draws it has no CSS engine.</summary>
+    private const string CardTsx =
+        """
+        const brand = '#3b5bd4';
+
+        export default function OpenGraphImage() {
+          return new ImageResponse(
+            <div style={{ background: brand, color: '#ffffff' }}>
+              <div style={{ background: '#ffffff' }} />
+              {siteName}
+            </div>,
+            size,
+          );
+        }
+        """;
+
     private static WorkspaceTree Template(params (string Path, string Content)[] extra) =>
         new([
             WorkspaceFile.Text(SiteLooks.Path, LookCss),
@@ -90,6 +106,31 @@ public class SiteLookTests
                 Assert.That(svg, Does.Contain("rx=\"14\""), look.Name);
                 Assert.That(svg, Does.Contain("stroke=\"#ffffff\""), look.Name);
                 Assert.That(svg, Does.StartWith("<!-- This site's icon. -->"), look.Name);
+            }
+        });
+    }
+
+    /// <summary>
+    /// The third copy of the colour, and the one written differently. A card that stayed indigo on a green
+    /// site is the kind of wrong that only shows up in somebody else's chat window, days later.
+    /// </summary>
+    [Test]
+    public void The_share_card_carries_the_same_colour_as_a_hex()
+    {
+        Assert.Multiple(() =>
+        {
+            foreach (var look in SiteLooks.All)
+            {
+                var applied = SiteLooks.Applied(Template((SiteLooks.CardPath, CardTsx)), look);
+                var card = applied.Find(SiteLooks.CardPath)!.AsText();
+
+                Assert.That(card, Does.Contain($"const brand = '{Oklch.ToHex(0.52, look.Chroma, look.Hue)}';"), look.Name);
+
+                // And the white on the card stays white. It went brand-coloured on a brand background the
+                // first time this matched by role rather than by name, which is an element still on the card
+                // and impossible to see.
+                Assert.That(card, Does.Contain("color: '#ffffff'"), look.Name);
+                Assert.That(card, Does.Contain("<div style={{ background: '#ffffff' }} />"), look.Name);
             }
         });
     }

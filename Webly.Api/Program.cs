@@ -170,7 +170,20 @@ if (app.Environment.IsDevelopment())
     var publishedFiles = new PhysicalFileProvider(publishedRoot);
 
     app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = publishedFiles, RequestPath = "/published" });
-    app.UseStaticFiles(new StaticFileOptions { FileProvider = publishedFiles, RequestPath = "/published" });
+
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = publishedFiles,
+        RequestPath = "/published",
+
+        // Next writes its generated metadata images with **no extension** — a static export contains a file
+        // called `opengraph-image`, which is a PNG — and a static file middleware decides the content type from
+        // the extension, so it refused to serve them at all: the share card on every published site answered
+        // 404 while its own `<meta property="og:image">` pointed straight at it. `ServeUnknownFileTypes` with a
+        // default type would have fixed it by serving *everything* unknown as an image, which is the kind of
+        // fix that becomes a security note later; this names the two files Next actually produces.
+        ContentTypeProvider = new NextMetadataImageContentTypeProvider()
+    });
 
     // A mistyped address on a published site, answered by that site's own 404 page.
     //

@@ -38,6 +38,22 @@ public static partial class SiteLooks
     public const string IconPath = "src/app/icon.svg";
 
     /// <summary>
+    /// The card a shared link shows, which carries the brand colour as a hex.
+    ///
+    /// The third and last copy of it, and the one that is written differently: it is drawn at build time by a
+    /// renderer with no CSS engine, which refuses <c>oklch()</c> — see <see cref="Oklch"/>.
+    /// </summary>
+    public const string CardPath = "src/app/opengraph-image.tsx";
+
+    /// <summary>
+    /// The lightness the template uses everywhere the brand colour is a literal.
+    ///
+    /// Not part of a look: it is what keeps white text readable on the colour and the mark legible at sixteen
+    /// pixels, and a look that moved it would be choosing a different problem.
+    /// </summary>
+    private const double BrandLightness = 0.52;
+
+    /// <summary>
     /// Five, chosen to be different in kind rather than in shade: two of them are warm, one is quiet enough to
     /// read as black, and the radii run from nearly square to obviously friendly. A palette generator would
     /// give more variety and less taste — these are five that were looked at.
@@ -75,7 +91,9 @@ public static partial class SiteLooks
     {
         var tree = TemplateFile.Rewritten(template, Path, css => Stylesheet(css, look));
 
-        return TemplateFile.Rewritten(tree, IconPath, svg => Icon(svg, look));
+        tree = TemplateFile.Rewritten(tree, IconPath, svg => Icon(svg, look));
+
+        return TemplateFile.Rewritten(tree, CardPath, card => Card(card, look));
     }
 
     /// <summary>
@@ -97,6 +115,13 @@ public static partial class SiteLooks
     private static string Icon(string svg, SiteLook look) =>
         IconFill().Replace(svg, m => $"oklch({m.Groups[1].Value} {Number(look.Chroma)} {look.Hue})");
 
+    /// <summary>
+    /// The same colour again, as a hex, for the share card. See <see cref="CardPath"/> for why it is not an
+    /// <c>oklch()</c> like the other two.
+    /// </summary>
+    private static string Card(string source, SiteLook look) =>
+        CardBrand().Replace(source, $"const brand = '{Oklch.ToHex(BrandLightness, look.Chroma, look.Hue)}';");
+
     /// <summary>Invariant, because a chroma written as <c>0,19</c> is a stylesheet that does not parse.</summary>
     private static string Number(double value) =>
         value.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -113,4 +138,14 @@ public static partial class SiteLooks
     /// <summary>The icon's own colour, with its lightness captured so the rewrite keeps it.</summary>
     [GeneratedRegex(@"oklch\(\s*([\d.]+%)\s+[\d.]+\s+[\d.]+\s*\)")]
     private static partial Regex IconFill();
+
+    /// <summary>
+    /// The share card's brand colour, the one hex in the project.
+    ///
+    /// The <i>name</i> is what is matched, not "a background that is a hex": the card has white in it too, and
+    /// matching by role painted the rule brand-coloured on a brand background — an element still on the card
+    /// and impossible to see. Found by publishing a terracotta site and looking at its card.
+    /// </summary>
+    [GeneratedRegex(@"const brand = '#[0-9a-fA-F]{6}';")]
+    private static partial Regex CardBrand();
 }

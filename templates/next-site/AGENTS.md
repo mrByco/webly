@@ -72,6 +72,10 @@ shows up.
   logo; it is a file rather than a variable, so its colour is the one place `look.css` cannot reach and has to
   be edited alongside it. Replace the whole file when the business has a mark of its own, and keep it square
   and legible at 16px.
+- `src/app/opengraph-image.tsx` — the picture a shared link shows. Type on the brand colour, drawn by the
+  build. Its colour is a **hex**, because the thing that draws it has no CSS engine and refuses `oklch()`;
+  change it alongside `look.css` if you change the colour. Replace the whole file when the business has a
+  photograph worth putting in front of a link.
 - `src/app/globals.css` — Tailwind plus the tokens derived from `look.css`. Change *how* a token is derived
   here, once, rather than putting class names for one brand colour on forty elements.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.

@@ -157,6 +157,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     checked the thing it exists for — a page that answers 200 while its stylesheet answers 404. It does both
     now, and the second was proved by hiding a stylesheet and watching it fail.
 
+22. **A shared link to a Webly site showed nothing.** No card, no picture, no name — a grey rectangle with a
+    URL under it, which is how a real business's website ends up looking like a broken link in somebody's
+    chat. The template now generates one at build time: the business's name and its address on its own brand
+    colour. Two things it taught: Satori has no CSS engine, so that one file carries a hex and `Oklch.ToHex`
+    produces it (checked against colours sampled out of a browser); and Next writes the image as a file with
+    **no extension**, which a static file middleware will not serve — so the card 404ed while the markup
+    swore it was there, which is the same shape of defect as every other one on this list.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
