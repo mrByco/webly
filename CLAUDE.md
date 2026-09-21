@@ -560,6 +560,17 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   with a semaphore so two turns queue rather than interleave, re-seeds it when the head has moved under it
   (clearing the agent's session id, because a resumed session would remember a different tree), and
   `WorkspaceReaper` closes it when idle — a warm sandbox bills by the second.
+- **And closes all of them when the process stops**, which nothing did: stopping the app left one sandbox
+  running per open site. Found by counting processes — fourteen local sandbox agents still listening, the
+  oldest five hours old, after six restarts of the backend that started them, with their workspaces already
+  deleted from under them by the next start's sweep. `WorkspaceReaper.StopAsync` is where it belongs, because
+  that class already owns "a warm sandbox costs money per second". `ReleaseAllAsync` is deliberately not
+  `ReleaseAsync` in a loop: that one waits up to thirty seconds for a running turn, and at shutdown the turn
+  dies with the process either way — while a shutdown that overruns is abandoned by the host, and what it
+  would abandon is the only code that stops a sandbox. The other half is `LocalSandboxProvider`, which now
+  records **the agent's own pid** in a `.agentpid` beside the workspace so the first-use sweep can kill what a
+  `kill -9` left: the dev server inside it had been recorded and swept since sixteen orphans wedged a machine,
+  and the process that spawned it was recorded nowhere.
 - **The preview is the site's own `next dev`, proxied.** `PreviewController` forwards with YARP's
   `IHttpForwarder`: ownership re-checked per request, WebSockets forwarded (hot reload is one), our cookie
   stripped on the way out. A cold site answers 503 with a sentence rather than starting a workspace on a GET,
@@ -636,7 +647,12 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   a `Seq`, which is both the resume point and the duplicate filter, and that is what makes the hub's
   "join the group, *then* replay" order safe.
 - **Exactly one terminal event per run, emitted only by `ChatRunLauncher`.** A client that never sees one
-  waits forever, which is indistinguishable from the product being broken.
+  waits forever, which is indistinguishable from the product being broken. **It carries what the app has to
+  say about the ending**, in `Error` when the turn failed and in `Detail` when somebody stopped it — both the
+  same sentence `AgentTurnService` writes into the thread, so the live screen and a reload agree. The failure
+  half had that from the start and the stop half did not, so pressing Stop ended with the spinner gone and a
+  status line frozen mid-sentence: the "Stopped. Nothing was changed." note was in the database and only
+  appeared if the person reloaded the page.
 - **The log is in memory, not a table.** A chat run cannot outlive its process and the log exists only to
   serve a reconnect. `IRunEventSink` is the seam if that changes.
 - **`RunWriter` flushes before any non-text event**, or a file chip arrives before the sentence that
@@ -910,6 +926,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   see. A fact recorded wrongly shapes every page written afterwards, and the person it belongs to had no way
   of knowing. Read from the head commit through the existing file endpoint, folded away, and read-only for
   the Code tab's reason: correcting it is a sentence in the chat, which is how it got there.
+- **Enter sends; Shift+Enter writes a second line.** Bound explicitly, because a `<textarea>` does not submit
+  its form on Enter and an `<input>` does — so the composer's growing to fit a message silently took away the
+  only way to send one with the keyboard, in a product whose entire interface is a box you type a sentence
+  into. Nothing caught it: the template type-checks, the page renders, the screenshot is right, and the send
+  button beside it works. Angular's `keydown.enter` already excludes the modifiers, so the newline case needs
+  no code; `isComposing` does, because Enter accepts an input method's candidate.
 - **The composer grows with the message, up to about eight lines.** It was one line and `resize-none`,
   which is right for "make the headline bigger" and wrong for the two cases that are not that: adding
   photographs writes their paths into the box, one per line, and the second one was cut off by the bottom of

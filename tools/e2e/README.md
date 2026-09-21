@@ -20,7 +20,7 @@ The third harness, and the one that answers a question the other two cannot: *is
 It walks the signed-out screens, signs in, walks every screen of the app and of the published site at 1400 px
 and 390 px, and leaves the screenshots behind either way.
 
-It fails on five things, and each was added the day something got past the four before it:
+It fails on six things, and each was added the day something got past the ones before it:
 
 | It fails on | Because |
 |---|---|
@@ -29,6 +29,7 @@ It fails on five things, and each was added the day something got past the four 
 | **a 404 on anything the page asked for** | a published site whose every stylesheet and chunk 404ed behind a document that was 200 |
 | **a pane that has started scrolling sideways** | a diff cut off at the window edge while `document.scrollWidth` never changed — clipping is what hides it |
 | **an obvious accessibility mistake** | an icon-only control that announced "link" and stopped; also `<img>` with no `alt`, a field with nothing naming it, a page with no `h1` or several |
+| **a form field whose border is under 3:1** | every field in the product sat at 1.5:1, where WCAG 1.4.11 asks for 3:1 — and a border drawn too faintly *photographs* as a design choice, so the screenshots above it were no help at all |
 
 Two things it does beyond looking. It **presses one thing** on the screens where the default selection does
 not reach the interesting case — the oldest version, a photograph — because opening a screen is not using it,

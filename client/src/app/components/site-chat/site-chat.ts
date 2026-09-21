@@ -203,6 +203,28 @@ export class SiteChat {
     }
   }
 
+  /**
+   * Enter sends; Shift+Enter writes a second line.
+   *
+   * It is bound rather than inherited because the composer is a `<textarea>`, and a textarea does not submit
+   * its form on Enter — an `<input>` does. This one was an input until it had to grow with the message, so
+   * changing it silently took away the only way to send with the keyboard: the whole interface of this product
+   * is a chat box, and pressing Enter in it put the caret on a blank second line and did nothing. Nothing
+   * catches that — the template type-checks, the page renders, the screenshot looks right — and it was found
+   * by a script that pressed Enter and waited for something to happen.
+   *
+   * Angular's `keydown.enter` already excludes Shift, Alt, Ctrl and Meta, so the newline case needs no code.
+   * `isComposing` does: while an input method is offering candidates, Enter accepts one, and a message sent
+   * mid-word is worse than one Enter that does nothing.
+   */
+  protected onEnter(event: Event): void {
+    if ((event as KeyboardEvent).isComposing) return;
+
+    event.preventDefault();
+
+    void this.send();
+  }
+
   protected async send(): Promise<void> {
     const text = this.message.trim();
 
@@ -288,6 +310,15 @@ export class SiteChat {
         break;
 
       case 'Completed':
+        // A detail on the terminal is what the app has to say about how the turn ended — today only
+        // "Stopped. Nothing was changed." A notice rather than an assistant bubble, because the agent did not
+        // say it; and shown here rather than left to the thread, because the thread is only re-read on a
+        // reload, so without this the person who pressed Stop was left looking at a status line that had
+        // stopped moving.
+        if (event.detail) {
+          this.append({ kind: 'notice', text: event.detail });
+        }
+
         this.finish();
         break;
     }

@@ -59,4 +59,16 @@ public interface ISiteWorkspaceRegistry
 
     /// <summary>Stops a workspace and forgets it. Called by the reaper, and when a site is deleted.</summary>
     Task ReleaseAsync(string siteNanoid);
+
+    /// <summary>
+    /// Stops every warm workspace, for a process that is going away.
+    ///
+    /// Not the same operation as calling <see cref="ReleaseAsync"/> in a loop, and the difference is what it
+    /// refuses to wait for. That one waits up to thirty seconds for a turn to finish, because stopping a sandbox
+    /// under a running turn fails it with a transport error rather than an explanation. At shutdown the turn has
+    /// no future either way — the process holding its run log is the one exiting — so waiting buys nothing and
+    /// risks everything: the host abandons a shutdown that overruns, and what it abandons here is the only code
+    /// that stops a sandbox.
+    /// </summary>
+    Task ReleaseAllAsync();
 }

@@ -60,6 +60,7 @@ public class ChatRunLauncher(
 
         var terminal = RunEventType.Completed;
         string? error = null;
+        string? detail = null;
 
         try
         {
@@ -78,6 +79,11 @@ public class ChatRunLauncher(
             // is replaced the next time the workspace is seeded.
             terminal = RunEventType.Completed;
             error = null;
+            // The same sentence the turn writes into the thread, for the same reason the failure path carries
+            // its own: without it the person who pressed Stop watched the spinner disappear under a status line
+            // frozen mid-sentence — "Waking up your site" — and the note explaining it only appeared if they
+            // reloaded the page. It is a note rather than an error because they asked for it.
+            detail = AgentTurnService.StoppedNote;
             logger.LogInformation("Run {RunId} was cancelled.", runId);
         }
         catch (Exception exception)
@@ -89,7 +95,7 @@ public class ChatRunLauncher(
         }
         finally
         {
-            await FinishAsync(runId, writer, sink, terminal, error);
+            await FinishAsync(runId, writer, sink, terminal, error, detail);
             registry.Finish(runId);
         }
     }
@@ -104,7 +110,8 @@ public class ChatRunLauncher(
         RunWriter writer,
         IRunEventSink sink,
         RunEventType terminal,
-        string? error)
+        string? error,
+        string? detail)
     {
         try
         {
@@ -118,7 +125,11 @@ public class ChatRunLauncher(
 
         try
         {
-            await sink.EmitAsync(runId, new RunEvent { Type = terminal, Error = error }, isTerminal: true, CancellationToken.None);
+            await sink.EmitAsync(
+                runId,
+                new RunEvent { Type = terminal, Error = error, Detail = detail },
+                isTerminal: true,
+                CancellationToken.None);
         }
         catch (Exception exception)
         {

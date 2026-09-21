@@ -276,6 +276,50 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     here. Dead CSS is cheap; a comment in Webly's stylesheet explaining how Webly colours ingredient
     categories is not.
 
+33. **Stopping the app left a sandbox running per open site, and nothing owned the shutdown.** Found by
+    counting processes rather than by reading code: fourteen sandbox agents still listening, the oldest five
+    hours old, after six restarts of a backend that had started them — idle, nine hundred megabytes between
+    them, with their workspaces already deleted from under them by the next start's sweep. Locally that is a
+    node process each; on a provider that bills by the second it is a sandbox per site, per deploy, for ever.
+
+    The dev server inside each one has been recorded in a `.devpid` and swept since sixteen orphans wedged a
+    machine. The *agent that spawned it* was recorded nowhere, so nothing could find it — the sweep was
+    deleting the directories of processes it had no way to name.
+
+    Two halves, each in the layer that knows. `WorkspaceReaper` gains a `StopAsync`, because it already owns
+    "a warm sandbox costs money per second", and `ISiteWorkspaceRegistry.ReleaseAllAsync` is deliberately not
+    `ReleaseAsync` in a loop: that one waits up to thirty seconds for a turn to finish, and at shutdown the
+    turn has no future either way, while a shutdown that overruns is abandoned by the host — and what it would
+    abandon here is the only code that stops a sandbox. And `LocalSandboxProvider` now writes the agent's own
+    pid beside the workspace, so the sweep can kill what a `kill -9` left.
+
+    Both watched: a `SIGTERM` takes the sandbox down and deletes the workspace; a `kill -9` leaves it, and the
+    next start logs "Killed the sandbox agent 20753, left by an earlier run."
+
+34. **The chat could not be sent with the keyboard.** The composer became a `<textarea>` when it had to grow
+    with the message — and a textarea does not submit its form on Enter, which an `<input>` does. So the whole
+    interface of this product, a box you type a sentence into, answered Enter with a blank second line and
+    nothing else. Every check passed: the template type-checks, the page renders, the screenshot is right, and
+    the send button beside it works.
+
+    Found by accident, which is the point: a script that was testing something else pressed Enter and waited
+    for a turn that never started. Enter sends now and Shift+Enter writes a second line, which is what Angular's
+    `keydown.enter` already distinguishes; `isComposing` is checked, because Enter accepts an input method's
+    candidate and a message sent mid-word is worse than an Enter that does nothing.
+
+35. **Pressing Stop said nothing.** The turn's own note — "Stopped. Nothing was changed." — was written into
+    the thread and the thread is only re-read on a page load, so what the person who pressed the button saw was
+    the spinner disappear under a status line frozen mid-sentence: *Waking up your site*. Reload and the note
+    was there, which is the worst version of it, because the app knew.
+
+    The failure path had had the answer all along: it puts the same sentence on the terminal event so that "the
+    live screen and a reload agree". The cancel path set the error to null and carried nothing in its place.
+    It now carries the note as the terminal's `Detail`, and the chat draws a `Detail` on a `Completed` as a
+    notice — not an assistant bubble, because the agent did not say it.
+
+    Found by pressing Stop during a cold workspace start, which is the one moment a turn is slow enough to
+    interrupt: with a warm workspace the mock agent finishes before a person could reach the button.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

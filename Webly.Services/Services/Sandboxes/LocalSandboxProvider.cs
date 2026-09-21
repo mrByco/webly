@@ -65,12 +65,22 @@ public class LocalSandboxProvider(
 
         if (!Directory.Exists(root)) return;
 
-        // The dev servers first, then their workspaces. The other order is the one that wedges a machine: a
+        // The processes first, then their workspaces. The other order is the one that wedges a machine: a
         // `next dev` whose workspace has just been deleted does not exit, it spins at 100% of a core retrying
         // files that are not there any more.
+        //
+        // Both kinds, and the agent is the one that was missing. A dev server has been recorded and swept since
+        // sixteen of them wedged a machine; the agent that spawned it was recorded nowhere, so a backend that was
+        // killed rather than stopped left a node process per open site listening on a loopback port for ever —
+        // fourteen of them, once, with their workspaces already deleted from under them by this very loop.
         foreach (var pidFile in Directory.EnumerateFiles(root, "*.devpid"))
         {
-            KillRecordedDevServer(pidFile);
+            KillRecorded(pidFile, "dev server");
+        }
+
+        foreach (var pidFile in Directory.EnumerateFiles(root, "*.agentpid"))
+        {
+            KillRecorded(pidFile, "sandbox agent");
         }
 
         foreach (var stale in Directory.EnumerateDirectories(root))
@@ -90,15 +100,14 @@ public class LocalSandboxProvider(
     }
 
     /// <summary>
-    /// Kills a dev server an earlier run recorded, and forgets the record.
+    /// Kills a process an earlier run recorded, and forgets the record.
     ///
     /// Development only, like everything in this class, and defensive by construction: a pid file from a
     /// previous boot can name a process that has exited, or — after enough churn — one that belongs to
-    /// something else entirely. The group signal is sent to the negative pid, which is the group the agent put
-    /// `npm run dev` in; a pid that is no longer a group leader signals nothing, which is the outcome wanted
-    /// when the record is stale.
+    /// something else entirely. That is why the whole tree goes rather than a process group: a stale pid names
+    /// something with no children of ours, and the kill is then one signal to one process that is not there.
     /// </summary>
-    private void KillRecordedDevServer(string pidFile)
+    private void KillRecorded(string pidFile, string what)
     {
         try
         {
@@ -107,7 +116,7 @@ public class LocalSandboxProvider(
                 using var process = Process.GetProcessById(pid);
 
                 process.Kill(entireProcessTree: true);
-                logger.LogInformation("Killed the dev server {Pid}, left by an earlier run.", pid);
+                logger.LogInformation("Killed the {What} {Pid}, left by an earlier run.", what, pid);
             }
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
@@ -188,6 +197,21 @@ public class LocalSandboxProvider(
         var process = Process.Start(startInfo)
             ?? throw new SandboxException("The local sandbox agent could not be started.");
 
+        // The agent's own pid, written by this side rather than by the agent, because this side is what knows
+        // it — and beside the workspace rather than inside it, for the same reason the dev server's is: a file
+        // in the workspace travels into the site's next commit. Best-effort: a pid file that cannot be written
+        // is a sandbox that has to be cleaned up by hand later, which is not a reason to fail the turn now.
+        var agentPidFile = $"{workspace}.agentpid";
+
+        try
+        {
+            File.WriteAllText(agentPidFile, process.Id.ToString());
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "Could not record the sandbox agent's process id at {Path}.", agentPidFile);
+        }
+
         // Read both streams, or a chatty agent fills its pipe buffer and blocks. Logged at debug: this is the
         // agent's own output, not the site's, and the dev server's log is fetched over the contract instead.
         process.OutputDataReceived += (_, e) => { if (e.Data is not null) logger.LogDebug("sandbox-agent: {Line}", e.Data); };
@@ -224,13 +248,16 @@ public class LocalSandboxProvider(
                     // Already gone. Nothing to do, and nothing worth logging.
                 }
 
-                try
+                foreach (var record in new[] { $"{workspace}.devpid", agentPidFile })
                 {
-                    File.Delete($"{workspace}.devpid");
-                }
-                catch (IOException)
-                {
-                    // Disk, not correctness. The sweep at the next start will find it.
+                    try
+                    {
+                        File.Delete(record);
+                    }
+                    catch (IOException)
+                    {
+                        // Disk, not correctness. The sweep at the next start will find it.
+                    }
                 }
 
                 if (!_local.DeleteWorkspaceOnStop)

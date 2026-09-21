@@ -276,6 +276,35 @@ public class SiteWorkspaceRegistry(
         logger.LogInformation("Released the workspace for {Site}.", siteNanoid);
     }
 
+    public async Task ReleaseAllAsync()
+    {
+        // Drained before anything is stopped, so a turn that is still running cannot lease one of these back
+        // while this is working through them.
+        var open = _workspaces.Keys.ToList().Select(key => _workspaces.TryRemove(key, out var workspace) ? workspace : null)
+            .OfType<SiteWorkspace>()
+            .ToList();
+
+        if (open.Count == 0) return;
+
+        logger.LogInformation("Stopping {Count} warm workspace(s) before shutting down.", open.Count);
+
+        // In parallel, and not waiting on the gate: see the interface. Stopping a local sandbox means killing a
+        // process tree and waiting for it, so doing eight of them in a row is how a shutdown overruns.
+        await Task.WhenAll(open.Select(async workspace =>
+        {
+            try
+            {
+                await workspace.Sandbox.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                // One sandbox that will not stop must not keep the others alive — and on the way out of the
+                // process there is nothing left to retry with.
+                logger.LogWarning(exception, "Could not stop the workspace for {Site}.", workspace.SiteNanoid);
+            }
+        }));
+    }
+
     private sealed class Lease(SiteWorkspace workspace) : IWorkspaceLease
     {
         public SiteWorkspace Workspace => workspace;

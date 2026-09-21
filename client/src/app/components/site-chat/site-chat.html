@@ -180,7 +180,8 @@
           rows="1"
           placeholder="Ask for a change…"
           [appAutoGrow]="message"
-          [(ngModel)]="message"></textarea>
+          [(ngModel)]="message"
+          (keydown.enter)="onEnter($event)"></textarea>
 
         @if (running()) {
           <button class="btn btn-square" type="button" aria-label="Stop" (click)="stop()">
