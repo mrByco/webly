@@ -136,6 +136,11 @@ more than one restating what the line does.
   working directory that broke the other, because `dotnet run` ignores the shell's and uses the project's.
 - **Start order: backend first.** The frontend's `prestart` (`ng-openapi-gen`) reads the backend's live
   swagger. `run-app.ps1` and `app_start` both do this in the right order.
+- **A template change that does not appear in the browser means a stale lazy chunk, not a wrong change.**
+  `ng serve`'s incremental build sometimes keeps serving the previous version of a lazily loaded component's
+  template — the rebuild logs "Application bundle generation complete", the new chunk is on disk and the page
+  loads the old one. It has cost two diagnoses here, each spent looking for a bug in perfectly correct code.
+  Restart the dev server before doubting the code.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
 - Logs and pidfiles live in `.run/` (gitignored). `Webly.Api` locks its build output while running —
   `app_build` handles stop/build/start.

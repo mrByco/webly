@@ -111,6 +111,20 @@
             What you do, who for, and how people reach you. I will write the pages and ask when I need a
             fact I cannot guess.
           </p>
+
+          <!--
+            Three shapes of request rather than three sentences to send. They put their text in the box and
+            leave it there: what somebody needs on their first visit is to see what asking looks like, and a
+            button that sent a ready-made sentence about a business it knows nothing about would be the
+            product inventing facts on their behalf — the one thing `AGENTS.md` forbids the agent.
+          -->
+          <div class="mt-2 flex flex-wrap justify-center gap-1.5">
+            @for (suggestion of suggestions; track suggestion) {
+              <button class="btn btn-outline btn-xs font-normal" type="button" (click)="suggest(suggestion)">
+                {{ suggestion }}
+              </button>
+            }
+          </div>
         </div>
       }
     </div>

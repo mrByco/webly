@@ -60,7 +60,19 @@ const KIND_OF_ROLE: Record<ChatMessageResponse['role'], ChatEntry['kind']> = {
 export class SiteChat {
   readonly siteNanoid = input.required<string>();
 
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   protected readonly routes = AppRoutes;
+
+  /**
+   * What the empty thread offers. Requests, not facts: each one is a thing to ask for, and the agent asks back
+   * for whatever it needs to do it — which is the product's own answer to "where do the facts come from".
+   */
+  protected readonly suggestions = [
+    'Say what we do on the home page',
+    'Add our address and opening hours',
+    'Make the tone warmer',
+  ];
 
   /** Raised when a turn commits a version, so the editor can refresh its preview and its header. */
   readonly versionCommitted = output<string>();
@@ -124,6 +136,22 @@ export class SiteChat {
     } catch (failure) {
       this.error.set(messageOf(failure));
     }
+  }
+
+  /**
+   * Puts a suggestion in the box rather than sending it, and focuses so the caret is where the next word goes.
+   *
+   * The textarea is found in the DOM rather than with a `viewChild`: it lives inside an `@if` on whether this
+   * deployment has an agent at all, and that query resolved to undefined — see the editor's tab row, which has
+   * the same shape and the same comment.
+   */
+  protected suggest(text: string): void {
+    this.message = text;
+
+    const composer = (this.host.nativeElement as HTMLElement).querySelector('textarea');
+
+    composer?.focus();
+    composer?.setSelectionRange(text.length, text.length);
   }
 
   protected async send(): Promise<void> {
