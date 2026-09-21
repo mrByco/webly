@@ -125,7 +125,14 @@
             (turnFinished)="onTurnFinished()" />
         </section>
 
-        <section class="flex min-h-0 flex-1 flex-col">
+        <!--
+          `min-w-0` is load-bearing. A flex item's default minimum width is its content's, so this pane grew
+          past the space beside the chat whenever what it held was wide — the History screen's diff did it
+          every time — and an ancestor then clipped it: the version's title was cut off mid-word at the edge
+          of the window, the diff ran off with no scrollbar, and the whole thing read as a bug in the diff
+          rendering. Every child route renders in here, so it belongs here rather than in each of them.
+        -->
+        <section class="flex min-h-0 min-w-0 flex-1 flex-col">
           <!--
             The child routes render in place of the preview: history, domains and settings are all about the
             site you are looking at, and taking the chat off screen to show them would interrupt the one

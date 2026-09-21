@@ -38,10 +38,15 @@ Two harnesses drive it, and they answer different questions:
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
-  error, a 5xx, a blank screen, or **a 404 on anything the page asked for** — which is the defect it was
+  error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, or **a 404 on anything the page
+  asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
   that was perfect. It skips the published screens for a site nobody has published, and asserts they answer
-  404 instead, because a harness that is red when the product is right is one nobody reads. It exists because five defects in one afternoon — an unstyled published
+  404 instead, because a harness that is red when the product is right is one nobody reads.
+  The sideways-scroll rule reads class names rather than computed style, deliberately: CSS gives `overflow-x`
+  the used value `auto` the moment `overflow-y` is not visible, so a column that scrolls vertically and a strip
+  meant to scroll horizontally are reported identically by the browser, and only the author's intent — which
+  this app writes in its classes — tells them apart. It exists because five defects in one afternoon — an unstyled published
   site, a 404 that served Webly's dashboard, a title that named no site, pill-shaped form fields, a deleted
   site still serving — had all been "checked" by reading HTML that was perfect.
 - **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it
@@ -755,6 +760,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   is a tab inside that site's own screen, because those links cannot be built without knowing which site
   they mean. There is no "more" tab — the reference project needs one for the screens its bottom bar cannot
   hold, and Webly has two destinations.
+- **`min-w-0` on the editor's child pane is load-bearing**, as it is on the History screen's diff. A flex
+  item's default minimum width is its content's, so a long version summary made that pane wider than the room
+  beside the chat and an ancestor clipped it: the title was cut off mid-word, the diff ran off the edge, and
+  the page's own `scrollWidth` never changed, because clipping is exactly what hides that. It read as a bug in
+  the diff renderer. `tools/e2e/screens.mjs` now fails on it.
 - **The editor shell owns the site.** One load, one signal (`SiteService.current`), so the header, the chat,
   the preview and whichever child route is showing cannot disagree about what is open. History, domains and
   settings render **in place of the preview**, not over the whole page, so the chat stays available.

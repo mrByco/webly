@@ -112,6 +112,50 @@ function watch(page) {
   });
 }
 
+/**
+ * Panes that have quietly started scrolling sideways.
+ *
+ * The defect this exists for: a flex item's default minimum width is its content's, so one long version
+ * summary made the editor's right-hand pane wider than the space beside the chat. The History screen's title
+ * was then cut off mid-word, the diff ran off the edge, and `document.scrollWidth` stayed exactly the window's
+ * width — because the clipping is what hides it. Reading the page's own width proves nothing.
+ *
+ * What it looks for instead is a **vertical** scroll pane that has acquired a horizontal scroll. CSS gives
+ * `overflow-x` the used value `auto` as soon as `overflow-y` is not visible, so the browser reports those two
+ * cases identically and only the intent tells them apart — which this app writes down, in its class names.
+ * So an element that says `overflow-x-auto` is a deliberate sideways scroller and is left alone (the tab strip
+ * on a phone, a block of code); one that only says `overflow-y-auto` is a column that something has made too
+ * wide, and that is always a bug.
+ */
+async function sidewaysScroll(page) {
+  return page.evaluate(() => {
+    const found = [];
+
+    for (const element of document.querySelectorAll('body *')) {
+      if (element.scrollWidth <= element.clientWidth + 1) continue;
+
+      const overflow = getComputedStyle(element).overflowX;
+
+      if (overflow !== 'auto' && overflow !== 'scroll') continue;
+
+      const classes = (element.className?.toString?.() ?? '');
+
+      // Meant to scroll sideways: said so in its own class, or is code.
+      if (classes.includes('overflow-x-auto') || classes.includes('overflow-x-scroll')) continue;
+      if (element.closest('pre, code')) continue;
+
+      const name = classes.trim().split(/\s+/).slice(0, 3).join('.');
+
+      found.push(
+        `${element.tagName.toLowerCase()}${name ? '.' + name : ''} scrolls sideways `
+        + `(${element.scrollWidth} wide in ${element.clientWidth})`);
+    }
+
+    // The outermost is the cause; anything under it is repeating the same news.
+    return found.slice(0, 2);
+  });
+}
+
 async function shot(page, name, width) {
   await page.setViewportSize({ width, height: width < 700 ? 844 : 950 });
   await page.waitForTimeout(600);
@@ -188,8 +232,12 @@ try {
 
     if (text.trim().length < 20) problems.push(`${name}: the page is empty`);
 
-    await shot(page, name, 1400);
-    await shot(page, name, 390);
+    for (const width of [1400, 390]) {
+      await shot(page, name, width);
+
+      for (const pane of await sidewaysScroll(page))
+        problems.push(`${name} @${width}: ${pane} — content is being cut off`);
+    }
 
     process.stdout.write(`  · ${name}\n`);
   }
