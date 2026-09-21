@@ -940,6 +940,14 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   including `RunEventType`, a union the client switches on, which meant adding a value on the server changed
   nothing here until somebody remembered. `HubContractDocumentFilter` puts those types into the document;
   `realtime.service.ts` re-exports them, because everything that watches a run already imports that service.
+- **And it says when the site's name is not the dashboard's.** The two can differ for three reasons now —
+  the rename's checkbox unticked, an older version brought back with the name it had, or the agent rewording
+  it — and until the screen said so the dashboard quietly disagreed with the website and neither admitted it.
+  Read through the same file endpoint the facts panel uses, and parsed in the client, deliberately: the
+  comparison is one sentence on one screen, while `SiteDetailResponse` is fetched on every editor load *and
+  polled every two seconds while a workspace starts, so a `cat-file` behind it would be sixty process spawns
+  for a sentence nobody is looking at. The server stays the authority on writing that constant
+  (`SiteIdentity`); this only reads it, and says nothing at all when the line is missing.
 - **The settings screen shows what the assistant believes.** `content/brand.md` is the agent's memory — its
   session does not outlive a turn, so what it learns goes in that file and every later turn starts from it —
   which makes it the most consequential text in the site and, until this panel, the only one nobody could

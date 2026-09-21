@@ -68,6 +68,32 @@ export class SiteSettingsPage {
    * definition of a version. Correcting it is a sentence in the chat, which is also how it got there.
    */
   protected readonly brand = signal<string | undefined>(undefined);
+
+  /**
+   * The name the site's own pages say, read from its source.
+   *
+   * Two names can differ, and the rename's checkbox is only one of the ways: bringing back an older version
+   * brings back the name it had, and the agent may have reworded it for good reasons of its own. When they do
+   * differ, a person looking at this screen is entitled to know which one their visitors see — without it the
+   * dashboard quietly disagrees with the website and neither says so.
+   *
+   * Read through the same file endpoint the facts panel uses, rather than reported by the API: the comparison
+   * is a sentence on one screen, and the site detail is fetched on every editor load and polled while a
+   * workspace starts. Silence on failure, for the facts panel's reason.
+   */
+  protected readonly pagesName = signal<string | undefined>(undefined);
+
+  /**
+   * Whether to say so. Trimmed on both sides, because the only interesting difference is one a person can
+   * read — and undefined means the file was not there or has been reshaped, which is not something to report
+   * on a settings screen.
+   */
+  protected readonly pagesNameDiffers = computed(() => {
+    const pages = this.pagesName()?.trim();
+    const label = this.sites.current()?.summary.name?.trim();
+
+    return !!pages && !!label && pages !== label;
+  });
   protected readonly brandOpen = signal(false);
 
   /**
@@ -106,6 +132,11 @@ export class SiteSettingsPage {
       .file(this.siteNanoid, 'content/brand.md')
       .then(file => this.brand.set(file.text ?? undefined))
       .catch(() => this.brand.set(undefined));
+
+    void this.sites
+      .file(this.siteNanoid, 'src/site.ts')
+      .then(file => this.pagesName.set(nameInSource(file.text ?? '')))
+      .catch(() => this.pagesName.set(undefined));
   }
 
   protected thumbnail(image: SiteImageResponse): string {
@@ -197,4 +228,18 @@ export class SiteSettingsPage {
       this.saving.set(false);
     }
   }
+}
+
+/**
+ * The business's name as the site's source states it, or undefined if that line is not there.
+ *
+ * `SiteIdentity` writes this constant on the server and is the authority on it; this reads the same line to
+ * say one sentence on one screen, which is why a regex is enough and why it gives up rather than guessing when
+ * the file has been reshaped. The two escapes it undoes are the two that class puts in — a backslash and a
+ * single quote — and nothing else, because nothing else is escaped going the other way.
+ */
+function nameInSource(source: string): string | undefined {
+  const match = /export const siteName = '((?:[^'\\]|\\.)*)'/.exec(source);
+
+  return match ? match[1].replace(/\\(['\\])/g, '$1') : undefined;
 }

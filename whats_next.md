@@ -352,6 +352,22 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     a reload does. Found by driving it in a browser: send a message on one site, click the other in the
     sidebar, come back.
 
+38. **Restoring a version works, and it can move the site's name back.** Driven through the UI for the first
+    time — "Bring this back" on a site's first commit — and it does what it says: a new version whose origin is
+    Restore, the head moved, the list reloading with it marked Current, no confirmation dialog by design (the
+    class comment makes that argument, and it holds: a restore is itself a version and undoing it is the same
+    operation).
+
+    What it exposed is a state the rename slice made reachable: the restored tree carries the name that
+    version had, so the dashboard said "Joe's Kitchens" and every page said "Fieldline Joinery". The settings
+    screen now says which name the visitors see whenever the two differ, and stops saying it once a save with
+    the box ticked puts them back in step. Both halves watched in a browser.
+
+    Its own note: the client reads `src/site.ts` through the file endpoint and parses the constant, rather than
+    the API reporting it. The site detail is fetched on every editor load and polled every two seconds while a
+    workspace starts — a git read behind it would be sixty process spawns for a sentence on a screen nobody has
+    open.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

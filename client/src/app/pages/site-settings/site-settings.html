@@ -42,6 +42,24 @@
       </label>
     </form>
 
+    <!--
+      Said only when the two really differ, which is a reachable state rather than a hypothetical one: the
+      checkbox above can be unticked, bringing back an older version brings back the name it had, and the
+      agent may have reworded it. Whoever is looking at this screen is entitled to know which name their
+      visitors see.
+    -->
+    @if (pagesNameDiffers()) {
+      <div class="rounded-field bg-base-200 p-3 text-sm">
+        <p>
+          Your pages say <span class="font-semibold">{{ pagesName() }}</span>, which is what visitors see.
+        </p>
+        <p class="mt-1 text-xs text-base-content/60">
+          Save the name above with “Say this on the site too” ticked to change it, or ask the assistant for
+          something more specific.
+        </p>
+      </div>
+    }
+
     <!-- The address does not follow the name: it may already be published, linked to and indexed, and
          moving it because somebody fixed a typo is a broken link they did not ask for. -->
     @if (site(); as detail) {
