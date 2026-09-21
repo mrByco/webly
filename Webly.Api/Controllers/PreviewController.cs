@@ -83,6 +83,21 @@ public class PreviewController(
                 ActivityTimeout = TimeSpan.FromMinutes(2)
             }, transformer);
 
+        // The sandbox answered for the dev server rather than from it. That is not a forwarding error — the
+        // forward worked — so it has to be noticed here, or its JSON body goes straight into the iframe.
+        if (transformer.DevServerState is { } state && !Response.HasStarted)
+            return state == "stopped"
+                ? Unavailable(
+                    StatusCodes.Status503ServiceUnavailable,
+                    "Your site's preview has stopped.",
+                    "Send a message and it will start again.",
+                    retry: false)
+                : Unavailable(
+                    StatusCodes.Status502BadGateway,
+                    "Your site is starting up.",
+                    "This page will come back on its own.",
+                    retry: true);
+
         if (error != ForwarderError.None)
         {
             logger.LogWarning("Preview forwarding for {Site} failed: {Error}", siteNanoid, error);
@@ -90,11 +105,26 @@ public class PreviewController(
             // The response may already have started, in which case there is nothing left to say — returning a
             // result here would throw over the top of a half-written body.
             if (!Response.HasStarted)
+            {
+                // Which of the two it is, asked rather than assumed. A forward fails while the dev server is
+                // recompiling — seconds, and a page that retries is exactly right — and it also fails when the
+                // dev server is gone, where a page that retries every second for ever tells somebody their site
+                // is compiling until they give up on it. The sandbox knows the difference now.
+                var log = await workspace.Sandbox.ReadDevServerLogAsync(cancellationToken: cancellationToken);
+
+                if (!log.Running)
+                    return Unavailable(
+                        StatusCodes.Status503ServiceUnavailable,
+                        "Your site's preview has stopped.",
+                        "Send a message and it will start again.",
+                        retry: false);
+
                 return Unavailable(
                     StatusCodes.Status502BadGateway,
                     "Your site is compiling.",
                     "This page will come back on its own.",
                     retry: true);
+            }
         }
 
         return Empty;
@@ -152,8 +182,18 @@ public class PreviewController(
     /// Rewrites the request on its way to the sandbox: strip the route prefix, add the sandbox's token, and drop
     /// anything of ours the dev server has no business seeing.
     /// </summary>
+    /// <summary>
+    /// Rewrites the request for the sandbox, and notices when the sandbox is answering <i>about</i> the dev server
+    /// instead of <i>for</i> it.
+    /// </summary>
     private sealed class PreviewTransformer(string token, string prefix) : HttpTransformer
     {
+        /// <summary>
+        /// <c>starting</c>, <c>stopped</c>, or null when the answer came from the site itself. Read by the action
+        /// after the forward, which is the only place that can put a page there instead.
+        /// </summary>
+        public string? DevServerState { get; private set; }
+
         public override async ValueTask TransformRequestAsync(
             HttpContext context,
             HttpRequestMessage request,
@@ -173,6 +213,27 @@ public class PreviewController(
             // to another machine because it happened to be on the request is how one leaks.
             request.Headers.Remove("Cookie");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+
+        /// <summary>
+        /// Lets the sandbox's own "there is no dev server here" answer through to the action rather than into the
+        /// frame. <c>false</c> means the body is not copied — nothing has been written yet, so the action can still
+        /// answer with a page.
+        /// </summary>
+        public override async ValueTask<bool> TransformResponseAsync(
+            HttpContext context,
+            HttpResponseMessage? response,
+            CancellationToken cancellationToken)
+        {
+            if (response is not null
+                && response.Headers.TryGetValues("x-webly-dev", out var values))
+            {
+                DevServerState = values.FirstOrDefault();
+
+                return false;
+            }
+
+            return await base.TransformResponseAsync(context, response, cancellationToken);
         }
     }
 }

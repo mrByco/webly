@@ -70,6 +70,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     and the `h-full` inside resolved against nothing.
 11. **Logging in lasted fifteen minutes.** A browser's parallel requests all present the same refresh cookie
     when the access token dies; one rotates it and the rest were read as theft, which revoked the chain.
+12. **A site whose address was printed on every screen resolved nowhere.** Nothing ever asked the provider to
+    serve `{slug}.{BaseDomain}`, so the header's link — offered the moment a publish succeeded — was to a 404.
+    Publishing attaches it now, and until it takes, what the product links is the deployment's own URL.
+13. **Build errors were never reported, for two independent reasons.** The turn asks the dev server for a page in
+    order to make it compile, and on a cold workspace that request landed before anything was listening; and a dev
+    server killed by the out-of-memory killer took the only record of itself with it, because the log hung off the
+    child object. Both were invisible: the log read as empty and empty reads as healthy. Asking the mock agent to
+    "break the build" is now how to see the whole path in one turn.
 
 ## What is still intent
 

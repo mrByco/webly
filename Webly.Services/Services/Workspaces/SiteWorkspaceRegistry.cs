@@ -75,6 +75,8 @@ public class SiteWorkspaceRegistry(
                 workspace.AgentKey = null;
             }
 
+            await EnsureDevServerAsync(workspace, site, onProgress, cancellationToken);
+
             workspace.Touch();
 
             return new Lease(workspace);
@@ -84,6 +86,40 @@ public class SiteWorkspaceRegistry(
             workspace.Gate.Release();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Starts the dev server again if it has stopped.
+    ///
+    /// The sandbox being healthy does not mean the site is being served: the dev server is a child process inside
+    /// it, and it can die on its own — the out-of-memory killer takes it first on a machine running several, and a
+    /// crash is a crash. Nothing noticed. The workspace stayed in the dictionary, `workspaceReady` stayed true, and
+    /// the preview answered 502 for the rest of the session while every turn reported success; the build check read
+    /// an empty log and concluded the site compiled, because nothing was compiling.
+    ///
+    /// One request per turn, which is the cheapest place to ask: a turn is already seconds long, and it is also the
+    /// moment somebody is watching the preview for a change.
+    /// </summary>
+    private async Task EnsureDevServerAsync(
+        SiteWorkspace workspace,
+        Site site,
+        Func<string, Task>? onProgress,
+        CancellationToken cancellationToken)
+    {
+        if (!workspace.DevServerStarted) return;
+
+        var log = await workspace.Sandbox.ReadDevServerLogAsync(cancellationToken: cancellationToken);
+
+        if (log.Running) return;
+
+        logger.LogWarning(
+            "The dev server for {Site} had stopped; starting it again. Its last words: {Tail}",
+            site.Nanoid,
+            log.Text.Length <= 400 ? log.Text : log.Text[^400..]);
+
+        if (onProgress is not null) await onProgress("Starting the preview again");
+
+        await workspace.Sandbox.StartDevServerAsync($"/api/sites/{site.Nanoid}/preview", cancellationToken);
     }
 
     private async Task<SiteWorkspace> StartAsync(

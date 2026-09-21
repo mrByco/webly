@@ -766,6 +766,14 @@ try {
 
       check(true, 'the dev server reported a compile error');
 
+      // And that what it reported is about the site rather than about this machine. Next.js names the file
+      // absolutely, so the error the customer reads used to carry the whole workspace path — somebody else's
+      // disk, in the one place they are supposed to be able to act on. The agent takes its own root out.
+      check(!broke.text.includes(sandbox.workspace),
+        'with the workspace path stripped out of it');
+      check(/src\/app\/page\.tsx/.test(broke.text),
+        'and the file still named, relative to the site');
+
       // Fix it, and let it recompile.
       writeFileSync(page, good);
 

@@ -45,6 +45,34 @@ public class DevServerLogReaderTests
     private const string TypeError =
         " ✓ Compiled in 187ms (944 modules)\n GET / 200 in 193ms\n";
 
+    /// <summary>
+    /// What a <b>cold</b> workspace's slice looks like: the turn started before the dev server did, so the log
+    /// begins at npm's banner. Copied from a real one, including the ✓ lines.
+    /// </summary>
+    private const string ColdStartThenSyntaxError =
+        "\n> webly-site@1.0.0 dev\n> next dev --hostname 0.0.0.0\n\n"
+        + "   ▲ Next.js 15.5.4\n"
+        + "   - Local:        http://localhost:32801\n"
+        + "   - Network:      http://0.0.0.0:32801\n\n"
+        + " ✓ Starting...\n"
+        + " ✓ Ready in 1269ms\n"
+        + " ○ Compiling / ...\n"
+        + SyntaxError;
+
+    [Test]
+    public void The_block_starts_at_the_complaint_not_at_the_dev_server_is_first_breath()
+    {
+        var readable = DevServerLogReader.Readable(ColdStartThenSyntaxError);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(readable, Does.StartWith("⨯ ./src/app/page.tsx".Trim()), "the error is the first line");
+            Assert.That(readable, Does.Not.Contain("Ready in"), "not eight lines of startup above it");
+            Assert.That(readable, Does.Not.Contain("webly-site@1.0.0"));
+            Assert.That(readable, Does.Contain("Unexpected eof"));
+        });
+    }
+
     [Test]
     public void A_syntax_error_is_reported()
     {

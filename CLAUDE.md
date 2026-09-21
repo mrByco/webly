@@ -358,8 +358,26 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   because the person's next message is what fixes it. `DevServerLogReader` owns both halves and both were
   wrong until they were run against a real dev server: the markers it looks for begin with `⨯ ./`, which is
   what a syntax error produces, and the three obvious phrases do not appear for one; and what reaches the chat
-  has the terminal's ANSI codes and SWC's seventeen-frame Rust backtrace stripped out of it. The publish path
-  does not depend on any of this: `vercel build` runs there and a failure blocks the deployment.
+  has the terminal's ANSI codes, SWC's seventeen-frame Rust backtrace, the workspace's absolute path and every
+  line before the complaint stripped out of it — a block that opens with npm's banner and `Ready in 1269ms` buries
+  the one line somebody can act on. The publish path does not depend on any of this: `vercel build` runs there and
+  a failure blocks the deployment.
+- **The check is only as good as the request that provokes it, and that is where it was broken.** `next dev`
+  compiles on demand, so the turn asks for a page before it reads the log — and on a cold workspace that request
+  arrived before anything was listening, the agent answered its own 502, nothing ever compiled, and the empty log
+  read as a healthy site. A site with a syntax error in its home page reported a clean turn and served a 500 in the
+  preview pane. `TouchPreviewAsync` now retries for fifteen seconds while the sandbox says the dev server is not
+  answering yet, and only that answer is retried: a 500 from the dev server is a compiled page that threw, which is
+  the thing being looked for. Ask for the mock agent to "break the build" to see the whole path without a key.
+- **A dev server can die on its own, and something has to notice.** It is a child process in the sandbox — the
+  out-of-memory killer takes it first on a machine running several — and nothing did: the workspace stayed warm,
+  `workspaceReady` stayed true, and the preview answered 502 for the rest of the session while every turn reported
+  success. Three changes, each in the layer that knows: the sandbox agent keeps the log **past the child's exit**
+  (it used to hang off the child object, so a dev server that died took the reason with it) and reports `running`
+  beside it; `SiteWorkspaceRegistry.EnsureDevServerAsync` starts a new one on the next turn, which is the cheapest
+  place to ask; and the preview answers "your site's preview has stopped" without a retry loop instead of "your
+  site is compiling" with one, because a page that reloads for ever in front of a dead dev server is how somebody
+  concludes the product is broken.
 - **One warm workspace per site**, shared by the chat and the preview. `SiteWorkspaceRegistry` leases it
   with a semaphore so two turns queue rather than interleave, re-seeds it when the head has moved under it
   (clearing the agent's session id, because a resumed session would remember a different tree), and

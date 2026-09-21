@@ -26,9 +26,15 @@ public record SandboxCommandResult(int ExitCode, string Output)
 /// everything the dev server has ever written, not what is still buffered, so it keeps meaning the same thing
 /// after the buffer has rolled over.
 /// </param>
-public record DevServerLog(string Text, long Offset)
+/// <param name="Running">
+/// Whether the dev server is still there. It matters because the log outlives it: a dev server killed by the
+/// machine — the out-of-memory killer, on a box running several — leaves output and no process, and a caller that
+/// could not tell the difference would report a healthy site whose preview answers 502 for ever. The workspace
+/// registry starts a new one when this is false.
+/// </param>
+public record DevServerLog(string Text, long Offset, bool Running = true)
 {
-    public static DevServerLog Empty { get; } = new(string.Empty, 0);
+    public static DevServerLog Empty { get; } = new(string.Empty, 0, false);
 }
 
 /// <summary>What a sandbox is asked for when it starts.</summary>

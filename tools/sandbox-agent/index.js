@@ -39,6 +39,17 @@ mkdirSync(WORKSPACE, { recursive: true });
 let devServer = null;
 let devReady = false;
 
+// The dev server's output, and how much of it there has ever been. **Module state, not properties on the child**,
+// so that both survive the child exiting. They used to hang off `devServer`, which is set to null when it closes —
+// so a dev server that died took the only record of why with it, `/dev/log` answered with nothing, and the preview
+// 502ed while the app could not tell "never started" from "crashed, and here is the reason". That is a diagnosis
+// somebody then has to do by hand against a machine they may not have.
+let devLog = '';
+let devLogLength = 0;
+
+// How it ended, once it has: `{ code, signal }`. Null while it is running or before it ever ran.
+let devExit = null;
+
 /**
  * The path the dev server believes it is served at, which the caller of /dev/start supplies because only
  * Webly knows it — it names the site. Everything under /preview/ is rewritten onto it, and the dev server is
@@ -179,6 +190,10 @@ function streamTar(response) {
 function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env = {}, basePath = '' }) {
   if (devServer) return json(response, 200, { ok: true, alreadyRunning: true });
 
+  // A restart keeps the old output: what the last one said as it died is exactly what somebody needs, and a
+  // caller reading from a recorded offset still sees only what happened after that offset.
+  devExit = null;
+
   // No trailing slash, because it is concatenated with paths that start with one.
   devBasePath = basePath.replace(/\/+$/, '');
 
@@ -192,21 +207,22 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
     detached: true,
   });
 
-  // Kept in memory and served on /dev/log: a compile error in the dev server is the most useful thing
-  // the editor can show, and it is the thing the next agent turn has to be told about.
-  devServer.log = '';
+  // `devLog` is served on /dev/log: a compile error in the dev server is the most useful thing the editor can
+  // show, and it is the thing the next agent turn has to be told about. `devLogLength` is how much the dev server
+  // has ever said, not how much is in the buffer — which is what makes "did anything go wrong *during this turn*"
+  // answerable. The buffer is a sliding window, so a caller reading it after a turn would see output from every
+  // earlier turn too, and a compile error from three turns ago would read as a compile error now, for ever. A
+  // caller that records the offset before it starts and passes it back afterwards gets only what happened in
+  // between.
+  const record = raw => {
+    // The workspace's own path taken out of it. A compile error names the file it is in, absolutely — and that
+    // string is shown to the site's owner, where `/home/someone/webly/.run/workspaces/AbC-20260921…/src/app/page.tsx`
+    // is both noise and a description of somebody else's disk. `src/app/page.tsx` is the part they can act on, and
+    // this is the one place that knows what to remove because it is the one place that was told the root.
+    const text = raw.split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
 
-  // How much the dev server has ever said, not how much is in the buffer.
-  //
-  // It is what makes "did anything go wrong *during this turn*" answerable. The buffer is a sliding window, so
-  // a caller reading it after a turn sees output from every earlier turn too — and a compile error from three
-  // turns ago then reads as a compile error now, for ever. A caller that records this offset before it starts
-  // and passes it back afterwards gets only what happened in between.
-  devServer.logLength = 0;
-
-  const record = text => {
-    devServer.log = (devServer.log + text).slice(-16_000);
-    devServer.logLength += text.length;
+    devLog = (devLog + text).slice(-16_000);
+    devLogLength += text.length;
     if (/ready|started server|compiled/i.test(text)) devReady = true;
   };
 
@@ -215,9 +231,15 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   devServer.stdout.on('data', record);
   devServer.stderr.on('data', record);
 
-  devServer.on('close', () => {
+  devServer.on('close', (code, signal) => {
     devServer = null;
     devReady = false;
+    devExit = { code, signal };
+
+    // Recorded into the log itself, so one read answers both "what did it say" and "is it still there". A dev
+    // server killed by the machine (the out-of-memory killer, on a box running several) says nothing on its way
+    // out, and a caller seeing only silence would report a healthy site with a broken preview.
+    record(`\nwebly: the dev server exited (code ${code ?? 'none'}, signal ${signal ?? 'none'}).\n`);
   });
 
   json(response, 200, { ok: true });
@@ -263,10 +285,27 @@ function proxy(request, response) {
     });
 
   upstream.on('error', () => {
-    // Almost always the dev server still compiling, or not up yet. A sentence rather than a dead socket,
-    // because this reaches an <iframe> in somebody's editor.
-    if (!response.headersSent) json(response, 502, { ok: false, error: 'The dev server is not answering yet.' });
-    else response.end();
+    // A sentence rather than a dead socket, because this reaches an <iframe> in somebody's editor — and one of
+    // two sentences, because the two cases need different answers. A dev server that is starting or recompiling
+    // will answer in a moment, so the caller should retry; one that has exited will not answer ever, and a page
+    // that retries for ever in front of it tells somebody their site is compiling until they give up.
+    //
+    // The state also rides on a header, so the caller can tell them apart without reading the body — which is
+    // what lets Webly's preview proxy put its own page there instead of forwarding this JSON into the frame.
+    if (!response.headersSent) {
+      const stopped = !devServer;
+
+      response.setHeader('x-webly-dev', stopped ? 'stopped' : 'starting');
+
+      json(response, stopped ? 503 : 502, {
+        ok: false,
+        error: stopped
+          ? 'The dev server is not running.'
+          : 'The dev server is not answering yet.',
+      });
+    } else {
+      response.end();
+    }
   });
 
   request.pipe(upstream);
@@ -284,6 +323,7 @@ const server = createServer(async (request, response) => {
       return json(response, 200, {
         ok: true,
         devServer: devServer ? (devReady ? 'ready' : 'starting') : 'stopped',
+        devExit,
         node: process.version,
       });
     }
@@ -295,8 +335,8 @@ const server = createServer(async (request, response) => {
     // something and reads from it afterwards. Without `since`, the whole buffer — which is what a person asking
     // "what is my site doing" wants.
     if (url.startsWith('/dev/log')) {
-      const buffer = devServer?.log ?? '';
-      const offset = devServer?.logLength ?? 0;
+      const buffer = devLog;
+      const offset = devLogLength;
       const since = Number(new URL(url, 'http://localhost').searchParams.get('since') ?? 0);
 
       // Where the sliding window starts, in total-output terms. A `since` older than that is clamped: the
@@ -304,7 +344,8 @@ const server = createServer(async (request, response) => {
       const windowStart = Math.max(0, offset - buffer.length);
       const log = since > windowStart ? buffer.slice(Math.min(buffer.length, since - windowStart)) : buffer;
 
-      return json(response, 200, { ok: true, log, offset });
+      // `running` so that a caller can tell a quiet dev server from an absent one without a second request.
+      return json(response, 200, { ok: true, log, offset, running: Boolean(devServer), devExit });
     }
 
     if (url === '/files' && request.method === 'POST') return extractTar(request, response);

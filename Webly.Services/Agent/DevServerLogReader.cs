@@ -41,14 +41,24 @@ public static partial class DevServerLogReader
     /// <summary>
     /// The compiler's words, as something to put in a chat.
     ///
-    /// Two things are stripped and neither is information. The log is a terminal's, so it carries ANSI colour
-    /// codes that a browser renders as a literal <c>[31m</c> in the middle of the error. And a syntax error
+    /// Three things are dropped and none of them is information. The log is a terminal's, so it carries ANSI
+    /// colour codes that a browser renders as a literal <c>[31m</c> in the middle of the error. A syntax error
     /// from SWC arrives with a seventeen-frame Rust stack backtrace of <c>&lt;unknown&gt;</c>, which is the
-    /// compiler's own internals and says nothing at all about the person's page.
+    /// compiler's own internals and says nothing at all about the person's page. And everything before the
+    /// complaint goes: on a cold workspace the slice starts at the dev server's first breath, so the block
+    /// opened with npm's banner, the Next.js version and "Ready in 1269ms" — eight lines of nothing above the
+    /// one line somebody needs. The error is what this is for, so the error is where it starts.
     /// </summary>
     public static string Readable(string log)
     {
         var lines = AnsiCodes().Replace(log, string.Empty).Split('\n');
+
+        // From the first line that complains. Not from the first line at all, and not a fixed number of lines
+        // of context: what counts as context here is startup chatter from before the edit even happened.
+        var first = Array.FindIndex(lines, line => Markers.Any(marker =>
+            line.Contains(marker, StringComparison.OrdinalIgnoreCase)));
+
+        if (first > 0) lines = lines[first..];
         var kept = new List<string>(lines.Length);
         var inBacktrace = false;
 

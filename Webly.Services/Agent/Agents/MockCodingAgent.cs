@@ -53,6 +53,25 @@ public class MockCodingAgent(
 
     private const string TargetAttribute = "headline=\"";
 
+    /// <summary>
+    /// What a person types to make their site stop compiling, and the line the mock leaves behind when they do.
+    ///
+    /// The build-failure path is a real part of the product — the dev server's log is scanned after every turn and
+    /// its own words go into the chat, because the person's next message is what fixes it — and until this existed
+    /// there was no way to see it happen without a model key and a deliberately unhelpful prompt. So the mock
+    /// takes the instruction literally.
+    ///
+    /// The snippet is the one shape that works, and the two obvious alternatives do not: <c>next dev</c> compiles
+    /// with SWC, which strips types rather than checking them, so a type error never reaches the log and an
+    /// <i>unused</i> broken import is elided as possibly-a-type before anything resolves it. An unterminated
+    /// expression is a syntax error, which is what the compiler complains about out loud.
+    /// </summary>
+    public const string BreakPhrase = "break the build";
+
+    private const string BreakMarker = "// Added by the mock agent on purpose. Ask for anything else and it goes.";
+
+    private const string BreakSnippet = $"\n\n{BreakMarker}\nexport const broken = (\n";
+
     public async Task<CodingAgentOutcome> RunAsync(
         ISandbox sandbox,
         CodingAgentRequest request,
@@ -67,9 +86,15 @@ public class MockCodingAgent(
                 "The mock agent could not find the page to edit.",
                 $"{TargetPath} is not in this site. The mock agent only understands the starter template.");
 
-        var before = Encoding.UTF8.GetString(file.Content);
+        // Repaired first, always: a turn starts from a working file whatever the last one did, so asking for
+        // anything at all after a break fixes it. That is the product's own story about build errors — the next
+        // message is the fix — and it means the mock cannot leave a site permanently broken.
+        var before = Repaired(Encoding.UTF8.GetString(file.Content));
+
+        var breaking = request.Message.Contains(BreakPhrase, StringComparison.OrdinalIgnoreCase);
         var headline = Headline(request.Message);
-        var after = ReplaceFirstHeadline(before, headline);
+
+        var after = breaking ? before + BreakSnippet : ReplaceFirstHeadline(before, headline);
 
         if (after is null)
             throw new SandboxException(
@@ -83,14 +108,23 @@ public class MockCodingAgent(
         await onEvent(new CodingAgentEvent.FileChanged(TargetPath));
         await onEvent(new CodingAgentEvent.Activity("Editing a file", TargetPath));
 
-        var reply = $"I put \"{headline}\" at the top of the home page.";
+        var reply = breaking
+            ? "I left an unfinished expression in the home page, so it will not compile. Ask me for anything else and I will take it out."
+            : $"I put \"{headline}\" at the top of the home page.";
+
         await onEvent(new CodingAgentEvent.Text(reply));
 
-        logger.LogInformation("The mock agent set the headline to {Headline}.", headline);
+        logger.LogInformation(
+            breaking
+                ? "The mock agent broke {Path} on purpose."
+                : "The mock agent set the headline to {Headline}.",
+            breaking ? TargetPath : headline);
 
         return new CodingAgentOutcome(
             reply,
-            Summary: $"Set the headline to \"{Shorten(headline, 40)}\"",
+            Summary: breaking
+                ? "Broke the home page on purpose"
+                : $"Set the headline to \"{Shorten(headline, 40)}\"",
             Details: "Written by the mock agent, which has no model behind it.",
             // A session id, so the workspace's resume path is exercised too — it means nothing to this agent.
             SessionId: "mock-session");
@@ -113,6 +147,17 @@ public class MockCodingAgent(
             .ToList();
 
         return sandbox.WriteTreeAsync(new WorkspaceTree(files), cancellationToken);
+    }
+
+    /// <summary>
+    /// The file without the mock's own deliberate breakage, or unchanged if there is none. Keyed on the marker it
+    /// writes rather than on the broken expression, so it can never remove something a real agent wrote.
+    /// </summary>
+    private static string Repaired(string source)
+    {
+        var marker = source.IndexOf(BreakMarker, StringComparison.Ordinal);
+
+        return marker < 0 ? source : source[..marker].TrimEnd() + "\n";
     }
 
     /// <summary>The person's message, as something that fits in a heading.</summary>

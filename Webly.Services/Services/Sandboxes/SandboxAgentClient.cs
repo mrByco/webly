@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Formats.Tar;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -201,22 +202,45 @@ public sealed class SandboxAgentClient(
     /// <summary>
     /// One request through the agent's own preview proxy, which is what makes the dev server compile.
     ///
-    /// Failures are swallowed on purpose. This is not a health check and its answer is not used: a dev server
-    /// that is still starting, or a page that throws, are both things the log will describe better than a
-    /// status code would, and neither is a reason to fail a turn that has already done its work.
+    /// <b>Retried until the dev server is listening</b>, and that is the whole point of the method. On a cold
+    /// workspace this runs seconds after <c>next dev</c> was spawned, and the agent answers 502 the moment its
+    /// proxy cannot connect — so the one request arrived before anything was listening, nothing ever compiled, the
+    /// log stayed at the startup banner, and the build check read that as "the site is fine". A site with a syntax
+    /// error in its home page reported a clean turn and served a 500 in the preview pane.
+    ///
+    /// Only that one answer is retried. A 500 from the dev server is a compiled page that threw, which is
+    /// precisely the thing being looked for, and anything else the log describes better than a status code.
+    ///
+    /// Other failures are swallowed on purpose: this is not a health check and its answer is not used, and a
+    /// sandbox that has gone away is not a reason to fail a turn that has already done its work.
     /// </summary>
     public async Task TouchPreviewAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            using var response = await SendAsync(HttpMethod.Get, "preview/", null, cancellationToken);
+        // Fifteen seconds, which is generous against a `next dev` that reports ready in about one and mean
+        // against nothing: the alternative to waiting is reporting on a log that has not been written yet.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
 
-            // Read the body, so that compilation finishes rather than being abandoned mid-response.
-            await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        while (true)
         {
-            logger.LogDebug(exception, "Touching the preview of sandbox {Sandbox} failed.", id);
+            try
+            {
+                using var response = await SendAsync(HttpMethod.Get, "preview/", null, cancellationToken);
+
+                // Read the body, so that compilation finishes rather than being abandoned mid-response.
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                var notUpYet = response.StatusCode == HttpStatusCode.BadGateway
+                    && body.Contains("not answering yet", StringComparison.OrdinalIgnoreCase);
+
+                if (!notUpYet || DateTime.UtcNow >= deadline) return;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogDebug(exception, "Touching the preview of sandbox {Sandbox} failed.", id);
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
     }
 
@@ -234,7 +258,9 @@ public sealed class SandboxAgentClient(
 
         return new DevServerLog(
             body?["log"]?.GetValue<string>() ?? string.Empty,
-            body?["offset"]?.GetValue<long>() ?? 0);
+            body?["offset"]?.GetValue<long>() ?? 0,
+            // Absent means an older sandbox agent, which only ever answered while its dev server was alive.
+            body?["running"]?.GetValue<bool>() ?? true);
     }
 
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
