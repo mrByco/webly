@@ -164,9 +164,6 @@
                   {{ (deployment.finishedAt ?? deployment.createdAt) | date: 'd MMM, HH:mm' }}
                 </span>
 
-                @if (deployment.error) {
-                  <span class="text-xs font-semibold text-error">{{ deployment.error }}</span>
-                }
 
                 <!-- An icon-only link, so it needs a name in words: a screen reader announcing "link" and
                      nothing else is a control nobody can use, and this is the only way to open what a
@@ -183,6 +180,13 @@
                   </a>
                 }
               </div>
+
+              <!-- On its own line, not in the row above: it is a sentence, and squeezed in beside the
+                   version's summary it took the whole width and left "Broke…" where the summary should be —
+                   the *why* pushing out the *what*. -->
+              @if (deployment.error) {
+                <p class="text-xs font-semibold text-error">{{ deployment.error }}</p>
+              }
 
               <!--
                 The build log, folded away. A publish now runs a real `next build`, so a failure has a

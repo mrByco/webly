@@ -172,11 +172,14 @@
             (change)="addImages($any($event.target))" />
         </label>
 
+        <!-- `appAutoGrow` is bound to the value, not just listening for typing: adding photographs writes
+             their paths in from the outside, and that is the case it exists for. -->
         <textarea
           class="textarea textarea-bordered min-h-11 flex-1 resize-none"
           name="message"
           rows="1"
           placeholder="Ask for a change…"
+          [appAutoGrow]="message"
           [(ngModel)]="message"></textarea>
 
         @if (running()) {

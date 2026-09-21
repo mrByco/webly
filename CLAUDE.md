@@ -835,6 +835,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   see. A fact recorded wrongly shapes every page written afterwards, and the person it belongs to had no way
   of knowing. Read from the head commit through the existing file endpoint, folded away, and read-only for
   the Code tab's reason: correcting it is a sentence in the chat, which is how it got there.
+- **The composer grows with the message, up to about eight lines.** It was one line and `resize-none`,
+  which is right for "make the headline bigger" and wrong for the two cases that are not that: adding
+  photographs writes their paths into the box, one per line, and the second one was cut off by the bottom of
+  the window. `shared/auto-grow.ts` is bound to the **value** as well as listening for input, because that
+  case is a programmatic change and `ngModel` writing into the box fires no `input` event — a directive that
+  only listened for typing would have missed the one thing it was written for. The cap matters as much as the
+  growth: without one a long paragraph pushes the transcript off the top of the screen.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts, and a `build` block carrying the

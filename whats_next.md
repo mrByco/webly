@@ -199,6 +199,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     in their registrar, in another tab — was truncated in two of its three fields, with a copy button on only
     one of them, and that pressing copy did nothing anybody could see.
 
+27. **Adding two photographs wrote the second one off the bottom of the screen.** The chat's composer was one
+    line high and could not grow, so the paths it writes in — one per line, which is the point of writing them
+    in at all — were cut by the window. It grows now, to a cap. Found by uploading two pictures and looking,
+    which nothing had done: the upload path had been exercised over HTTP and never with a pointer.
+
+    Beside it, on the settings screen, a failed publish showed "Broke…" where the version's summary should be:
+    the error message shared the row and took all of it, so the *why* pushed out the *what*.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { Icon } from '../../shared/icon';
+import { AutoGrow } from '../../shared/auto-grow';
 import { ChatService } from '../../services/chat.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { messageOf } from '../../models/problem-details';
@@ -51,7 +52,7 @@ const KIND_OF_ROLE: Record<ChatMessageResponse['role'], ChatEntry['kind']> = {
  */
 @Component({
   selector: 'app-site-chat',
-  imports: [FormsModule, Icon, RouterLink],
+  imports: [FormsModule, Icon, RouterLink, AutoGrow],
   templateUrl: './site-chat.html',
   // The host element is a flex item of the editor's pane and has to fill it. Without this it is a plain
   // block that sizes to its content, and the `h-full` inside resolves against that — so the pane was
