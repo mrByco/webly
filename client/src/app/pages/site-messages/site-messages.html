@@ -1,0 +1,71 @@
+<div class="min-h-0 flex-1 overflow-y-auto p-5">
+  <div class="mx-auto flex w-full max-w-2xl flex-col gap-5">
+    <div class="flex items-start gap-3">
+      <div class="flex-1">
+        <h2 class="text-base font-bold">Messages</h2>
+        <p class="text-sm text-base-content/60">
+          What people have sent from the contact form on your published site. Every one of these is also emailed
+          to you.
+        </p>
+      </div>
+
+      <button class="btn btn-ghost btn-sm" type="button" [disabled]="loading()" (click)="load()">
+        <app-icon class="size-4" name="restore" />
+        Refresh
+      </button>
+    </div>
+
+    @if (error(); as failure) {
+      <p class="flex items-center gap-2 rounded-field bg-error/10 px-3 py-2 text-sm text-error">
+        <app-icon class="size-4" name="circle-alert" />
+        {{ failure }}
+      </p>
+    }
+
+    @if (loading()) {
+      <span class="loading loading-spinner loading-sm self-center text-base-content/40"></span>
+    }
+
+    <!--
+      An empty list is the normal state of a new site, so it says what will make it fill up rather than
+      apologising for being empty. It is also where somebody looks when they think the form is broken, which is
+      why it names the page to try.
+    -->
+    @if (empty()) {
+      <div class="surface flex flex-col items-center gap-2 p-8 text-center">
+        <app-icon class="size-7 text-base-content/30" name="mail" />
+        <p class="text-sm font-semibold">Nothing yet</p>
+        <p class="max-w-sm text-xs text-base-content/60">
+          When somebody fills in the form on your contact page, it arrives here and in your inbox. Publish your
+          site first — a form on a preview nobody can visit has nobody to fill it in.
+        </p>
+      </div>
+    }
+
+    @for (submission of list(); track submission.nanoid) {
+      <article class="surface flex flex-col gap-3 p-4">
+        <header class="flex items-center gap-2 text-xs text-base-content/55">
+          <app-icon class="size-4" name="mail" />
+          <time>{{ submission.createdAt | date: 'medium' }}</time>
+
+          @if (label(submission); as name) {
+            <span class="badge badge-ghost badge-sm">{{ name }}</span>
+          }
+        </header>
+
+        <!--
+          The visitor's own labels, in the order their form asked for them. `whitespace-pre-line` because
+          somebody typed a paragraph into a textarea and collapsing the newlines loses what they meant.
+        -->
+        <dl class="flex flex-col gap-2.5">
+          @for (field of submission.fields; track $index) {
+            <div class="flex flex-col gap-0.5">
+              <dt class="text-xs font-semibold text-base-content/55">{{ field.name }}</dt>
+              <dd class="text-sm whitespace-pre-line">{{ field.value }}</dd>
+            </div>
+          }
+        </dl>
+      </article>
+    }
+  </div>
+</div>

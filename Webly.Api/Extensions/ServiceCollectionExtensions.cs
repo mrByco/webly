@@ -5,6 +5,7 @@ using Webly.Services.Agent;
 using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Sandboxes;
+using Webly.Services.Services;
 using Webly.Services.Services.Email;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -45,6 +46,13 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Validated at startup because three things break quietly without it: verification links, password-reset
+        // links, and the form action baked into every published site.
+        services.AddOptions<AppOptions>()
+            .Bind(configuration.GetSection(AppOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
@@ -183,6 +191,22 @@ public static class ServiceCollectionExtensions
 
             // Per user, not per IP: reaching this already takes a verified account, and an office behind one NAT must
             // not share a single budget. See RateLimitPolicies for what it is fencing.
+            // Per IP *and* per site — the path is the site, since it is /api/public/forms/{nanoid} and nothing
+            // else. Both halves matter: per IP alone would mean a busy office sending one enquiry to one
+            // customer's site used up the budget of everyone behind that NAT writing to every other customer's,
+            // and per site alone would be a budget one bot could spend on a shop's behalf. A bot walking one
+            // site's form still pays within the minute, and SubmitForm's per-site caps are what a thousand hosts
+            // sending one submission each run into.
+            options.AddPolicy(RateLimitPolicies.Forms, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    $"{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}|{context.Request.Path}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(10),
+                        QueueLimit = 0
+                    }));
+
             options.AddPolicy(RateLimitPolicies.Deploy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     PartitionByUser(context),

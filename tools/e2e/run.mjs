@@ -35,6 +35,10 @@ const keep = args.includes('--keep');
 
 // The address a publish tells the build about. Any absolute URL in the export has to come from here.
 const SITE_URL = 'https://kovacs-bakery.webly.site';
+
+// Where the published site's forms post, as the deployment target passes it. Webly's own origin and not the
+// site's: a static export has no server of its own that could receive a POST.
+const FORM_ENDPOINT = 'https://webly.example/api/public/forms/site-nanoid';
 const requestedAgent = option('agent') ?? 'claude';
 
 /**
@@ -610,7 +614,11 @@ try {
       args: ['run', 'build'],
       // `NEXT_PUBLIC_SITE_URL` as the real target passes it: the site's own address, which is the only moment
       // a static export can learn where it will live.
-      env: { NEXT_TELEMETRY_DISABLED: '1', NEXT_PUBLIC_SITE_URL: SITE_URL },
+      env: {
+        NEXT_TELEMETRY_DISABLED: '1',
+        NEXT_PUBLIC_SITE_URL: SITE_URL,
+        NEXT_PUBLIC_FORM_ENDPOINT: FORM_ENDPOINT,
+      },
       timeoutMs: 600_000,
     });
 
@@ -628,6 +636,15 @@ try {
     check(readFileSync(join(out, 'index.html'), 'utf8').includes(`<link rel="canonical" href="${SITE_URL}/"`),
       'the home page says where it canonically lives');
     check(existsSync(join(out, '404.html')), 'and a mistyped address gets a page of this site');
+
+    // The contact form, which is the one thing in the export that has to work after the build rather than just
+    // read correctly. The action is absolute and points at Webly, because the site itself is a directory of
+    // files: a form posting to a relative path here would 405 against whatever is serving them.
+    const contact = readFileSync(join(out, 'contact', 'index.html'), 'utf8');
+
+    check(contact.includes(`action="${FORM_ENDPOINT}"`), 'the contact form posts to the endpoint the build was told');
+    check(contact.includes('name="_ignore"'), 'with the honeypot in it');
+    check(!/action="\/(?!\/)/.test(contact), 'and nothing in it posts to a path on the site, which has no server');
   });
 
   // -- 13. The publish: the built site copied out and served ------------------------------------

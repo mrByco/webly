@@ -10,7 +10,7 @@ namespace Webly.Data.Models.Chat;
 /// extras (tool calls, their results, a question the agent asked and the answer it got) as jsonb, so
 /// reloading the editor reconstructs the same stream the person watched arrive.
 /// </summary>
-public class ConversationMessage : IHasNanoid
+public class ConversationMessage : IHasNanoid, IHasCreatedAt
 {
     [Key]
     public int Id { get; set; }

@@ -355,6 +355,43 @@ namespace Webly.Data.Migrations
                     b.ToTable("Deployments");
                 });
 
+            modelBuilder.Entity("Webly.Data.Models.Forms.FormSubmission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FormName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Nanoid")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SiteId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SubmittedFromIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nanoid")
+                        .IsUnique();
+
+                    b.HasIndex("SiteId", "CreatedAt");
+
+                    b.ToTable("FormSubmissions");
+                });
+
             modelBuilder.Entity("Webly.Data.Models.Sites.Domain", b =>
                 {
                     b.Property<int>("Id")
@@ -660,6 +697,44 @@ namespace Webly.Data.Migrations
                     b.Navigation("TriggeredBy");
                 });
 
+            modelBuilder.Entity("Webly.Data.Models.Forms.FormSubmission", b =>
+                {
+                    b.HasOne("Webly.Data.Models.Sites.Site", "Site")
+                        .WithMany("FormSubmissions")
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("Webly.Data.Models.Forms.SubmittedField", "Fields", b1 =>
+                        {
+                            b1.Property<int>("FormSubmissionId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("Value")
+                                .IsRequired();
+
+                            b1.HasKey("FormSubmissionId", "__synthesizedOrdinal");
+
+                            b1.ToTable("FormSubmissions");
+
+                            b1
+                                .ToJson("Fields")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("FormSubmissionId");
+                        });
+
+                    b.Navigation("Fields");
+
+                    b.Navigation("Site");
+                });
+
             modelBuilder.Entity("Webly.Data.Models.Sites.Domain", b =>
                 {
                     b.HasOne("Webly.Data.Models.Sites.Site", "Site")
@@ -759,6 +834,8 @@ namespace Webly.Data.Migrations
                     b.Navigation("Deployments");
 
                     b.Navigation("Domains");
+
+                    b.Navigation("FormSubmissions");
 
                     b.Navigation("Versions");
                 });

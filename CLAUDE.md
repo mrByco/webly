@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 89-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 97-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -533,6 +533,41 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **`VercelDeploymentTarget` has never run**, in either half — the REST calls or the CLI in the sandbox.
   Treat its endpoints, payloads and output parsing as the plan; `docs/deploy-plan.md` §6 says what to
   reconcile first.
+
+### Forms
+
+A published site is a **static export**, so it has no server of its own — which is the whole reason this
+exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact form posts to **Webly**.
+
+- **`POST /api/public/forms/{siteNanoid}` is the product's only inbound path**, and the only row a stranger can
+  create. `PublicFormController` is `[AllowAnonymous]`, takes an ordinary form body rather than JSON — so it
+  needs no CORS entry and works with JavaScript off — and is `[ApiExplorerSettings(IgnoreApi = true)]`, because
+  the Angular client is the one caller it is not for.
+- **It answers 303 back where the visitor came from**, resolving the form's relative `_next` against the
+  `Referer`. A scheme, a leading slash or a `..` is refused rather than cleaned up. It is not a useful open
+  redirect: the target can only be reached by *posting* from a page that already had the visitor, and a link in
+  an email cannot produce a POST. With no usable Referer the answer is Webly's own small thank-you page.
+- **`ISiteRepository.FindForSubmissionAsync` is the one lookup in the repository with no ownership check.** It
+  says so at length, because the rule everywhere else is that a use case starts from `FindForOwnerAsync`. What
+  makes it safe is that the operation cannot read anything back: it appends a row and sends one email.
+- **Four things stand between it and abuse**, and each covers what the others cannot. The honeypot (`_ignore`)
+  catches the bots, and answers success — telling one it was caught is telling it what to change. The size caps
+  stop it being a way to write megabytes into somebody's database. The rate limit is per IP **and per site**, so
+  an office filling in one shop's form does not spend the budget of everyone behind that address writing to
+  every other shop. And `SubmitForm`'s per-site caps are the half a thousand hosts sending one submission each
+  cannot get past — a day's cap for our disk, an hour's for the owner's inbox, the second of which stops the
+  mail while still recording the messages.
+- **The notification's reply-to is the visitor's own address**, guessed from a field whose name contains
+  "mail" and then checked for being one. That is the point of the whole email: a lead the owner cannot answer
+  from their phone is a lead that waits a day. `EmailMessage.ReplyTo` exists for this one message, and
+  `EmailLayout.Escape` exists because this is the one template carrying words Webly did not write.
+- **`Fields` is one jsonb column**, not a table and not a fixed set of columns. The agent writes the form, so
+  Webly cannot know whether this site asks for a postcode — and a column per question is a migration per
+  question. The editor's Messages tab lists the labels the visitor's own form used.
+- **`App:BaseUrl` is where the endpoint's address comes from**, the same setting the links in mail are built
+  from: a form action and a verification link are one fact about one host. `AppOptions.FormEndpointFor` is the
+  one place it is composed, and both the dev server and the publish read it — a preview whose form posts
+  somewhere other than the published page's is a difference found after launch.
 
 ### Frontend (`client/`, Angular 22 with SSR)
 

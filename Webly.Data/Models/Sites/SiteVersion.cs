@@ -18,7 +18,7 @@ namespace Webly.Data.Models.Sites;
 /// commit's tree forward as a new commit, so history stays reachable and undoing an undo is the same
 /// operation again.
 /// </summary>
-public class SiteVersion : IHasNanoid
+public class SiteVersion : IHasNanoid, IHasCreatedAt
 {
     [Key]
     public int Id { get; set; }

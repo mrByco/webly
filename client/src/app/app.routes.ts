@@ -54,6 +54,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/site-code/site-code').then(m => m.SiteCodePage),
       },
       {
+        path: AppRoutes.siteMessages.childPath,
+        loadComponent: () => import('./pages/site-messages/site-messages').then(m => m.SiteMessagesPage),
+      },
+      {
         path: AppRoutes.siteDomains.childPath,
         loadComponent: () => import('./pages/site-domains/site-domains').then(m => m.SiteDomainsPage),
       },

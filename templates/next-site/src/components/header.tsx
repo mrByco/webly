@@ -13,6 +13,10 @@ export function Header() {
           <Link href="/" className="hover:text-ink">
             Home
           </Link>
+
+          <Link href="/contact" className="hover:text-ink">
+            Contact
+          </Link>
         </nav>
       </div>
     </header>

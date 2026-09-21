@@ -76,6 +76,16 @@ export const AppRoutes = {
     childPath: 'code',
     build: (nanoid: string) => `/sites/${encodeURIComponent(nanoid)}/code`,
   },
+  /**
+   * What visitors have sent. A tab of its own rather than a panel inside settings: it is the one screen here
+   * that carries somebody else's words, and it is the reason a business has a website at all — the email
+   * notification links straight to this path, so it cannot move without that link moving too.
+   */
+  siteMessages: {
+    path: 'sites/:nanoid/messages',
+    childPath: 'messages',
+    build: (nanoid: string) => `/sites/${encodeURIComponent(nanoid)}/messages`,
+  },
   siteDomains: {
     path: 'sites/:nanoid/domains',
     childPath: 'domains',

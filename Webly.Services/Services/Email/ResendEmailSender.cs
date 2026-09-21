@@ -24,7 +24,10 @@ public class ResendEmailSender(
             to = new[] { message.To },
             subject = message.Subject,
             html = message.HtmlBody,
-            text = message.TextBody
+            text = message.TextBody,
+            // Omitted rather than null when there is nobody to reply to: Resend rejects the field as an empty
+            // value, and "reply to nobody" is the absence of the header rather than a header saying so.
+            reply_to = message.ReplyTo is { Length: > 0 } replyTo ? new[] { replyTo } : null
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails")

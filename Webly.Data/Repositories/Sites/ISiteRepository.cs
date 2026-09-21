@@ -21,6 +21,20 @@ public interface ISiteRepository
     /// </summary>
     Task<Site?> FindForOwnerLightAsync(string nanoid, int userId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The site and its owner, <b>with no ownership check at all</b> — the one method here that does not make one,
+    /// and the exception is written down rather than left to be noticed.
+    ///
+    /// It exists for the form-submission endpoint, which is the product's only inbound path: a stranger loads a
+    /// published page and posts what they filled in, so there is no caller to check. What keeps that safe is not
+    /// authorization but that the operation cannot read anything — it appends a row and mails the owner — and the
+    /// caps and the honeypot in <c>SubmitForm</c>. Anything that <i>reads</i> a site must keep using
+    /// <see cref="FindForOwnerAsync"/>, and the name is meant to make reaching for this one feel deliberate.
+    ///
+    /// The owner comes along because the submission is emailed to them.
+    /// </summary>
+    Task<Site?> FindForSubmissionAsync(string nanoid, CancellationToken cancellationToken = default);
+
     /// <summary>The user's sites, newest first, without documents.</summary>
     Task<List<Site>> ListForOwnerAsync(int userId, CancellationToken cancellationToken = default);
 

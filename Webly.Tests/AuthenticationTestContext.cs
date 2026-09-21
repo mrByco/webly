@@ -3,6 +3,7 @@ using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.SecurityTokens;
 using Webly.Data.Repositories.Users;
 using Webly.Services.Services.Authentication;
+using Webly.Services.Services;
 using Webly.Services.Services.Email;
 using Webly.Services.UseCases.Authentication;
 using Microsoft.Extensions.Caching.Memory;
@@ -34,13 +35,8 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         ResendCooldown = TimeSpan.Zero
     };
 
-    private static readonly Microsoft.Extensions.Options.IOptions<EmailOptions> Email =
-        Microsoft.Extensions.Options.Options.Create(new EmailOptions
-        {
-            FromAddress = "no-reply@webly.test",
-            FromName = "Webly",
-            BaseUrl = "https://localhost:5000"
-        });
+    private static readonly Microsoft.Extensions.Options.IOptions<AppOptions> App =
+        Microsoft.Extensions.Options.Options.Create(new AppOptions { BaseUrl = "https://localhost:5000" });
 
     public WeblyDbContext Db { get; } = dbContext;
 
@@ -93,7 +89,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         new(Users, RefreshTokens, Sessions, Emails, Db);
 
     public SendEmailVerification SendEmailVerification =>
-        new(SecurityTokenService, SecurityTokens, Emails, Email, TokenOptions, Db);
+        new(SecurityTokenService, SecurityTokens, Emails, App, TokenOptions, Db);
 
     public IEmailVerificationService EmailVerification =>
         new EmailVerificationService(AccessTokenBlacklist, Sessions, JwtOptionsAccessor, Db);
@@ -105,7 +101,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         new(SecurityTokenService, SecurityTokens, EmailVerification, TokenOptions, Db);
 
     public RequestPasswordReset RequestPasswordReset =>
-        new(Users, SecurityTokenService, SecurityTokens, Emails, Email, TokenOptions, Db);
+        new(Users, SecurityTokenService, SecurityTokens, Emails, App, TokenOptions, Db);
 
     public ResetPassword ResetPassword =>
         new(SecurityTokenService, SecurityTokens, RefreshTokens, PasswordHasher, Sessions, Emails, Db);

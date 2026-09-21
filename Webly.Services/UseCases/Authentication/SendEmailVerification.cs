@@ -2,6 +2,7 @@ using Webly.Data;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Repositories.SecurityTokens;
 using Webly.Services.Services.Authentication;
+using Webly.Services.Services;
 using Webly.Services.Services.Email;
 using Webly.Services.Services.Email.Templates;
 using Microsoft.Extensions.Options;
@@ -15,7 +16,7 @@ public class SendEmailVerification(
     ISecurityTokenService securityTokenService,
     ISecurityTokenRepository securityTokenRepository,
     IEmailSender emailSender,
-    IOptions<EmailOptions> emailOptions,
+    IOptions<AppOptions> app,
     IOptions<EmailTokenOptions> tokenOptions,
     WeblyDbContext dbContext)
 {
@@ -41,7 +42,7 @@ public class SendEmailVerification(
         securityTokenRepository.Add(row);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var link = $"{emailOptions.Value.BaseUrl.TrimEnd('/')}/verify-email?token={Uri.EscapeDataString(rawToken)}";
+        var link = $"{app.Value.Origin}/verify-email?token={Uri.EscapeDataString(rawToken)}";
 
         await emailSender.SendAsync(
             WeblyEmails.VerifyEmail(user.Email, user.DisplayName, link, code!),

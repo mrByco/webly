@@ -58,6 +58,10 @@
             <app-icon class="size-4" name="code" />
             Code
           </a>
+          <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteMessages.build(detail.summary.nanoid)">
+            <app-icon class="size-4" name="mail" />
+            Messages
+          </a>
           <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteDomains.build(detail.summary.nanoid)">
             <app-icon class="size-4" name="link" />
             Domains

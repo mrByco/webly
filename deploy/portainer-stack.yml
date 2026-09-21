@@ -85,7 +85,7 @@ services:
 
       # Every link in every mail is built from this and never from the request host, so it has to
       # be the origin people actually reach — a wrong value here mails out unusable reset links.
-      Email__BaseUrl: "https://${WEBLY_DOMAIN}"
+      App__BaseUrl: "https://${WEBLY_DOMAIN}"
       Email__FromAddress: ${WEBLY_FROM_ADDRESS}
       Email__FromName: Webly
       Email__Resend__ApiKey: ${WEBLY_RESEND_API_KEY:-}

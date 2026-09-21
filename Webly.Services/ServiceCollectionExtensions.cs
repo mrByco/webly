@@ -4,6 +4,7 @@ using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.SecurityTokens;
+using Webly.Data.Repositories.Forms;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.Agent;
@@ -16,6 +17,7 @@ using Webly.Services.UseCases.Authentication;
 using Webly.Services.UseCases.Chat;
 using Webly.Services.UseCases.Deployments;
 using Webly.Services.UseCases.Domains;
+using Webly.Services.UseCases.Forms;
 using Webly.Services.UseCases.Sites;
 
 namespace Webly.Services;
@@ -36,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDomainRepository, DomainRepository>();
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddScoped<IFormSubmissionRepository, FormSubmissionRepository>();
 
         services.AddMemoryCache();
 
@@ -91,6 +94,9 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<GetChat>();
         services.AddScoped<ArchiveChat>();
+
+        services.AddScoped<SubmitForm>();
+        services.AddScoped<ListFormSubmissions>();
 
         return services;
     }

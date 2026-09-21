@@ -1,6 +1,7 @@
 using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
+using Webly.Data.Models.Forms;
 using Webly.Data.Models.Interfaces;
 using System.ComponentModel.DataAnnotations;
 
@@ -97,4 +98,8 @@ public class Site : IHasNanoid, IHasTimestamps
 
     /// <summary>The editing conversations about this site. Scoped to the site, not the account.</summary>
     public ICollection<Conversation> Conversations { get; set; } = [];
+
+    /// <summary>What visitors have sent from the published site. Cascades with it: a deleted site takes its
+    /// customer's messages with it, which is what deleting a site has to mean.</summary>
+    public ICollection<FormSubmission> FormSubmissions { get; set; } = [];
 }

@@ -34,6 +34,7 @@ type IconName =
   | 'layout'
   | 'link'
   | 'log-out'
+  | 'mail'
   | 'pencil'
   | 'plus'
   | 'restore'
@@ -80,6 +81,9 @@ const PATHS: Record<IconName, string> = {
     + '<path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>'
     + '<path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
   send: '<path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/>',
+  // The messages tab. An envelope rather than a bell: what arrives is a message from a person, not a system
+  // notification, and the difference is most of what makes somebody open it.
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2.5 6.5 8.2 5.5a2 2 0 0 0 2.6 0l8.2-5.5"/>',
   settings:
     '<circle cx="12" cy="12" r="3"/>'
     + '<path d="M12 2v3"/><path d="M12 19v3"/><path d="M4.9 4.9l2.1 2.1"/><path d="M17 17l2.1 2.1"/>'

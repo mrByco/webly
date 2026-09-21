@@ -14,6 +14,8 @@ export type { DomainResponse } from './models/domain-response';
 export type { DomainVerificationState } from './models/domain-verification-state';
 export type { ExternalProvidersResponse } from './models/external-providers-response';
 export type { ForgotPasswordRequest } from './models/forgot-password-request';
+export type { FormFieldResponse } from './models/form-field-response';
+export type { FormSubmissionResponse } from './models/form-submission-response';
 export type { HealthResponse } from './models/health-response';
 export type { JsonNode } from './models/json-node';
 export type { JsonNodeOptions } from './models/json-node-options';

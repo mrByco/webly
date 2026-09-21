@@ -183,4 +183,53 @@ public static class WeblyEmails
                 publishing again — if it keeps failing, reply to this email.
                 """
         };
+
+    /// <summary>
+    /// Sent when somebody fills in a form on a published site.
+    ///
+    /// <b>The only email here carrying words Webly did not write</b>, which is why every field goes through
+    /// <see cref="EmailLayout.Escape"/> and why the subject line does not quote the visitor: a subject built
+    /// from a stranger's first field is how a notification ends up looking like the spam it might be.
+    ///
+    /// <paramref name="replyTo"/> is the point of the whole message. A lead that has to be answered by copying
+    /// an address out of an email body is a lead that waits a day; with the header set, the owner presses reply
+    /// on their phone and the customer hears back.
+    /// </summary>
+    public static EmailMessage FormSubmitted(
+        string to,
+        string displayName,
+        string siteName,
+        IReadOnlyList<(string Name, string Value)> fields,
+        string? replyTo,
+        string link) =>
+        new()
+        {
+            To = to,
+            ToName = displayName,
+            ReplyTo = replyTo,
+            Subject = $"New message from your {siteName} website",
+            HtmlBody = EmailLayout.Wrap(
+                "You have a new message",
+                $"Somebody filled in a form on {siteName}.",
+                EmailLayout.Paragraph($"Hi {displayName}, somebody filled in a form on <strong>{EmailLayout.Escape(siteName)}</strong>.")
+                + EmailLayout.Fields(fields)
+                + (replyTo is null
+                    ? EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">They did not leave an email address, so check the message for another way to reach them.</span>")
+                    : EmailLayout.Paragraph("<span style=\"font-size:13px;color:#6b615c;\">Reply to this email and your answer goes straight to them.</span>"))
+                + EmailLayout.Button(link, "See all your messages")),
+            TextBody =
+                $"""
+                Hi {displayName},
+
+                Somebody filled in a form on {siteName}.
+
+                {string.Join("\n\n", fields.Select(field => $"{field.Name}:\n{field.Value}"))}
+
+                {(replyTo is null
+                    ? "They did not leave an email address, so check the message for another way to reach them."
+                    : "Reply to this email and your answer goes straight to them.")}
+
+                All your messages: {link}
+                """
+        };
 }

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
+using Webly.Data.Models.Forms;
 using Webly.Data.Models.Interfaces;
 using Webly.Data.Models.Sites;
 
@@ -23,6 +24,7 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
     public DbSet<Deployment> Deployments => Set<Deployment>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<FormSubmission> FormSubmissions => Set<FormSubmission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -267,6 +269,25 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .HasForeignKey(x => x.ProducedVersionId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
+
+        modelBuilder.Entity<FormSubmission>(submission =>
+        {
+            submission.HasIndex(x => x.Nanoid).IsUnique();
+
+            // The only query there is: this site's submissions, newest first. Also what the per-site flood cap
+            // counts, which is why the date is in the index rather than beside it.
+            submission.HasIndex(x => new { x.SiteId, x.CreatedAt });
+
+            submission.HasOne(x => x.Site)
+                .WithMany(x => x.FormSubmissions)
+                .HasForeignKey(x => x.SiteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // One jsonb column rather than a table of fields. There is no query that looks inside it — the
+            // screen lists pairs and the email prints them — and a child table would buy an index nobody uses
+            // in exchange for a join on every read.
+            submission.OwnsMany(x => x.Fields, fields => fields.ToJson());
+        });
     }
 
     private static readonly ValueConverter<JsonArray?, string?> PartsConverter = new(
@@ -286,10 +307,10 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
     /// test builder remembering are values nothing downstream can trust. A caller that wants a specific
     /// nanoid (an import, a fixture) may still set one — only empty values are filled.
     ///
-    /// <see cref="SiteVersion"/> and <see cref="ConversationMessage"/> carry a <c>CreatedAt</c> without
-    /// implementing <see cref="IHasTimestamps"/>, because an entity that can be updated is not what
-    /// either of them is; they are stamped here too, by the same clock, so a version and the message
-    /// that produced it agree exactly.
+    /// <see cref="IHasCreatedAt"/> is the other half: a version, a message and a form submission happen once
+    /// and are never edited, so an <c>UpdatedAt</c> beside them could only ever mislead. They are stamped
+    /// here too, by the same clock, so a version and the message that produced it agree exactly — which is
+    /// what a loop per entity type used to do three times over.
     /// </summary>
     private void StampEntities()
     {
@@ -310,13 +331,7 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 entry.Entity.UpdatedAt = now;
         }
 
-        foreach (var entry in ChangeTracker.Entries<SiteVersion>())
-        {
-            if (entry.State is EntityState.Added && entry.Entity.CreatedAt == default)
-                entry.Entity.CreatedAt = now;
-        }
-
-        foreach (var entry in ChangeTracker.Entries<ConversationMessage>())
+        foreach (var entry in ChangeTracker.Entries<IHasCreatedAt>())
         {
             if (entry.State is EntityState.Added && entry.Entity.CreatedAt == default)
                 entry.Entity.CreatedAt = now;

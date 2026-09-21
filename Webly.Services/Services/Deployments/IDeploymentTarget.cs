@@ -29,6 +29,25 @@ public class DeploymentFailedException(string message, string? providerDetail = 
 /// behind it is the part a business decision can change (pricing, a region requirement, an outage), and the
 /// publish path is too consequential to be testable only by people who have a hosting account.
 /// </summary>
+/// <summary>
+/// The facts a site's build cannot work out for itself, both of them absolute URLs.
+///
+/// A record rather than two parameters because there will be a third: a static export decides at build time
+/// everything a server would answer at request time, so anything about "where this site lives" has to arrive
+/// here. Both are read by <c>src/site.ts</c> in the template.
+/// </summary>
+/// <param name="SiteUrl">
+/// The site's own <b>address</b>, as <c>NEXT_PUBLIC_SITE_URL</c>. Every absolute URL a published page contains —
+/// its canonical link, its sitemap, what a social network reads when somebody shares it — comes from it. The
+/// address rather than the deployment's own URL, because a canonical that changed with every publish is not a
+/// canonical.
+/// </param>
+/// <param name="FormEndpoint">
+/// Where the site's forms post, as <c>NEXT_PUBLIC_FORM_ENDPOINT</c>. It is Webly's, not the site's: a static
+/// export has nothing of its own that can receive a POST, which is what decided the question P4 left open.
+/// </param>
+public record SiteBuildSettings(string SiteUrl, string FormEndpoint);
+
 public interface IDeploymentTarget
 {
     /// <summary>
@@ -53,16 +72,13 @@ public interface IDeploymentTarget
     ///
     /// <paramref name="onOutput"/> is the build log as it happens, for the deployment's event stream.
     ///
-    /// <paramref name="siteUrl"/> is the site's own address, and it reaches the build as
-    /// <c>NEXT_PUBLIC_SITE_URL</c>. Every absolute URL a published page contains — its canonical link, its
-    /// sitemap, what a social network reads when somebody shares it — is built from it, and the build is the
-    /// only moment that knows: a static export has no server to ask later. The <b>address</b> rather than the
-    /// deployment's own URL, because a canonical that changed with every publish is not a canonical.
+    /// <paramref name="settings"/> is what the build has to be told about the world, because a static export
+    /// has no server to ask afterwards.
     /// </summary>
     Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
-        string siteUrl,
+        SiteBuildSettings settings,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default);
 

@@ -11,4 +11,14 @@ public record EmailMessage
     public required string Subject { get; init; }
     public required string HtmlBody { get; init; }
     public required string TextBody { get; init; }
+
+    /// <summary>
+    /// Who a reply should go to, when that is not us.
+    ///
+    /// It exists for one message and earns its place there: a form submission's notification is the start of a
+    /// conversation with a customer, and an owner who has to copy an address out of the body before answering
+    /// will lose some of those. Null everywhere else, because replying to a verification email should reach
+    /// nobody.
+    /// </summary>
+    public string? ReplyTo { get; init; }
 }

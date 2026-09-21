@@ -28,8 +28,8 @@ export default function Home() {
       <Cta
         headline="Get in touch"
         body="Say how people should reach you."
-        actionLabel="Email us"
-        actionHref="mailto:hello@example.com"
+        actionLabel="Send us a message"
+        actionHref="/contact"
       />
     </>
   );

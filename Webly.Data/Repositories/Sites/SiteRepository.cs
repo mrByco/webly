@@ -15,6 +15,11 @@ public class SiteRepository(WeblyDbContext dbContext) : ISiteRepository
         dbContext.Sites
             .FirstOrDefaultAsync(x => x.Nanoid == nanoid && x.OwnerId == userId, cancellationToken);
 
+    public Task<Site?> FindForSubmissionAsync(string nanoid, CancellationToken cancellationToken = default) =>
+        dbContext.Sites
+            .Include(x => x.Owner)
+            .FirstOrDefaultAsync(x => x.Nanoid == nanoid, cancellationToken);
+
     public Task<List<Site>> ListForOwnerAsync(int userId, CancellationToken cancellationToken = default) =>
         dbContext.Sites
             .Where(x => x.OwnerId == userId)

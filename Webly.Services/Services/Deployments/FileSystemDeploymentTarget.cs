@@ -53,7 +53,7 @@ public class FileSystemDeploymentTarget(
     public async Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
-        string siteUrl,
+        SiteBuildSettings settings,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
@@ -67,7 +67,11 @@ public class FileSystemDeploymentTarget(
                     // production zone from a developer's machine — and the build is still told it, because a
                     // canonical link is a statement about where the site belongs rather than about where this
                     // copy of it happens to be.
-                    ["NEXT_PUBLIC_SITE_URL"] = siteUrl
+                    ["NEXT_PUBLIC_SITE_URL"] = settings.SiteUrl,
+
+                    // And where its forms post, which is this app. A published site has no server of its own, so
+                    // the endpoint is ours and the build is when it has to be written into the pages.
+                    ["NEXT_PUBLIC_FORM_ENDPOINT"] = settings.FormEndpoint
                 }),
             output => onOutput?.Invoke(output.Text) ?? Task.CompletedTask,
             cancellationToken);

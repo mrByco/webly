@@ -70,6 +70,7 @@ public class SiteIsolationTests : AuthEndpointTestBase
             (HttpMethod.Get, $"/api/sites/{site}/chat", null),
             (HttpMethod.Get, $"/api/sites/{site}/deployments", null),
             (HttpMethod.Get, $"/api/sites/{site}/domains", null),
+            (HttpMethod.Get, $"/api/sites/{site}/submissions", null),
             (HttpMethod.Get, $"/api/sites/{site}/preview/", null),
             (HttpMethod.Post, $"/api/sites/{site}/workspace", null),
             (HttpMethod.Post, $"/api/sites/{site}/open", null),

@@ -154,10 +154,31 @@ The phase that is now the product rather than a catalogue expansion:
 
 ## P4 — Forms
 
-A contact page needs somewhere for submissions to go: `FormSubmission`, an email to the owner, a honeypot
-and a rate limit, a submissions list in the editor. With real source this is no longer a section type — it is
-a route handler the agent can write — so the decision to make first is whether the endpoint is the site's or
-Webly's.
+~~A contact page needs somewhere for submissions to go~~ — done, and the decision this section left open
+answered itself the moment it was looked at: **a published site is a static export, so it has no server of its
+own**. There is nowhere in it for a form to post to, and a route handler the agent wrote would compile and then
+404 in front of a customer. So the endpoint is Webly's.
+
+What landed: `FormSubmission` with its fields as one jsonb column (the agent writes the form, so a fixed set of
+columns would need a migration per question somebody adds), `POST /api/public/forms/{siteNanoid}`, a honeypot,
+a per-IP-and-site rate limit and per-site caps for the day and the hour, an email to the owner with the
+visitor's address as its reply-to, a Messages tab in the editor, and a working contact page in the starter
+template.
+
+Three decisions worth not re-deriving:
+
+- **It takes an ordinary form post, not JSON**, so it needs no CORS entry and no JavaScript. A cross-origin
+  `<form method="post">` is something browsers have always allowed, and a contact form is the last thing on a
+  small business's site that should stop working because a script did not load.
+- **It answers 303 back to the page the form was on**, resolving the form's own relative `_next` against the
+  `Referer`. Not an open redirect worth the name: the target can only be reached by *posting* from a page that
+  already had the visitor, and a link in an email cannot produce a POST.
+- **`ISiteRepository.FindForSubmissionAsync` is the one lookup here with no ownership check**, and it says so
+  at length. What keeps it safe is that the operation cannot read anything back.
+
+Still open, and deliberately: no read state and no delete on a submission (both need a decision about what the
+editor does with the state), no attachments (P5), and no spam scoring beyond the honeypot — which is what
+actually catches the traffic this endpoint will see.
 
 ## P5 — Assets
 

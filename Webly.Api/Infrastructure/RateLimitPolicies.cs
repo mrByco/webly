@@ -20,4 +20,15 @@ public static class RateLimitPolicies
     /// rate-limited for every other customer at once.
     /// </summary>
     public const string Deploy = "deploy";
+
+    /// <summary>
+    /// The form endpoint a published site posts to — the one thing here a stranger can reach, so the one thing
+    /// here that is reached by people we know nothing about. Partitioned per IP <b>and per site</b>, because
+    /// there is no account to partition on and the two customers a visitor writes to are unrelated: a family
+    /// filling in one shop's contact form from an office must not use up the budget of everybody behind that
+    /// address writing to every other shop. Generous per window, so a bot walking one form still pays for it
+    /// within the minute. The per-site caps in <c>SubmitForm</c> are the other half, and they are the half a
+    /// thousand hosts sending one submission each cannot get past.
+    /// </summary>
+    public const string Forms = "forms";
 }

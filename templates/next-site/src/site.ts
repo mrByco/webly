@@ -11,3 +11,20 @@
  * it is not.
  */
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || undefined;
+
+/**
+ * Where this site's forms post.
+ *
+ * Webly sets `NEXT_PUBLIC_FORM_ENDPOINT` both when it publishes and when it runs the editor's preview, so a
+ * form behaves the same in both. It points at Webly, not at this site, and it has to: this project is built as
+ * a **static export**, so there is no server here to receive a POST — no route handler, no server action, no
+ * API route. Writing one would compile and then silently 404 on the published site.
+ *
+ * What the endpoint does with a submission: stores it against this site, emails the owner with a reply-to of
+ * whatever address the visitor left, and sends the visitor back to the page named by the form's `_next` field.
+ *
+ * Undefined in a plain `npm run dev` outside Webly. A form built with `ContactForm` renders a short note
+ * instead of a dead submit button in that case, which is the honest thing for a page somebody is previewing
+ * locally — and the reason nothing here should hard-code a URL as a fallback.
+ */
+export const formEndpoint = process.env.NEXT_PUBLIC_FORM_ENDPOINT || undefined;

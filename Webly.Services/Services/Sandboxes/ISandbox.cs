@@ -111,7 +111,15 @@ public interface ISandbox : IAsyncDisposable
     /// told, because Next.js writes absolute URLs for its stylesheets, its chunks and its hot-reload socket, and
     /// a preview whose assets resolve to the root of Webly's own origin renders as unstyled HTML.
     /// </param>
-    Task StartDevServerAsync(string basePath, CancellationToken cancellationToken = default);
+    /// <param name="environment">
+    /// What the site's own code reads at run time. Today that is where its forms post, because the preview has
+    /// to submit to the same endpoint the published site does — a form that works in the editor and not on the
+    /// live site, or the reverse, is a difference somebody finds after launch.
+    /// </param>
+    Task StartDevServerAsync(
+        string basePath,
+        IReadOnlyDictionary<string, string>? environment = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asks the dev server for the home page, and waits for it.

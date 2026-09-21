@@ -182,12 +182,20 @@ public sealed class SandboxAgentClient(
         return new SandboxCommandResult(exitCode, output.ToString());
     }
 
-    public async Task StartDevServerAsync(string basePath, CancellationToken cancellationToken = default)
+    public async Task StartDevServerAsync(
+        string basePath,
+        IReadOnlyDictionary<string, string>? environment = null,
+        CancellationToken cancellationToken = default)
     {
         using var content = JsonContent.Create(new JsonObject
         {
             ["command"] = "npm",
             ["args"] = new JsonArray("run", "dev"),
+
+            ["env"] = environment is null
+                ? new JsonObject()
+                : new JsonObject(environment.Select(pair =>
+                    new KeyValuePair<string, JsonNode?>(pair.Key, JsonValue.Create(pair.Value)))),
 
             // The agent passes this to the dev server as WEBLY_PREVIEW_BASE and rewrites everything under
             // /preview onto it, so that the URLs in the served HTML and the URLs the browser asks Webly for are

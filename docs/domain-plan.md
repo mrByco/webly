@@ -178,10 +178,12 @@ above it changes. That is the whole reason the check is in one query.
    links to it. A bundle rather than a tarball because a tarball is a snapshot and a bundle is the repository —
    `git clone site.bundle` gives a working project with every version and every commit message. What is still
    open is the half that needs the customer's credentials: a push to their own GitHub.
-2. **Forms.** A contact page needs somewhere for submissions to go. With real source this is no longer a
-   section type: it is a route handler the agent can write, plus a `FormSubmission` table and spam
-   handling on our side. Decide whether the submission endpoint is the site's or Webly's before writing
-   either.
+2. ~~**Forms.**~~ Done, and the question this line said to decide first answered itself: a published site is a
+   **static export**, so it has no server. A route handler the agent wrote would compile and then 404 in front
+   of a customer, which is worse than not having one. The endpoint is Webly's —
+   `POST /api/public/forms/{siteNanoid}`, an ordinary cross-origin form post so that it needs no CORS and no
+   JavaScript — and the starter template ships the form that uses it. `CLAUDE.md`'s Forms section is the
+   short version; the caps, the honeypot and the reply-to are the parts worth reading before changing it.
 3. **Assets.** Uploads, a blob store, image conversion. The agent writes `<Image>` tags today against URLs
    somebody pasted; a customer photographing their shop front is the next step, and the seam is a URL the
    sandbox can fetch.

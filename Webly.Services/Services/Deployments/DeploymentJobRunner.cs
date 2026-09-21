@@ -10,6 +10,7 @@ using Webly.Services.Agent;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Realtime;
+using Webly.Services.Services;
 using Webly.Services.Services.Email;
 using Webly.Services.Services.Email.Templates;
 using Webly.Services.Services.Realtime;
@@ -84,6 +85,7 @@ public class DeploymentJobRunner(
         var email = serviceProvider.GetRequiredService<IEmailSender>();
         var sink = serviceProvider.GetRequiredService<IRunEventSink>();
         var sites = serviceProvider.GetRequiredService<IOptions<SitesOptions>>();
+        var app = serviceProvider.GetRequiredService<IOptions<AppOptions>>();
 
         var deployment = await repository.FindWithSiteAsync(deploymentNanoid, stoppingToken);
 
@@ -132,7 +134,7 @@ public class DeploymentJobRunner(
             var deployed = await target.BuildAndDeployAsync(
                 sandbox,
                 site.ProviderProjectId,
-                address,
+                new SiteBuildSettings(address, app.Value.FormEndpointFor(site.Nanoid)),
                 // The build log, streamed: a build is the longest wait in the product, and a person watching a
                 // progress bar with no output assumes it has hung.
                 text => sink.EmitAsync(deployment.Nanoid, new RunEvent

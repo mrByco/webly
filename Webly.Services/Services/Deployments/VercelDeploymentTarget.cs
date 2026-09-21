@@ -72,7 +72,7 @@ public class VercelDeploymentTarget(
     public async Task<DeploymentHandle> BuildAndDeployAsync(
         ISandbox sandbox,
         string projectId,
-        string siteUrl,
+        SiteBuildSettings settings,
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
@@ -83,7 +83,10 @@ public class VercelDeploymentTarget(
             // Read by the site's own `next build` for its canonical link and its sitemap. Passed in the
             // environment rather than configured at the provider, because it is this build's input and a
             // project setting is one more thing that can disagree with the site row.
-            ["NEXT_PUBLIC_SITE_URL"] = siteUrl
+            ["NEXT_PUBLIC_SITE_URL"] = settings.SiteUrl,
+
+            // Where the published site's forms post: this app, because a static export cannot receive one.
+            ["NEXT_PUBLIC_FORM_ENDPOINT"] = settings.FormEndpoint
         };
 
         if (_vercel.TeamId.Length > 0) environment["VERCEL_ORG_ID"] = _vercel.TeamId;

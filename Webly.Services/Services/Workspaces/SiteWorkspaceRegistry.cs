@@ -11,6 +11,7 @@ public class SiteWorkspaceRegistry(
     ISandboxProvider sandboxes,
     ISiteRepositoryStore repositories,
     IOptions<SandboxOptions> options,
+    IOptions<AppOptions> app,
     ILogger<SiteWorkspaceRegistry> logger) : ISiteWorkspaceRegistry
 {
     private readonly ConcurrentDictionary<string, SiteWorkspace> _workspaces = new();
@@ -158,8 +159,19 @@ public class SiteWorkspaceRegistry(
 
         if (onProgress is not null) await onProgress("Starting the preview again");
 
-        await workspace.Sandbox.StartDevServerAsync($"/api/sites/{site.Nanoid}/preview", cancellationToken);
+        await workspace.Sandbox.StartDevServerAsync(
+            $"/api/sites/{site.Nanoid}/preview", DevServerEnvironment(site), cancellationToken);
     }
+
+    /// <summary>
+    /// What the site's own code is told while it runs in the editor. One entry, and it is the same value the
+    /// publish passes: the preview's forms have to post to the same place the published site's do, or a form
+    /// somebody tested in the editor is not the form their visitors use.
+    /// </summary>
+    private Dictionary<string, string> DevServerEnvironment(Site site) => new()
+    {
+        ["NEXT_PUBLIC_FORM_ENDPOINT"] = app.Value.FormEndpointFor(site.Nanoid)
+    };
 
     private async Task<SiteWorkspace> StartAsync(
         Site site,
@@ -180,7 +192,8 @@ public class SiteWorkspaceRegistry(
 
             // The path a browser reaches this dev server at. Built here rather than in the sandbox because the
             // sandbox has no idea what Webly's routes look like, and it is one string away from PreviewController's.
-            await sandbox.StartDevServerAsync($"/api/sites/{site.Nanoid}/preview", cancellationToken);
+            await sandbox.StartDevServerAsync(
+                $"/api/sites/{site.Nanoid}/preview", DevServerEnvironment(site), cancellationToken);
 
             return new SiteWorkspace(site.Nanoid, sandbox, headSha) { DevServerStarted = true };
         }

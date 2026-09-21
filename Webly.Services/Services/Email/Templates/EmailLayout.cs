@@ -99,4 +99,40 @@ public static class EmailLayout
         <p style="margin:0 0 8px;font-size:13px;color:{Muted};">If the button does not work, paste this address into your browser:</p>
         <p style="margin:0;font-size:13px;word-break:break-all;"><a href="{url}" style="color:{Paprika};">{url}</a></p>
         """;
+
+    /// <summary>
+    /// Text that came from outside, as something safe to put in a message body.
+    ///
+    /// <b>The first template that needed it is the one a stranger writes.</b> Every other email here is built
+    /// from a name and a link this app already owns; a form submission is a visitor's own words, and an
+    /// unescaped <c>&lt;</c> in them is at best a broken layout in somebody's inbox and at worst markup the
+    /// owner's mail client renders. Ampersand first, or the escaping escapes itself.
+    /// </summary>
+    public static string Escape(string text) => text
+        .Replace("&", "&amp;")
+        .Replace("<", "&lt;")
+        .Replace(">", "&gt;")
+        .Replace("\"", "&quot;");
+
+    /// <summary>
+    /// A submission's fields, as a table of labels and what was typed under them.
+    ///
+    /// A table rather than paragraphs because the labels are the form's own — "How can we help?" is a field
+    /// name here — and a message whose questions and answers run together is one the owner has to decode. The
+    /// value keeps its line breaks: somebody typed a paragraph into a textarea and collapsing it loses what
+    /// they meant.
+    /// </summary>
+    public static string Fields(IReadOnlyList<(string Name, string Value)> fields) =>
+        $"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+          {string.Concat(fields.Select(field => $"""
+          <tr>
+            <td style="padding:0 0 4px;font:600 13px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Muted};">{Escape(field.Name)}</td>
+          </tr>
+          <tr>
+            <td style="padding:0 0 16px;font:400 15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Ink};white-space:pre-wrap;">{Escape(field.Value)}</td>
+          </tr>
+          """))}
+        </table>
+        """;
 }

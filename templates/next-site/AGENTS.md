@@ -28,6 +28,14 @@ actually confirmed.
    states, and every layout works at 390px.
 9. **A new page needs three things**, not one: the route, a link to it from the header or wherever somebody
    would look for it, and a line in `src/app/sitemap.ts`. A page nothing links to is a page nobody visits.
+10. **Never write a form by hand, and never write a server for one.** Use `ContactForm` from
+    `src/components/contact-form.tsx` — it is already wired to Webly, which stores the message, emails the
+    owner and sends the visitor back. This project is built as a **static export**: a route handler, a server
+    action or an API route will compile and then 404 on the published site, and the enquiry it was supposed to
+    receive is simply lost. Change the fields, the labels and the copy; keep the hidden fields as the component
+    sets them, honeypot included, and give the email field a name containing "email" so the owner can reply.
+    A `mailto:` link is not a substitute: it opens whatever the visitor's device thinks is a mail client, which
+    on a phone is often nothing at all.
 
 ## Check your work before you finish
 
@@ -55,9 +63,11 @@ shows up.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
 - `src/app/sitemap.ts` — the list of this site's pages. **Add a line when you add a page**: a static export
   cannot discover its own routes, so a page missing from here is a page search engines find late or not at all.
-- `src/site.ts` — where this site lives, as the build was told. Use it rather than writing a URL anywhere: the
-  address changes the day somebody connects their own domain, and a canonical link pointing at the old one
-  tells every search engine the real site is somewhere it is not.
+- `src/site.ts` — where this site lives, as the build was told, and where its forms post. Use it rather than
+  writing a URL anywhere: the address changes the day somebody connects their own domain, and a canonical link
+  pointing at the old one tells every search engine the real site is somewhere it is not.
+- `src/components/contact-form.tsx` and `src/app/contact/page.tsx` — the working form and the page it is on.
+  Rewrite the copy; leave the plumbing.
 
 ## What you must not touch
 

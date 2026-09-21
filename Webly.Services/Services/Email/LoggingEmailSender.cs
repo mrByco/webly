@@ -16,8 +16,9 @@ public class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSend
         var savedTo = await TrySaveAsync(message, cancellationToken);
 
         logger.LogInformation(
-            "Email not sent (no provider configured).\n  To: {Recipient}\n  Subject: {Subject}\n  Saved: {SavedTo}\n{HtmlBody}",
+            "Email not sent (no provider configured).\n  To: {Recipient}\n  Reply-To: {ReplyTo}\n  Subject: {Subject}\n  Saved: {SavedTo}\n{HtmlBody}",
             message.To,
+            message.ReplyTo ?? "(none)",
             message.Subject,
             savedTo ?? "(could not write file)",
             message.HtmlBody);
