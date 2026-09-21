@@ -62,6 +62,13 @@ export const AppRoutes = {
     /** Children of the site shell, so the header and the site switcher stay put while these change. */
     childPath: 'history',
     build: (nanoid: string) => `/sites/${encodeURIComponent(nanoid)}/history`,
+
+    /**
+     * The chat links a committed version as `history?version={nanoid}` — a query parameter rather than a path
+     * segment, because the screen is the list with one of its rows selected rather than a different screen,
+     * and a link carrying a version that no longer exists should still open the history. It is built in the
+     * template with `[routerLink]` and `[queryParams]`, so there is no second spelling of it here.
+     */
   },
   /** The source, read-only. "You never have to touch the code" is not "you may not see it". */
   siteCode: {

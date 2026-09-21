@@ -327,7 +327,10 @@ changed-file count, who and which message — and duplicates nothing git already
   the first shape and it failed in the most visible way there is: the preview somebody was looking at when they
   pressed "bring this back" became "your preview is not running, send a message to wake it up".
 - **A version links to the chat message that produced it** and the message links back, which is what makes
-  the history read as the conversation that caused it.
+  the history read as the conversation that caused it — and the editor says so: every reply that committed
+  something carries a "see what changed" link into `history?version={nanoid}`. The link existed in the database
+  and in `ChatMessageResponse.ProducedVersionNanoid` and nowhere in between, because the messages query had no
+  `Include` and the field came back null on every message.
 - **`(SiteId, CommitSha)` is unique**, which is what stops a second row claiming the same commit and making
   the history show a change that is not one.
 - **The history shows a diff, not a preview.** There is one dev server per site and it runs the working

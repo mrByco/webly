@@ -1,9 +1,11 @@
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
-import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
+import { map } from 'rxjs';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
+import { DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
 import { messageOf } from '../../models/problem-details';
 import { SiteVersionResponse } from '../../api/models/site-version-response';
 
@@ -39,8 +41,26 @@ export class SiteHistoryPage {
   /** The parent route holds the site: this screen is a child of the editor shell. */
   protected readonly siteNanoid = this.route.parent?.snapshot.paramMap.get('nanoid') ?? '';
 
+  /**
+   * The version the URL is asking for, as a signal rather than a snapshot. The chat sits beside this screen on
+   * a wide window, so a second link is a query-parameter change on a route that is already open — which
+   * re-creates nothing and would have left the pane showing the version somebody clicked a minute ago.
+   */
+  private readonly asked = toSignal(
+    this.route.queryParamMap.pipe(map(parameters => parameters.get('version'))),
+    { initialValue: this.route.snapshot.queryParamMap.get('version') });
+
   constructor() {
     void this.load();
+
+    effect(() => {
+      const asked = this.asked();
+      const version = this.versions().find(candidate => candidate.nanoid === asked);
+
+      if (version && version.nanoid !== this.selected()?.nanoid) {
+        this.select(version);
+      }
+    });
   }
 
   protected async load(): Promise<void> {
@@ -51,10 +71,15 @@ export class SiteHistoryPage {
       this.versions.set(versions);
       this.error.set(undefined);
 
-      const head = versions.find(version => version.isHead) ?? versions[0];
+      // `?version=` is how the chat links the turn that produced a version, so it outranks the head: somebody
+      // following that link is asking about that one. An id that no longer names anything falls back rather
+      // than showing an empty pane — a stale link should still open the history.
+      const chosen = versions.find(version => version.nanoid === this.asked())
+        ?? versions.find(version => version.isHead)
+        ?? versions[0];
 
-      if (head) {
-        this.select(head);
+      if (chosen) {
+        this.select(chosen);
       }
     } catch (failure) {
       this.error.set(messageOf(failure));

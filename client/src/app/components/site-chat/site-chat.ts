@@ -1,5 +1,7 @@
 import { Component, ElementRef, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { AppRoutes } from '../../app.routes.paths';
 import { Icon } from '../../shared/icon';
 import { ChatService } from '../../services/chat.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
@@ -47,7 +49,7 @@ const KIND_OF_ROLE: Record<ChatMessageResponse['role'], ChatEntry['kind']> = {
  */
 @Component({
   selector: 'app-site-chat',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, RouterLink],
   templateUrl: './site-chat.html',
   // The host element is a flex item of the editor's pane and has to fill it. Without this it is a plain
   // block that sizes to its content, and the `h-full` inside resolves against that — so the pane was
@@ -57,6 +59,8 @@ const KIND_OF_ROLE: Record<ChatMessageResponse['role'], ChatEntry['kind']> = {
 })
 export class SiteChat {
   readonly siteNanoid = input.required<string>();
+
+  protected readonly routes = AppRoutes;
 
   /** Raised when a turn commits a version, so the editor can refresh its preview and its header. */
   readonly versionCommitted = output<string>();

@@ -21,8 +21,14 @@ public class ConversationRepository(WeblyDbContext dbContext) : IConversationRep
         CancellationToken cancellationToken = default)
     {
         // Newest N by sequence, then reversed: the model wants the most recent history, in order.
+        //
+        // The produced version is included because `ChatMessageResponse.ProducedVersionNanoid` promises it, and
+        // without the include it was null on every message — the link that makes the history read as this
+        // conversation existed in the database and in the DTO and nowhere in between. A left join on an indexed
+        // foreign key for at most `take` rows; the agent's own call does not need it and does not notice it.
         var newest = await dbContext.ConversationMessages
             .Where(x => x.ConversationId == conversationId)
+            .Include(x => x.ProducedVersion)
             .OrderByDescending(x => x.Sequence)
             .Take(take)
             .ToListAsync(cancellationToken);

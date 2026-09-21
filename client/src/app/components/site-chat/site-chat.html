@@ -15,7 +15,25 @@
             </p>
           }
           @case ('assistant') {
-            <p class="max-w-[95%] text-sm whitespace-pre-wrap">{{ entry.text }}</p>
+            <div class="flex max-w-[95%] flex-col items-start gap-1">
+              <p class="text-sm whitespace-pre-wrap">{{ entry.text }}</p>
+
+              <!--
+                The version this reply produced, for a thread read back from the database: the live run draws
+                its own `version` entry, but a reload has only the messages, and the link between a message and
+                the version it caused is the thing that makes the history read as this conversation. Without it
+                only the database knew.
+              -->
+              @if (entry.versionNanoid) {
+                <a
+                  class="flex items-center gap-1.5 text-xs font-semibold text-success hover:underline"
+                  [routerLink]="routes.siteHistory.build(siteNanoid())"
+                  [queryParams]="{ version: entry.versionNanoid }">
+                  <app-icon class="size-3.5" name="check" />
+                  see what changed
+                </a>
+              }
+            </div>
           }
           @case ('notice') {
             <!-- The app's own voice, not the agent's: what happened to the site when no reply did.
@@ -45,10 +63,27 @@
             </div>
           }
           @case ('version') {
-            <p class="flex items-center gap-2 rounded-field bg-success/10 px-3 py-2 text-xs font-semibold text-success">
-              <app-icon class="size-3.5" name="check" />
-              {{ entry.text }}
-            </p>
+            <!--
+              A link into the history when we know which version this was, because that pair of links is the
+              whole idea: a version names the message that produced it and the message names the version, so
+              the history reads as the conversation that caused it. Without somewhere to click, only the
+              database knew.
+            -->
+            @if (entry.versionNanoid) {
+              <a
+                class="flex items-center gap-2 rounded-field bg-success/10 px-3 py-2 text-xs font-semibold text-success transition-colors hover:bg-success/20"
+                [routerLink]="routes.siteHistory.build(siteNanoid())"
+                [queryParams]="{ version: entry.versionNanoid }">
+                <app-icon class="size-3.5" name="check" />
+                <span class="min-w-0 flex-1">{{ entry.text }}</span>
+                <span class="shrink-0 opacity-70">see what changed</span>
+              </a>
+            } @else {
+              <p class="flex items-center gap-2 rounded-field bg-success/10 px-3 py-2 text-xs font-semibold text-success">
+                <app-icon class="size-3.5" name="check" />
+                {{ entry.text }}
+              </p>
+            }
           }
           @case ('build') {
             <!-- Shown rather than logged: the next message is what fixes it, and nobody can write that
