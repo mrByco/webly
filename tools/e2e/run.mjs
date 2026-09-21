@@ -287,6 +287,14 @@ try {
     const head = await store.resolveHead(repository);
     check(head === first.commitSha, 'refs/heads/main points at it');
 
+    // The diff of a commit with no parent, which is the first thing a new customer's History tab asks for.
+    // It used to answer 500: `{sha}~1` is not a revision for a root commit and git exits 128, so every new
+    // site's history was broken on the only version it had.
+    const firstDiff = await store.diff(repository, first.commitSha);
+
+    check(firstDiff.length > 0, `the first commit diffs against nothing (${firstDiff.length} characters)`);
+    check(firstDiff.includes('AGENTS.md'), 'and the diff is the template arriving');
+
     globalThis.__first = first;
     return files;
   });

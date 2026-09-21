@@ -130,10 +130,21 @@ public class GitSiteRepositoryStore(
         return new CommitResult(sha, await CountChangedFilesAsync(path, sha, cancellationToken));
     }
 
+    /// <summary>
+    /// What one commit changed, as a unified diff.
+    ///
+    /// <c>diff-tree --root</c> rather than <c>diff {sha}~1 {sha}</c>, and that is not a stylistic preference:
+    /// a site's first commit has no parent, so <c>~1</c> is not a revision and git exits 128. Which meant the
+    /// History tab of every newly created site answered 500 on the only version it had — the first thing a new
+    /// customer would look at. <c>--root</c> diffs a parentless commit against the empty tree and behaves
+    /// exactly like the old command for every other one, so it is one call rather than a branch.
+    ///
+    /// <c>--no-commit-id</c> because <c>diff-tree</c> otherwise prints the sha as a first line, and this text
+    /// goes straight into a diff viewer. No colour, because a client reads it and not a terminal.
+    /// </summary>
     public Task<string> DiffAsync(string siteNanoid, string commitSha, CancellationToken cancellationToken = default) =>
         RunAsync(PathFor(siteNanoid), cancellationToken,
-            // Against the first parent, and with no colour or pager: this is read by a client, not a terminal.
-            "diff", "--no-color", "--unified=3", $"{commitSha}~1", commitSha);
+            "diff-tree", "--no-color", "--no-commit-id", "--unified=3", "-p", "--root", commitSha);
 
     /// <summary>
     /// <c>git bundle create - HEAD &lt;branch&gt;</c>: the whole repository on stdout.

@@ -148,13 +148,12 @@ export async function readTree(repository, commitSha) {
 }
 
 export async function diff(repository, commitSha) {
-  const parents = (await git(repository, ['rev-list', '--parents', '-n', '1', commitSha])).trim().split(' ');
-
-  // The first commit has no parent, so there is nothing to diff against — the C# answers an empty string
-  // here and the client reads that as "this is where the site started".
-  if (parents.length < 2) return '';
-
-  return git(repository, ['diff', parents[1], commitSha]);
+  // `--root`, so that a site's first commit diffs against the empty tree instead of failing. This used to be
+  // `diff {parent} {sha}` with an early return for a parentless commit, under a comment claiming the C# did
+  // the same — it did not, it ran `{sha}~1` and git exited 128, so every new site's History tab answered
+  // 500 on the only version it had. A stand-in that describes behaviour rather than sharing it is how that
+  // went unnoticed; this is the same command the real store runs.
+  return git(repository, ['diff-tree', '--no-color', '--no-commit-id', '--unified=3', '-p', '--root', commitSha]);
 }
 
 export function temporaryRepository(name = 'site') {

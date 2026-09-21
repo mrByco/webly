@@ -5,11 +5,11 @@
     }
 
     <label class="floating-label">
-      <span>Neved</span>
+      <span>Your name</span>
       <input
         class="input input-bordered w-full"
         type="text"
-        placeholder="Anna Kovacs"
+        placeholder="Alex Miller"
         formControlName="displayName"
         autocomplete="name"
         required />
@@ -20,7 +20,7 @@
       <input
         class="input input-bordered w-full"
         type="email"
-        placeholder="nev@example.com"
+        placeholder="you@example.com"
         formControlName="email"
         autocomplete="email"
         required />
@@ -63,7 +63,7 @@
 
     <p class="text-sm text-center text-base-content/60">
       Already have an account?
-      <a class="link link-primary font-medium" [routerLink]="routes.login.build()">Jelentkezz be</a>
+      <a class="link link-primary font-medium" [routerLink]="routes.login.build()">Sign in</a>
     </p>
   </form>
 </app-auth-layout>
