@@ -11,6 +11,16 @@ public record FormSubmissionResponse
     public required DateTime CreatedAt { get; init; }
 
     /// <summary>
+    /// When the owner last had this on screen, or null if never.
+    ///
+    /// Sent rather than reduced to a boolean because the screen needs to know which messages were new
+    /// <i>in the list it is holding</i>: opening the screen marks them read, so by the time the person is
+    /// looking, the database says they have read everything. The "new" marks they see come from this field
+    /// in the response that preceded that.
+    /// </summary>
+    public DateTime? ReadAt { get; init; }
+
+    /// <summary>
     /// The fields in the order the visitor's browser sent them. A list of pairs rather than a dictionary,
     /// because a form may legitimately send the same name twice — a set of checkboxes does — and a
     /// dictionary would silently keep one of them.

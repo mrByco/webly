@@ -289,6 +289,14 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
             // counts, which is why the date is in the index rather than beside it.
             submission.HasIndex(x => new { x.SiteId, x.CreatedAt });
 
+            // What is new, asked on every load of the editor for the tab's badge. A partial index over the
+            // unread ones only: a site that has been read is the normal case, and the whole point of the count
+            // is that it is usually zero — an index of every submission would be paid for on every insert to
+            // answer a question about a handful of rows.
+            submission.HasIndex(x => x.SiteId)
+                .HasFilter("\"ReadAt\" IS NULL")
+                .HasDatabaseName("IX_FormSubmissions_Unread");
+
             submission.HasOne(x => x.Site)
                 .WithMany(x => x.FormSubmissions)
                 .HasForeignKey(x => x.SiteId)

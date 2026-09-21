@@ -71,6 +71,8 @@ public class SiteIsolationTests : AuthEndpointTestBase
             (HttpMethod.Get, $"/api/sites/{site}/deployments", null),
             (HttpMethod.Get, $"/api/sites/{site}/domains", null),
             (HttpMethod.Get, $"/api/sites/{site}/submissions", null),
+            (HttpMethod.Post, $"/api/sites/{site}/submissions/read", null),
+            (HttpMethod.Delete, $"/api/sites/{site}/submissions/made-up-nanoid", null),
             (HttpMethod.Get, $"/api/sites/{site}/preview/", null),
             (HttpMethod.Post, $"/api/sites/{site}/workspace", null),
             (HttpMethod.Post, $"/api/sites/{site}/open", null),

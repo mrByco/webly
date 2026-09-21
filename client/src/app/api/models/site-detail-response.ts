@@ -9,5 +9,6 @@ export interface SiteDetailResponse {
   headVersion: SiteVersionResponse;
   publishedVersion?: SiteVersionResponse;
   summary: SiteSummaryResponse;
+  unreadSubmissionCount: number;
   workspaceReady: boolean;
 }

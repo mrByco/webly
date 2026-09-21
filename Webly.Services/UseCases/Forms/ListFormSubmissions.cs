@@ -35,6 +35,7 @@ public class ListFormSubmissions(ISiteRepository siteRepository, IFormSubmission
                 Nanoid = x.Nanoid,
                 FormName = x.FormName,
                 CreatedAt = x.CreatedAt,
+                ReadAt = x.ReadAt,
                 Fields = [.. x.Fields.Select(f => new FormFieldResponse { Name = f.Name, Value = f.Value })]
             })
         ]);

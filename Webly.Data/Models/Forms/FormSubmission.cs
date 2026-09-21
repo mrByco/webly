@@ -53,6 +53,21 @@ public class FormSubmission : IHasNanoid, IHasCreatedAt
     public List<SubmittedField> Fields { get; set; } = [];
 
     /// <summary>
+    /// When the owner last had this on their screen, or null while they have not.
+    ///
+    /// <b>A timestamp rather than a flag</b>, for the reason every other "when" here is: "did I see this before
+    /// I went away last week" is a question a boolean cannot answer, and the day this product wants "three new
+    /// since Tuesday" the column is already there.
+    ///
+    /// It is stamped by <i>opening the Messages screen</i>, not by opening a message, and that is a decision
+    /// the screen makes true rather than one the column implies: every message is shown in full, in a list —
+    /// there is no preview to click through — so having the list in front of you <i>is</i> having read them.
+    /// A per-message "mark as read" on a screen that already shows everything would be a button asking somebody
+    /// to confirm what they just did.
+    /// </summary>
+    public DateTime? ReadAt { get; set; }
+
+    /// <summary>
     /// Where it came from, for the case somebody has to be blocked or a flood explained. Nullable because a
     /// deployment behind a proxy that does not forward it honestly has no answer, and inventing one would be
     /// worse than admitting it.

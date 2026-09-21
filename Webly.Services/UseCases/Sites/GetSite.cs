@@ -1,5 +1,6 @@
 using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Domains;
+using Webly.Data.Repositories.Forms;
 using Webly.Data.Repositories.Sites;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
@@ -13,6 +14,7 @@ public class GetSite(
     ISiteVersionRepository versionRepository,
     IDomainRepository domainRepository,
     IDeploymentRepository deploymentRepository,
+    IFormSubmissionRepository submissions,
     ISiteWorkspaceRegistry workspaces,
     SiteMapper mapper)
 {
@@ -48,7 +50,8 @@ public class GetSite(
             HeadVersion = SiteMapper.ToVersion(head, site),
             PublishedVersion = published is null ? null : SiteMapper.ToVersion(published, site),
             Domains = [.. domains.Select(SiteMapper.ToDomain)],
-            WorkspaceReady = await workspaces.IsPreviewReadyAsync(site.Nanoid, cancellationToken)
+            WorkspaceReady = await workspaces.IsPreviewReadyAsync(site.Nanoid, cancellationToken),
+            UnreadSubmissionCount = await submissions.CountUnreadAsync(site.Id, cancellationToken)
         });
     }
 }

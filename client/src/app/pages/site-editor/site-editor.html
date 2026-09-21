@@ -58,9 +58,18 @@
             <app-icon class="size-4" name="code" />
             Code
           </a>
+          <!--
+            The one tab that carries a count, because it is the only one whose contents somebody else put
+            there. A person who never opens this tab has no way of knowing an enquiry is sitting in it — and
+            the email notification is exactly the thing that gets missed. Absent at zero rather than a grey
+            "0": a badge that is always on stops being a signal.
+          -->
           <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteMessages.build(detail.summary.nanoid)">
             <app-icon class="size-4" name="mail" />
             Messages
+            @if (detail.unreadSubmissionCount > 0) {
+              <span class="badge badge-primary badge-xs">{{ detail.unreadSubmissionCount }}</span>
+            }
           </a>
           <a class="btn btn-ghost btn-sm" routerLinkActive="btn-active" [routerLink]="routes.siteDomains.build(detail.summary.nanoid)">
             <app-icon class="size-4" name="link" />

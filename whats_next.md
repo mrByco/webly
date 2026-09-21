@@ -241,5 +241,6 @@ the client re-exports the generated types.)*
 - **No billing.** P7. Uploads landed (P5) and are not what that section expected: an image is a commit in the
   site's own repository rather than a row in a blob store, so the published site serves its own photographs and
   a customer who exports takes them along. Removing one landed with it, thumbnails and all.
-- Forms landed — see `MASTER_PLAN.md` P4 and the Forms section of
-  `CLAUDE.md`; what is deliberately missing there is read state on a message and a way to delete one.
+- Forms landed — see `MASTER_PLAN.md` P4 and the Forms section of `CLAUDE.md`. Read state and deleting a
+  message landed after them, so what is deliberately missing there now is a reply: an enquiry is answered from
+  the owner's own email, where the notification is, with the visitor's address already in its reply-to.

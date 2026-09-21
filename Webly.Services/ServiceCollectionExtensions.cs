@@ -104,6 +104,8 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<SubmitForm>();
         services.AddScoped<ListFormSubmissions>();
+        services.AddScoped<MarkSubmissionsRead>();
+        services.AddScoped<DeleteFormSubmission>();
 
         return services;
     }

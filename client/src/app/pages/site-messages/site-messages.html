@@ -51,6 +51,22 @@
           @if (label(submission); as name) {
             <span class="badge badge-ghost badge-sm">{{ name }}</span>
           }
+
+          <!--
+            From the response that arrived *before* this screen said it had read them, so the marks survive
+            being on the screen that clears them. They are gone on the next visit, which is what "new" means.
+          -->
+          @if (!submission.readAt) {
+            <span class="badge badge-primary badge-sm">New</span>
+          }
+
+          <button
+            class="btn btn-ghost btn-xs ml-auto"
+            type="button"
+            [attr.aria-label]="'Delete this message'"
+            (click)="confirming.set(submission)">
+            <app-icon class="size-3.5" name="trash" />
+          </button>
         </header>
 
         <!--
@@ -69,3 +85,21 @@
     }
   </div>
 </div>
+
+<!--
+  A confirm step on a message somebody else wrote, because it is the one thing on this screen that cannot be
+  undone: a submission is not a version, so there is no history to bring it back from. The copy says where the
+  other copy is, which is the honest reassurance — every one of these was emailed when it arrived.
+-->
+<app-modal [open]="confirming() !== undefined" (close)="confirming.set(undefined)">
+  <h3 class="text-lg font-bold">Delete this message?</h3>
+  <p class="py-3 text-sm text-base-content/70">
+    It goes for good — there is no history to bring a message back from. The copy that was emailed to you when
+    it arrived is still in your inbox.
+  </p>
+
+  <div class="flex justify-end gap-2">
+    <button class="btn btn-ghost" type="button" (click)="confirming.set(undefined)">Keep it</button>
+    <button class="btn btn-error" type="button" [disabled]="removing()" (click)="remove()">Delete</button>
+  </div>
+</app-modal>

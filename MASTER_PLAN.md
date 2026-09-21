@@ -180,9 +180,16 @@ Three decisions worth not re-deriving:
 - **`ISiteRepository.FindForSubmissionAsync` is the one lookup here with no ownership check**, and it says so
   at length. What keeps it safe is that the operation cannot read anything back.
 
-Still open, and deliberately: no read state and no delete on a submission (both need a decision about what the
-editor does with the state), no attachments (P5), and no spam scoring beyond the honeypot — which is what
-actually catches the traffic this endpoint will see.
+Read state and deleting a message landed after the rest, and the decision they were waiting on turned out to
+be about the *screen* rather than the data: every message is shown in full in one list, so opening the screen
+is what marks them read — there is no state in which somebody has seen one message and not the one below it.
+`ReadAt` is a timestamp, the count of the nulls is the badge on the Messages tab (which is what tells somebody
+who never opens that tab that an enquiry is waiting), and the acknowledgement is its own POST so that a
+prefetch cannot spend it.
+
+Still open, and deliberately: no reply from inside Webly — the notification email already carries the
+visitor's address as its reply-to, and an outbox is a second place a conversation lives. No attachments (P5),
+and no spam scoring beyond the honeypot, which is what actually catches the traffic this endpoint will see.
 
 ## P5 — Assets
 

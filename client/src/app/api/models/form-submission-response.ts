@@ -7,4 +7,5 @@ export interface FormSubmissionResponse {
   fields: Array<FormFieldResponse>;
   formName: string;
   nanoid: string;
+  readAt?: string | null;
 }

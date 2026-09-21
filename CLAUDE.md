@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 129-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 132-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -691,6 +691,18 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   "mail" and then checked for being one. That is the point of the whole email: a lead the owner cannot answer
   from their phone is a lead that waits a day. `EmailMessage.ReplyTo` exists for this one message, and
   `EmailLayout.Escape` exists because this is the one template carrying words Webly did not write.
+- **The inbox is three verbs and no more**: read them, say they have been read, throw one away. There is no
+  reply — an enquiry is answered from the owner's own email, where the notification already is with the
+  visitor's address in its reply-to. **Opening the Messages screen is what marks them read**, because the
+  screen shows every message in full with nothing to click through, so having the list in front of you *is*
+  having read them; a per-message button would ask somebody to confirm what they just did. It is a `POST`
+  beside the `GET` rather than a side effect of it: a `GET` that clears somebody's unread messages is one a
+  prefetch or a second tab can spend. `ReadAt` is a timestamp rather than a flag, and the count of the
+  nulls — over a partial index, because the usual answer is zero — is the badge on the Messages tab, which
+  exists so that somebody who never opens that tab still knows an enquiry is sitting in it. **A delete really
+  deletes**: a message is a few hundred bytes, the reason to remove one is that it is spam, and a second list
+  nobody empties is somewhere for the same messages to pile up out of sight. The copy in the owner's inbox is
+  the backup, and the confirm dialog says so.
 - **`Fields` is one jsonb column**, not a table and not a fixed set of columns. The agent writes the form, so
   Webly cannot know whether this site asks for a postcode — and a column per question is a migration per
   question. The editor's Messages tab lists the labels the visitor's own form used.

@@ -238,6 +238,127 @@ public class FormSubmissionTests : AuthEndpointTestBase
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
+    /// <summary>The site as the editor loads it, which is where the unread count lives.</summary>
+    private async Task<JsonElement> SiteDetailAsync(string access, string siteNanoid)
+    {
+        var request = Request(HttpMethod.Get, $"/api/sites/{siteNanoid}", (AuthCookies.AccessTokenName, access));
+        var response = await Client.SendAsync(request);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK), await response.Content.ReadAsStringAsync());
+
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
+    }
+
+    private async Task<int> UnreadAsync(string access, string siteNanoid) =>
+        (await SiteDetailAsync(access, siteNanoid)).GetProperty("unreadSubmissionCount").GetInt32();
+
+    private Task<HttpResponseMessage> MarkReadAsync(string access, string siteNanoid) =>
+        Client.SendAsync(Request(HttpMethod.Post, $"/api/sites/{siteNanoid}/submissions/read",
+            (AuthCookies.AccessTokenName, access)));
+
+    /// <summary>
+    /// What makes the badge on the Messages tab worth having: a message is unread until the owner says
+    /// otherwise, and reading the list does not say otherwise — a GET that writes is one a prefetch can spend.
+    /// </summary>
+    [Test]
+    public async Task A_message_stays_unread_until_the_owner_acknowledges_it()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        await PostAsync(site, [new("message", "do you fit mudguards?")]);
+
+        // Listing them is not acknowledging them.
+        var listed = await SubmissionsAsync(owner, site);
+        var afterListing = await UnreadAsync(owner, site);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listed[0].GetProperty("readAt").ValueKind, Is.EqualTo(JsonValueKind.Null));
+            Assert.That(afterListing, Is.EqualTo(1));
+        });
+
+        var acknowledged = await MarkReadAsync(owner, site);
+        var after = await SubmissionsAsync(owner, site);
+        var afterAcknowledging = await UnreadAsync(owner, site);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(acknowledged.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(after[0].GetProperty("readAt").ValueKind, Is.Not.EqualTo(JsonValueKind.Null));
+            Assert.That(afterAcknowledging, Is.Zero);
+        });
+
+        // And one that arrives afterwards is new again, which is the case the timestamp exists for.
+        await PostAsync(site, [new("message", "and do you take card?")]);
+
+        Assert.That(await UnreadAsync(owner, site), Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task A_message_can_be_thrown_away_and_stays_thrown_away()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        await PostAsync(site, [new("message", "buy cheap watches")]);
+
+        var nanoid = (await SubmissionsAsync(owner, site))[0].GetProperty("nanoid").GetString()!;
+
+        var deleted = await Client.SendAsync(Request(HttpMethod.Delete,
+            $"/api/sites/{site}/submissions/{nanoid}", (AuthCookies.AccessTokenName, owner)));
+
+        var remaining = await SubmissionsAsync(owner, site);
+        var unread = await UnreadAsync(owner, site);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(deleted.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(remaining.GetArrayLength(), Is.Zero);
+
+            // It was never read, so deleting it has to take it out of the count as well — otherwise the badge
+            // says there is something to look at and the list says there is not.
+            Assert.That(unread, Is.Zero);
+        });
+
+        // A second click, or a reload of a stale list, is not an error.
+        var again = await Client.SendAsync(Request(HttpMethod.Delete,
+            $"/api/sites/{site}/submissions/{nanoid}", (AuthCookies.AccessTokenName, owner)));
+
+        Assert.That(again.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+    }
+
+    /// <summary>
+    /// A submission's nanoid is not a key to it. The delete is reached through the site, so presenting a
+    /// stranger's id against your own site finds nothing — and presenting your own id against theirs answers
+    /// 404 for the site, which is what <see cref="SiteIsolationTests"/> drives for every route under one.
+    /// </summary>
+    [Test]
+    public async Task One_owner_cannot_delete_another_owner_is_message()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var stranger = await AccountAsync("stranger@example.com");
+
+        var theirs = await SiteAsync(owner, "Koopman Cycles");
+        var mine = await SiteAsync(stranger, "Someone Else");
+
+        await PostAsync(theirs, [new("message", "hello")]);
+
+        var nanoid = (await SubmissionsAsync(owner, theirs))[0].GetProperty("nanoid").GetString()!;
+
+        var attempt = await Client.SendAsync(Request(HttpMethod.Delete,
+            $"/api/sites/{mine}/submissions/{nanoid}", (AuthCookies.AccessTokenName, stranger)));
+
+        var untouched = await SubmissionsAsync(owner, theirs);
+
+        Assert.Multiple(() =>
+        {
+            // Their own site, so not a 404 — and nothing found under it, so nothing removed.
+            Assert.That(attempt.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+            Assert.That(untouched.GetArrayLength(), Is.EqualTo(1));
+        });
+    }
+
     [Test]
     public async Task A_visitor_to_one_site_cannot_reach_another_owner_is_list()
     {
