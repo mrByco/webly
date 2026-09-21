@@ -8,6 +8,14 @@ public record SiteSummaryResponse
     public required string Slug { get; init; }
 
     /// <summary>
+    /// The subdomain the platform gives every site, <c>{slug}.{BaseDomain}</c>. It never changes and a site keeps it
+    /// whatever custom domains it collects, which is what the domains screen labels as the Webly address — that
+    /// screen read <see cref="Url"/> for it and so relabelled a customer's own domain as ours the moment one was
+    /// promoted.
+    /// </summary>
+    public required string WeblyUrl { get; init; }
+
+    /// <summary>
     /// The site's address — its custom primary domain if it has a verified one, otherwise its Webly subdomain.
     /// What it is called, not necessarily what serves it yet: see <see cref="LiveUrl"/>.
     /// </summary>

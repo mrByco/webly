@@ -7,11 +7,37 @@
       </p>
     </div>
 
-    @if (weblyUrl()) {
-      <div class="surface flex items-center gap-3 p-4">
-        <app-icon class="size-4.5 text-base-content/55" name="globe" />
-        <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ weblyUrl() }}</span>
-        <span class="badge badge-sm">Always on</span>
+    <!--
+      `weblyUrl`, not `url`: this panel is about the address the platform gives every site, and `url` becomes the
+      customer's own domain the moment one is promoted — which had this panel labelling their domain as ours.
+
+      And the badge is the truth rather than a reassurance. "Always on" is only true once the provider is serving
+      that hostname, which is what `liveUrl` being the same string means; before the first publish there is
+      nothing at either address, and in between the site is live at its deployment's own URL, said below rather
+      than left to be discovered by clicking.
+    -->
+    @if (site(); as detail) {
+      <div class="surface flex flex-col gap-2 p-4">
+        <div class="flex items-center gap-3">
+          <app-icon class="size-4.5 text-base-content/55" name="globe" />
+          <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ detail.summary.weblyUrl }}</span>
+
+          @if (detail.summary.liveUrl === detail.summary.weblyUrl) {
+            <span class="badge badge-sm">Always on</span>
+          } @else if (detail.summary.publishedAt) {
+            <span class="badge badge-sm badge-warning">Being set up</span>
+          } @else {
+            <span class="badge badge-ghost badge-sm">Ready when you publish</span>
+          }
+        </div>
+
+        @if (detail.summary.publishedAt && detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.weblyUrl) {
+          <p class="text-xs text-base-content/60">
+            Your site is live at
+            <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>
+            until this address is ready.
+          </p>
+        }
       </div>
     }
 

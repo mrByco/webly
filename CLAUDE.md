@@ -430,8 +430,10 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   earliest moment there is a project to attach it to), stamps `Site.AddressReadyAt` when the provider confirms it,
   and tries again on the next publish while it has not: a retry loop with no timer and no state machine. It is
   best-effort by design — a publish that worked must not be reported as failed because a domain call did.
-- **So a site has two URLs, and `SiteMapper` is the one place both are decided.** `Url` is its **address**, what
-  the settings screen prints and somebody reads out over the phone; `LiveUrl` is where the published version can
+- **So a site has three URLs, and `SiteMapper` is the one place all of them are decided.** `WeblyUrl` is the
+  subdomain the platform gives it, which never changes — the domains screen read the address for that and so
+  relabelled a customer's own domain as ours the moment one was promoted. `Url` is its **address**, what
+  the settings screen prints and somebody reads out over the phone — its verified primary domain, or `WeblyUrl`; `LiveUrl` is where the published version can
   **actually be opened** — the address once `AddressReadyAt` says the provider serves it, the deployment's own
   provider URL until then, and null for a site nobody has published. The header, the site cards and the publish
   email all link `LiveUrl`, because a link that 404s immediately after "published" reads as the publish having
@@ -483,9 +485,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on
   reconnect.
-- **Hub DTOs are declared by hand in `realtime.service.ts`**, with a comment saying so: `ng-openapi-gen`
-  deletes them, because Swagger describes HTTP only. Pinning them into the OpenAPI document with a
-  Swashbuckle document filter is the fix, and it is a P2 task.
+- **The hub's DTOs are generated too**, which took a document filter. Swagger describes HTTP and a hub is not
+  HTTP, so `ng-openapi-gen` deleted anything only the hub used and `realtime.service.ts` re-declared it by hand —
+  including `RunEventType`, a union the client switches on, which meant adding a value on the server changed
+  nothing here until somebody remembered. `HubContractDocumentFilter` puts those types into the document;
+  `realtime.service.ts` re-exports them, because everything that watches a run already imports that service.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts, and a `build` block carrying the

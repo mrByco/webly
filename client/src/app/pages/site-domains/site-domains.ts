@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Icon } from '../../shared/icon';
@@ -35,8 +35,11 @@ export class SiteDomainsPage {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | undefined>(undefined);
 
-  /** The Webly subdomain, which every site keeps whatever custom domains it has. */
-  protected readonly weblyUrl = signal(this.sites.current()?.summary.url ?? '');
+  /**
+   * The open site, read from the service's signal rather than copied into one here: promoting a domain changes
+   * the site's address, and a snapshot taken in the constructor would still be showing the old one.
+   */
+  protected readonly site = computed(() => this.sites.current());
 
   protected hostname = '';
 

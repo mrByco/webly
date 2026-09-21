@@ -10,4 +10,5 @@ export interface SiteSummaryResponse {
   slug: string;
   updatedAt: string;
   url: string;
+  weblyUrl: string;
 }

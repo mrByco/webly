@@ -122,12 +122,17 @@ CLI's output parsing.
 Ten minutes is a guess, and it is the product's real unit cost. A warm sandbox bills by the second and a cold
 one costs a person tens of seconds of staring at "your preview is asleep". Nobody has measured either side.
 
-### 5. Pin the hub DTOs into the OpenAPI document
+### 5. Reconcile the Vercel domain attach with what the API answers
 
-`realtime.service.ts` declares them by hand with a comment saying why: `ng-openapi-gen` deletes anything
-Swagger does not describe, and Swagger describes HTTP only. A Swashbuckle document filter is the fix. It
-matters more now than it looked: `RunEventType` is a union the client switches on, and the two sides agreeing
-by hand is exactly the kind of thing that stops being true quietly.
+Publishing now asks the provider to serve the site's own `{slug}.{BaseDomain}` address, because nothing did
+and so that address — the one every screen prints — resolved nowhere. What is unknown is what Vercel answers
+for a subdomain of a zone already pointed at it: if it comes back verified, `Site.AddressReadyAt` is stamped
+and the header links the address; if it comes back pending with a challenge, the platform address needs the
+same "come back and check" step a customer's domain has. Until then a published site is linked at its
+deployment's own URL, which is what development does for ever.
+
+*(The hub DTOs are no longer on this list: `HubContractDocumentFilter` puts them in the OpenAPI document and
+the client re-exports the generated types.)*
 
 ## Things deliberately left undone, so nobody hunts for them
 

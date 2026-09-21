@@ -52,6 +52,7 @@ public class SiteMapper(IOptions<SitesOptions> sites)
         Nanoid = site.Nanoid,
         Name = site.Name,
         Slug = site.Slug,
+        WeblyUrl = sites.Value.UrlFor(site.Slug),
         Url = UrlFor(site, primaryDomain),
         LiveUrl = LiveUrlFor(site, primaryDomain, liveDeployment),
         PublishedAt = publishedAt,
