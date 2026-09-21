@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 123-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 129-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -38,7 +38,10 @@ Two harnesses drive it, and they answer different questions:
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
-  error, a 5xx or a blank screen. It exists because five defects in one afternoon — an unstyled published
+  error, a 5xx, a blank screen, or **a 404 on anything the page asked for** — which is the defect it was
+  written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
+  that was perfect. It skips the published screens for a site nobody has published, and asserts they answer
+  404 instead, because a harness that is red when the product is right is one nobody reads. It exists because five defects in one afternoon — an unstyled published
   site, a 404 that served Webly's dashboard, a title that named no site, pill-shaped form fields, a deleted
   site still serving — had all been "checked" by reading HTML that was perfect.
 - **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it
@@ -313,6 +316,16 @@ structured-document model it replaced was better at.
   nobody connects to it, and git's own sentence — `fatal: git update-index: --cacheinfo cannot add ../evil.txt`
   — reaches the chat as a failed turn nobody can act on. A *leading dot* is deliberately fine: `.gitignore` and
   `.env.example` are ordinary files in a Next.js project.
+- **A new site knows its own name.** Somebody types "Ridgeway Cycles" on the screen that creates a site, and
+  until `SiteIdentity` that name reached the dashboard and nothing else: the header, the footer and every
+  page's title said "Your site" until an agent turn changed them. It writes the name into `src/site.ts` as
+  `siteName`, which the whole project imports, and into `content/brand.md` as the first **confirmed** fact, so
+  the first turn starts knowing it rather than asking. Written once, like the look: a rename in Webly does not
+  come back and rewrite the pages, for the same reason it does not move the web address. **It is customer
+  input reaching a source file that gets compiled**, so it is escaped for a single-quoted TypeScript literal —
+  "Joe's Garage" is an ordinary business name and an unescaped apostrophe is a site that does not build, in a
+  sandbox, reported as a chat message nobody can act on. `TemplateFile.Rewritten` is the one rule both this
+  and `SiteLooks` share: a file that has moved or been reshaped is left exactly as it is.
 - **One template, five looks.** `SiteLooks` rewrites three numbers in `src/app/look.css` — an OKLCH hue, a
   chroma and a card radius — in the template's tree on the way to a site's first commit, at random. **And the
   same colour in `src/app/icon.svg`**, which is the one place the stylesheet cannot reach: an SVG the browser

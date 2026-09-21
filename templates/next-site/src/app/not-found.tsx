@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-// Its own title, because "New site" in the tab of a page that is not there tells a visitor nothing about what
-// happened. The layout's template turns this into "Page not found · New site".
+// Its own title, because the business's name alone in the tab of a page that is not there tells a visitor
+// nothing about what happened. The layout's template turns this into "Page not found · <the business>".
 export const metadata: Metadata = { title: 'Page not found' };
 
 /**

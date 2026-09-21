@@ -77,9 +77,11 @@ shows up.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
 - `src/app/sitemap.ts` — the list of this site's pages. **Add a line when you add a page**: a static export
   cannot discover its own routes, so a page missing from here is a page search engines find late or not at all.
-- `src/site.ts` — where this site lives, as the build was told, and where its forms post. Use it rather than
-  writing a URL anywhere: the address changes the day somebody connects their own domain, and a canonical link
-  pointing at the old one tells every search engine the real site is somewhere it is not.
+- `src/site.ts` — the business's name, where this site lives as the build was told, and where its forms post.
+  `siteName` is what the owner called the site when they created it; the header, the footer and every page's
+  title read it, so correcting the name is an edit to that one line rather than to four components. Use
+  `siteUrl` rather than writing an address anywhere: it changes the day somebody connects their own domain,
+  and a canonical link pointing at the old one tells every search engine the real site is somewhere it is not.
 - `src/components/contact-form.tsx` and `src/app/contact/page.tsx` — the working form and the page it is on.
   Rewrite the copy; leave the plumbing.
 - `public/` — files served from the root of the site. `public/images/` is where the owner's photographs are,

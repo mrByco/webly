@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.RegularExpressions;
 using Webly.Services.Services.Repositories;
 
@@ -74,9 +73,9 @@ public static partial class SiteLooks
     /// </summary>
     public static WorkspaceTree Applied(WorkspaceTree template, SiteLook look)
     {
-        var tree = Rewrite(template, Path, css => Stylesheet(css, look));
+        var tree = TemplateFile.Rewritten(template, Path, css => Stylesheet(css, look));
 
-        return Rewrite(tree, IconPath, svg => Icon(svg, look));
+        return TemplateFile.Rewritten(tree, IconPath, svg => Icon(svg, look));
     }
 
     /// <summary>
@@ -97,29 +96,6 @@ public static partial class SiteLooks
     /// </summary>
     private static string Icon(string svg, SiteLook look) =>
         IconFill().Replace(svg, m => $"oklch({m.Groups[1].Value} {Number(look.Chroma)} {look.Hue})");
-
-    /// <summary>
-    /// One file of the tree, rewritten — or the tree exactly as it was.
-    ///
-    /// <b>A file that has moved or been reshaped is left alone rather than guessed at.</b> A site with the
-    /// default look is a small disappointment; a site whose stylesheet or icon we corrupted is a broken website.
-    /// </summary>
-    private static WorkspaceTree Rewrite(WorkspaceTree tree, string path, Func<string, string> rewrite)
-    {
-        var file = tree.Find(path);
-
-        if (file is null) return tree;
-
-        var original = Encoding.UTF8.GetString(file.Content);
-        var rewritten = rewrite(original);
-
-        if (rewritten == original) return tree;
-
-        return new WorkspaceTree(
-        [
-            .. tree.Files.Select(x => x.Path == path ? WorkspaceFile.Text(path, rewritten) : x)
-        ]);
-    }
 
     /// <summary>Invariant, because a chroma written as <c>0,19</c> is a stylesheet that does not parse.</summary>
     private static string Number(double value) =>

@@ -146,6 +146,17 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     reach: `SiteLooks` rewrites the colour into it alongside the stylesheet's three numbers, or a terracotta
     site would have carried an indigo tile.
 
+21. **A site did not know its own name.** The one fact Webly has about a business before anybody has said
+    anything is what they typed on the screen that creates a site — and the site they got said "Your site" in
+    its header, its footer and the title of every link they shared, until an agent turn changed it. Found by
+    publishing a brand-new site and looking at the page. The name is now written into the source at creation
+    and recorded as the first confirmed fact the agent reads.
+
+    The browser sweep that found it was itself failing on the wrong things: it reported two problems for a
+    site nobody had published, because it walked the published screens regardless, and it had never once
+    checked the thing it exists for — a page that answers 200 while its stylesheet answers 404. It does both
+    now, and the second was proved by hiding a stylesheet and watching it fail.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

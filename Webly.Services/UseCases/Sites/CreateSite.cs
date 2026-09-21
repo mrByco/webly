@@ -80,6 +80,12 @@ public class CreateSite(
         var look = SiteLooks.Choose();
         var template = SiteLooks.Applied(await templates.ReadAsync(cancellationToken), look);
 
+        // And the one fact we already have: what they called it. The starter site said "Your site" in its
+        // header, its footer and every tab until an agent turn changed it — a name the person had already
+        // typed, sitting on the dashboard two inches away. It is also the first confirmed line in the file the
+        // agent reads before writing anything, so the first turn starts knowing it rather than asking.
+        template = SiteIdentity.Applied(template, name);
+
         logger.LogInformation("Creating {Site} with the {Look} look.", site.Nanoid, look.Name);
 
         var commit = await repositories.InitializeAsync(

@@ -1,4 +1,16 @@
 /**
+ * What this business is called.
+ *
+ * Webly writes this once, from the name the owner typed when they created the site — the only fact about
+ * their business it has before anybody says anything. It is a literal rather than an environment variable
+ * because it is *content*: the header, the footer and every page's title read it, and it is yours to change
+ * from the first message onwards. Renaming the site in Webly deliberately does not come back and change it,
+ * for the same reason renaming it does not move the web address: what is on the page is the site's, not the
+ * dashboard's.
+ */
+export const siteName = 'Your site';
+
+/**
  * Where this site lives, as the build was told.
  *
  * Webly sets `NEXT_PUBLIC_SITE_URL` when it publishes — the site's own address, which is its custom domain

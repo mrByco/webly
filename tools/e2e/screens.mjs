@@ -75,9 +75,14 @@ let current = 'start';
 /**
  * What counts as a problem worth failing for.
  *
- * A 404 is not automatically one: this walk deliberately asks for a page that is not there, and the point of
- * that screen is that it answers 404 with the site's own design. A 5xx always is, and so is anything the page
- * itself logged — an Angular template error reaches the console and nowhere else.
+ * A 5xx always is, and so is anything the page itself logged — an Angular template error reaches the console
+ * and nowhere else.
+ *
+ * **A 404 on something the page asked for is one too, and that is the whole point of this file.** The defect
+ * this harness was written for was a published site whose every `/_next/…` stylesheet and chunk answered 404
+ * because the build had not been told what path it was served at: the document was 200, its HTML was perfect,
+ * and the page rendered as unstyled text. Nothing that reads HTML can see that. A 404 on the *document* is a
+ * different matter — this walk deliberately asks for a page that is not there — so only subresources count.
  */
 function watch(page) {
   page.on('pageerror', error => problems.push(`${current}: page error — ${error.message}`));
@@ -99,7 +104,11 @@ function watch(page) {
   });
 
   page.on('response', response => {
-    if (response.status() >= 500) problems.push(`${current}: ${response.status()} ${response.url().slice(0, 110)}`);
+    const status = response.status();
+    const document = response.request().resourceType() === 'document';
+
+    if (status >= 500 || (status === 404 && !document))
+      problems.push(`${current}: ${status} ${response.url().slice(0, 110)}`);
   });
 }
 
@@ -141,6 +150,15 @@ try {
     process.exit(2);
   }
 
+  // Whether this site has ever been published decides what the last two screens *mean*, so it is asked
+  // rather than assumed. Before this, a site nobody had published reported two failures for answering the
+  // 404 it is supposed to answer — and a harness that is red when the product is right is one nobody reads.
+  const published = await page.evaluate(async ({ base, id }) => {
+    const response = await fetch(`${base}/api/sites/${id}`, { credentials: 'include' });
+
+    return response.ok ? Boolean((await response.json()).summary?.publishedAt) : false;
+  }, { base: origin, id: nanoid });
+
   const screens = [
     ['sites', `${origin}/`],
     ['editor', `${origin}/sites/${nanoid}`],
@@ -153,8 +171,12 @@ try {
 
     // The published site, which is the half that is not Webly's app — and the half where every one of the
     // defects above was. The 404 is deliberate: what it must not be is Webly's own login page.
-    ['published', `${origin}/published/${nanoid}/`],
-    ['published-404', `${origin}/published/${nanoid}/not-a-page/`],
+    ...(published
+      ? [
+        ['published', `${origin}/published/${nanoid}/`],
+        ['published-404', `${origin}/published/${nanoid}/not-a-page/`],
+      ]
+      : []),
   ];
 
   for (const [name, url] of screens) {
@@ -170,6 +192,20 @@ try {
     await shot(page, name, 390);
 
     process.stdout.write(`  · ${name}\n`);
+  }
+
+  // Nothing published, so the assertion is the other one — and it is worth making, because it is what a
+  // *deleted* site has to answer too: a 404, never Webly's own app. A request rather than a screenshot,
+  // since there is no page to look at.
+  if (!published) {
+    for (const suffix of ['', 'not-a-page/']) {
+      const url = `${origin}/published/${nanoid}/${suffix}`;
+      const response = await page.request.get(url, { failOnStatusCode: false });
+
+      if (response.status() !== 404) problems.push(`unpublished: ${response.status()} for ${url}, expected 404`);
+    }
+
+    process.stdout.write('  · published — nothing to walk; the site answers 404, as it must\n');
   }
 } finally {
   await browser.close();

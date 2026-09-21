@@ -2,19 +2,19 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
-import { siteUrl } from '@/site';
+import { siteName, siteUrl } from '@/site';
 import './globals.css';
 
 // Self-hosted at build time by next/font, so a published page makes no request to a font CDN — one less
 // third party between a visitor and the site.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
-const title = 'New site';
+const title = siteName;
 const description = 'Tell Webly what this site is about and it will write this page for you.';
 
 export const metadata: Metadata = {
-  // A template rather than a string, so that every other page's own title becomes "Contact · New site" rather
-  // than replacing the site's name entirely. Without it a shared link, a search result and a browser tab all
+  // A template rather than a string, so that every other page's own title becomes "Contact · <the business>"
+  // rather than replacing the site's name entirely. Without it a shared link, a search result and a browser tab all
   // say only what the page is and never whose it is — and the page name alone is the part a stranger cannot
   // place. `default` is what the home page and anything with no title of its own gets.
   title: { default: title, template: `%s · ${title}` },
