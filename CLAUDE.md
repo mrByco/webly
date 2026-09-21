@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 120-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 121-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -543,11 +543,21 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   `CompilerOutput.Readable` and **then** trimmed to a tail, in that order: it reached the screen raw until a failed
   publish was watched in a browser, and trimming first sliced the middle out of SWC's backtrace, which left the
   frames in and the marker that identifies them out.
+- **Deleting a site takes it off the internet, which it did not.** `DeleteSite` removed the rows, the
+  repository and the custom domains, and left the published site answering at its Webly subdomain and at the
+  provider's own URL — the one action somebody takes to get a page down did not get it down. Found by
+  deleting a published site in the running app and asking for it again. `IDeploymentTarget.DeleteProjectAsync`
+  is the missing half: the filesystem target removes the published directory, the Vercel one deletes the
+  project. Best-effort and logged, like the domain detach — a provider outage must not leave somebody unable
+  to delete their own site — and idempotent, because a caller cannot tell an already-gone project from a
+  refusal and neither can the customer.
 - **A mistyped address on a published site gets that site's 404 page**, which took a middleware after the
   static files: without it the request fell through to `MapReverseProxy`, so somebody who typed one character
   wrong on a customer's shop website landed on **Webly's dashboard**, or on Webly's login page if they were
   not signed in. The template has had a `404.html` in its export the whole time. Development only, like the
-  rest of the filesystem target — a real host serves the export's own 404.
+  rest of the filesystem target — a real host serves the export's own 404. Nothing under `/published/` falls
+  through to the app at all now: an id that is not there is a 404 rather than Webly's login page, which is
+  what a **deleted** site has to answer.
 - **A locally published site is served under a path, and the build has to be told.** Next.js writes absolute
   URLs for its stylesheets and chunks, so `FileSystemDeploymentTarget` passes `WEBLY_PREVIEW_BASE` =
   `/published/{nanoid}` — without it every published site asked for `/_next/…` at the root of Webly's own

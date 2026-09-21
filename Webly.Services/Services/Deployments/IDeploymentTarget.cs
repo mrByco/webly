@@ -102,6 +102,20 @@ public interface IDeploymentTarget
         CancellationToken cancellationToken = default);
 
     Task RemoveDomainAsync(string projectId, string hostname, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes the site off the internet: removes the provider-side project and everything it is serving.
+    ///
+    /// <b>This is what makes deleting a site mean what the word means.</b> Without it a delete removed the
+    /// rows, the repository and the custom domains, and left the published site answering at its Webly
+    /// subdomain and at the provider's own URL — so the one action somebody takes to get a page off the
+    /// internet did not get it off the internet. Found by deleting a published site and asking for it again.
+    ///
+    /// Best-effort at the call site, like the domain detach: a provider outage must not leave somebody unable
+    /// to delete their own site, and an orphaned project is visible and cheap. Idempotent — a project that is
+    /// already gone is a success, because the caller cannot tell the difference and neither can the customer.
+    /// </summary>
+    Task DeleteProjectAsync(string projectId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

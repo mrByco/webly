@@ -42,7 +42,7 @@ cloned and checked; the whole forgotten-password round trip including a replayed
 second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 120 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 121 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
@@ -133,6 +133,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     operation: two sandboxes, two `npm ci`s, two real builds and two "your site is live" emails for one press.
     A partial unique index over the live statuses now says a site publishes one thing at a time, and the second
     request is answered with the deployment that is really running.
+
+19. **Deleting a site did not take it off the internet.** The rows went, the repository went, the custom
+    domains were detached — and the published site carried on answering at its Webly subdomain and at the
+    provider's own URL, because nothing ever deleted the provider-side project. The delete button's own words
+    say "if it is published, it stops being reachable", and it did not. Found the way the others were: by
+    doing it in the running app and then asking for the page again.
 
 ## What is still intent
 

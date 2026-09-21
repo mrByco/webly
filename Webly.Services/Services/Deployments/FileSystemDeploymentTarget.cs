@@ -57,12 +57,7 @@ public class FileSystemDeploymentTarget(
         Func<string, Task>? onOutput = null,
         CancellationToken cancellationToken = default)
     {
-        // The site's nanoid, which is what the project id is made of — not its slug, although the directory
-        // reads like one. A slug can be reused by a later site once an old one is deleted; a nanoid never is,
-        // and a published directory outliving the site that wrote it must not become a different site's.
-        var directory = projectId.StartsWith("local-", StringComparison.Ordinal)
-            ? projectId["local-".Length..]
-            : projectId;
+        var directory = DirectoryFor(projectId);
 
         var build = await sandbox.RunAsync(
             new SandboxCommand("npm", ["run", "build"], TimeSpan.FromMinutes(10),
@@ -209,6 +204,42 @@ public class FileSystemDeploymentTarget(
 
     public Task RemoveDomainAsync(string projectId, string hostname, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
+
+    /// <summary>
+    /// Deletes the published directory, which for this target is the whole of the hosting.
+    ///
+    /// The same failure this exists for is the one it is easiest to reintroduce: a deleted site whose files
+    /// are still on disk is still being served at <c>/published/{nanoid}/</c> by the dev host, so "delete"
+    /// would not have taken the page down. A directory that is already gone is a success.
+    /// </summary>
+    public Task DeleteProjectAsync(string projectId, CancellationToken cancellationToken = default)
+    {
+        var directory = DirectoryFor(projectId);
+        var target = Path.Combine(Path.GetFullPath(_local.Root), directory);
+
+        // Inside the root, or nothing happens. `projectId` reaches a path, and a path that can leave its root
+        // is a delete that can leave the product's own directory — the repository store applies the same rule
+        // to a site id for the same reason.
+        if (Path.GetFullPath(target).StartsWith(Path.GetFullPath(_local.Root) + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal)
+            && Directory.Exists(target))
+        {
+            Directory.Delete(target, recursive: true);
+
+            logger.LogInformation("Deleted the published output of {Project} at {Target}.", projectId, target);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The directory a project's output lives in: the site's nanoid, which is what the project id is made of
+    /// — not its slug, although the directory reads like one. A slug can be reused by a later site once an old
+    /// one is deleted; a nanoid never is, and a published directory outliving the site that wrote it must not
+    /// become a different site's.
+    /// </summary>
+    private static string DirectoryFor(string projectId) =>
+        projectId.StartsWith("local-", StringComparison.Ordinal) ? projectId["local-".Length..] : projectId;
 
     private static string Tail(string output) => output.Length <= 2000 ? output : output[^2000..];
 }

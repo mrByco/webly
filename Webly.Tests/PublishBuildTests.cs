@@ -113,4 +113,43 @@ public class PublishBuildTests
 
         await Task.CompletedTask;
     }
+
+    [Test]
+    public async Task Deleting_a_site_takes_its_published_files_with_it()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"webly-publish-{Guid.NewGuid():N}");
+        var target = new FileSystemDeploymentTarget(
+            Options.Create(new DeploymentOptions
+            {
+                FileSystem = new DeploymentOptions.FileSystemOptions { Root = root, BaseUrl = "https://localhost:5000" }
+            }),
+            NullLogger<FileSystemDeploymentTarget>.Instance);
+
+        var published = Path.Combine(root, "abc123");
+        Directory.CreateDirectory(published);
+        await File.WriteAllTextAsync(Path.Combine(published, "index.html"), "<h1>Koopman Cycles</h1>");
+
+        await target.DeleteProjectAsync("local-abc123");
+
+        Assert.Multiple(() =>
+        {
+            // The bug this is for: the rows went, the repository went, and the site carried on being served.
+            Assert.That(Directory.Exists(published), Is.False, "the published files are gone");
+            Assert.That(Directory.Exists(root), Is.True, "and nothing else is");
+        });
+
+        // Idempotent: a caller that deletes twice, or whose site was never published, is not an error.
+        Assert.That(async () => await target.DeleteProjectAsync("local-abc123"), Throws.Nothing);
+
+        // And a project id that tries to climb out of the root does nothing at all.
+        var outside = Path.Combine(root, "..", "webly-should-survive");
+        Directory.CreateDirectory(outside);
+
+        await target.DeleteProjectAsync("local-../webly-should-survive");
+
+        Assert.That(Directory.Exists(outside), Is.True, "a path that leaves the root is refused, not followed");
+
+        Directory.Delete(outside, recursive: true);
+        Directory.Delete(root, recursive: true);
+    }
 }

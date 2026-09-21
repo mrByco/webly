@@ -97,6 +97,22 @@ public class DeleteSite(
                         domain.Hostname, nanoid);
                 }
             }
+
+            // And then the hosting itself, which is what makes the word mean what it says. Detaching the
+            // custom domains was all this did, so a deleted site went on answering at its Webly subdomain and
+            // at the provider's own URL — the rows were gone and the page was not. Somebody deletes a site to
+            // get it off the internet; anything less than this is the product not doing the one thing they
+            // asked for. Found by deleting a published site and asking for it again.
+            try
+            {
+                await deploymentTarget.DeleteProjectAsync(projectId, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception,
+                    "Could not delete the hosting of site {Site}; it may still be serving and need removing by hand.",
+                    nanoid);
+            }
         }
 
         return Result<SiteError>.Ok();

@@ -171,6 +171,19 @@ public class VercelDeploymentTarget(
         await SendAsync(HttpMethod.Delete, $"/v9/projects/{projectId}/domains/{hostname}", null, cancellationToken);
 
     /// <summary>
+    /// Deletes the project, which takes every deployment it is serving down with it.
+    ///
+    /// This is the call that makes "delete my site" true on the provider's side: without it the rows go, the
+    /// repository goes, and the site carries on answering at <c>{slug}.{BaseDomain}</c> and at its deployment
+    /// URL. Untested like the rest of this class — see the class comment — so the one thing to reconcile first
+    /// is whether Vercel answers 404 for a project that is already gone, which
+    /// <see cref="SendAsync"/> would raise and the caller treats as a failed cleanup rather than a failed
+    /// delete.
+    /// </summary>
+    public async Task DeleteProjectAsync(string projectId, CancellationToken cancellationToken = default) =>
+        await SendAsync(HttpMethod.Delete, $"/v9/projects/{projectId}", null, cancellationToken);
+
+    /// <summary>
     /// Attach and check answer with the same shape, so they translate the same way. A domain that the
     /// provider says is not verified comes back as an <see cref="DomainAttachment"/> with its records rather
     /// than as an exception: "your DNS is not pointing here yet" is the normal state of a domain somebody

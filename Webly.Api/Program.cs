@@ -180,33 +180,35 @@ if (app.Environment.IsDevelopment())
     // export the whole time, which is exactly why the template has one.
     //
     // Middleware rather than an endpoint, because it has to run after the static files and before routing
-    // selects the proxy — and it deliberately answers only for a path naming a site that exists, so that
-    // `/published/` itself and a nanoid nobody ever published still fall through to the app.
+    // selects the proxy. Nothing under /published/ is Webly's, so nothing under it falls through: a page of
+    // the site when the site has one, and a plain 404 otherwise — which is what a **deleted** site answers,
+    // rather than Webly's login page, and that is the second half of taking a site off the internet.
     app.Use(async (context, next) =>
     {
         var path = context.Request.Path.Value ?? string.Empty;
 
-        if (path.StartsWith("/published/", StringComparison.Ordinal))
+        if (!path.StartsWith("/published/", StringComparison.Ordinal))
         {
-            var site = path["/published/".Length..].Split('/')[0];
-            var page = Path.Combine(publishedRoot, site, "404.html");
+            await next();
 
-            // Path.Combine with a `..` in the segment would walk out of the root, so the file has to be inside
-            // it — the same rule the repository store applies to a tree, for the same reason.
-            if (site.Length > 0
-                && Path.GetFullPath(page).StartsWith(publishedRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-                && File.Exists(page))
-            {
-                context.Response.StatusCode = StatusCodes.Status404NotFound;
-                context.Response.ContentType = "text/html; charset=utf-8";
-
-                await context.Response.SendFileAsync(page);
-
-                return;
-            }
+            return;
         }
 
-        await next();
+        var site = path["/published/".Length..].Split('/')[0];
+        var page = Path.Combine(publishedRoot, site, "404.html");
+
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+
+        // Path.Combine with a `..` in the segment would walk out of the root, so the file has to be inside it
+        // — the same rule the repository store applies to a tree, for the same reason.
+        if (site.Length > 0
+            && Path.GetFullPath(page).StartsWith(publishedRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && File.Exists(page))
+        {
+            context.Response.ContentType = "text/html; charset=utf-8";
+
+            await context.Response.SendFileAsync(page);
+        }
     });
 }
 
