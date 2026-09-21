@@ -331,7 +331,11 @@ changed-file count, who and which message — and duplicates nothing git already
 - **`(SiteId, CommitSha)` is unique**, which is what stops a second row claiming the same commit and making
   the history show a change that is not one.
 - **The history shows a diff, not a preview.** There is one dev server per site and it runs the working
-  tree, so there is nothing to point an iframe at for a commit from last Tuesday.
+  tree, so there is nothing to point an iframe at for a commit from last Tuesday. The diff is **grouped by
+  file** — `models/unified-diff.ts` parses it, sixty hand-written lines rather than a dependency, with a spec
+  against output the real command produced — and each file is a native `<details>`, open when the version
+  touched three files or fewer. A turn changes one file and should not need a click; a site's first commit is
+  eighteen, and opening all of them buries the list of what they are under a few thousand lines of template.
 
 ### Deferred foreign keys
 

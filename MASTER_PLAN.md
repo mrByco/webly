@@ -116,7 +116,10 @@ paragraphs are kept because each one names a thing to check again after a change
 - ~~**The code view**~~: done. A Code tab in the editor, one level of grouping by directory, a read-only
   viewer with line numbers. Read-only deliberately — a save button there would be a second definition of what
   a version is.
-- **Better diffs** in the history: per-file collapse, and a side-by-side for the file somebody clicks.
+- ~~**Better diffs** in the history: per-file collapse~~ — done: parsed into files, each a collapsible block
+  with its own `+`/`−` counts and a badge for a file that was added, deleted or renamed, expanded by default
+  only when the version touched three files or fewer. **Side-by-side** for the file somebody clicks is what is
+  left, and it is worth less than it sounds while a turn's diff is usually one line.
 - **Agent choice on screen**, if the second agent turns out to be worth offering rather than only worth
   having.
 - ~~The hub-DTO OpenAPI document filter~~: done. `HubContractDocumentFilter` puts `RunEvent` and friends into

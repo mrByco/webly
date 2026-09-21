@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Icon } from '../../shared/icon';
@@ -109,29 +110,42 @@ export class SiteHistoryPage {
   }
 
   /**
-   * The diff, split for colouring. A computed signal rather than a method the template calls: a method
-   * returning a fresh array on every change-detection pass would re-create every line's DOM node.
+   * The diff, grouped by file. A computed signal rather than a method the template calls: a method returning a
+   * fresh array on every change-detection pass would re-create every line's DOM node.
    *
-   * Split and classed by hand rather than with a highlighting library — this is eleven lines of CSS, and
-   * the client's dependency list is worth more than prettier gutters.
+   * Grouped because a restore moves every file a run of turns touched, and one `<pre>` of six files' worth of
+   * hunks is a wall. Each file is a `<details>` — native, so which ones are open is the browser's business and
+   * not a signal here — open by default, because the common turn changes one file and a person looking at it
+   * should not have to click.
    */
-  protected readonly diffLines = computed(() => {
-    const diff = this.diff();
+  protected readonly diffFiles = computed(() => parseUnifiedDiff(this.diff() ?? ''));
 
-    // Trimmed first: the first commit has no parent and therefore no diff, and an empty string splits
-    // into one empty line, which would draw a blank code block instead of saying so.
-    return diff?.trim() ? diff.split('\n') : [];
-  });
+  /** Whether there is anything to draw, as opposed to a diff that has not arrived yet. */
+  protected readonly hasDiff = computed(() => this.diffFiles().length > 0);
 
-  protected classOf(line: string): string {
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ')) {
-      return 'font-semibold text-base-content/70';
+  /**
+   * Whether the file blocks start open. A turn changes one file and expanding it by hand would be a click for
+   * nothing; the first commit of a site is eighteen, and opening all of them buries the list of what they are
+   * under several thousand lines of template.
+   */
+  protected readonly expandByDefault = computed(() => this.diffFiles().length <= 3);
+
+  protected classOf(kind: DiffLineKind): string {
+    switch (kind) {
+      case 'added': return 'bg-success/10 text-success';
+      case 'removed': return 'bg-error/10 text-error';
+      case 'hunk': return 'mt-2 text-info/80';
+      default: return 'text-base-content/70';
     }
+  }
 
-    if (line.startsWith('@@')) return 'text-info';
-    if (line.startsWith('+')) return 'text-success';
-    if (line.startsWith('-')) return 'text-error';
-
-    return 'text-base-content/70';
+  /** The marker a line would have carried in the raw diff, kept as a gutter so a copy is the file's own text. */
+  protected markerOf(kind: DiffLineKind): string {
+    switch (kind) {
+      case 'added': return '+';
+      case 'removed': return '−';
+      case 'hunk': return '';
+      default: return ' ';
+    }
   }
 }

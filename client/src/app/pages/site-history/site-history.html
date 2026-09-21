@@ -74,9 +74,35 @@
       <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
         @if (loadingDiff()) {
           <p class="text-sm text-base-content/60">Loading what changed…</p>
-        } @else if (diffLines().length) {
-          <pre class="font-mono text-[0.7rem] leading-relaxed"><code>@for (line of diffLines(); track $index) {<span
-            class="block" [class]="classOf(line)">{{ line }}</span>}</code></pre>
+        } @else if (hasDiff()) {
+          <div class="flex flex-col gap-3">
+            @for (file of diffFiles(); track file.path) {
+              <details class="surface overflow-hidden" [open]="expandByDefault()">
+                <summary class="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs">
+                  <app-icon class="size-3.5 shrink-0 text-base-content/50" name="code" />
+                  <span class="min-w-0 flex-1 truncate font-mono font-semibold">{{ file.path }}</span>
+
+                  @switch (file.change) {
+                    @case ('added') { <span class="badge badge-ghost badge-xs">new</span> }
+                    @case ('removed') { <span class="badge badge-ghost badge-xs">deleted</span> }
+                    @case ('renamed') { <span class="badge badge-ghost badge-xs">renamed</span> }
+                  }
+
+                  @if (file.added) { <span class="font-mono text-success">+{{ file.added }}</span> }
+                  @if (file.removed) { <span class="font-mono text-error">−{{ file.removed }}</span> }
+                </summary>
+
+                @if (file.binary) {
+                  <p class="border-t border-base-300 px-3 py-2 text-xs text-base-content/60">
+                    A binary file. There is nothing to show line by line.
+                  </p>
+                } @else if (file.lines.length) {
+                  <pre class="overflow-x-auto border-t border-base-300 px-3 py-2 font-mono text-[0.7rem] leading-relaxed"><code>@for (line of file.lines; track $index) {<span
+                    class="block" [class]="classOf(line.kind)">{{ markerOf(line.kind) }}{{ line.text }}</span>}</code></pre>
+                }
+              </details>
+            }
+          </div>
         } @else if (diff() !== undefined) {
           <p class="text-sm text-base-content/60">This is where the site started.</p>
         }
