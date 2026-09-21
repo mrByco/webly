@@ -320,6 +320,14 @@ try {
     const state = await box.health(started);
     check(state.ok === true, `health is ok on ${state.node}`);
     check(state.devServer === 'stopped', 'no dev server yet');
+
+    // The agent's own credential must not reach the workload. The coding agent has a shell in here and can do
+    // everything to the site it is editing; what it must not have is the token Webly authenticates to the
+    // sandbox agent with, because that is the control plane's and not the workload's.
+    const leaked = await box.exec(started, { command: 'sh', args: ['-c', 'echo "${WEBLY_AGENT_TOKEN:-absent}"'] });
+    check(leaked.output.trim() === 'absent',
+      `a command it runs cannot see WEBLY_AGENT_TOKEN (${leaked.output.trim()})`);
+
     return started;
   });
 

@@ -27,6 +27,21 @@ const TOKEN = process.env.WEBLY_AGENT_TOKEN ?? '';
 const WORKSPACE = process.env.WEBLY_WORKSPACE ?? '/workspace';
 const DEV_PORT = Number(process.env.WEBLY_DEV_PORT ?? 3000);
 
+/**
+ * This process's environment without the agent's own credential in it.
+ *
+ * Every command runs as a child of this process, so `...process.env` handed each of them `WEBLY_AGENT_TOKEN` —
+ * the bearer token Webly authenticates to *this* service with. The coding agent has a shell in here and can
+ * already write the workspace and run anything, so nothing about the site was at risk; what it gained was the
+ * ability to speak as the control plane on its own machine, which is one step it should not have towards
+ * speaking as the control plane anywhere else. The token is this service's, not the workload's.
+ */
+const INHERITED_ENV = (() => {
+  const { WEBLY_AGENT_TOKEN: _token, ...rest } = process.env;
+
+  return rest;
+})();
+
 // What never travels back to git. Build output and dependencies are reproducible from the tree, and a
 // stray .env would put a customer's secret in their history for ever.
 const IGNORED = [
@@ -112,7 +127,7 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
 
   const child = spawn(command, args, {
     cwd: cwd ? `${WORKSPACE}/${cwd}` : WORKSPACE,
-    env: { ...process.env, ...env },
+    env: { ...INHERITED_ENV, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -212,7 +227,7 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
 
   devServer = spawn(command, args, {
     cwd: WORKSPACE,
-    env: { ...process.env, ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath },
+    env: { ...INHERITED_ENV, ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
     // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the

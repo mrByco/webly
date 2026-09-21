@@ -210,6 +210,60 @@ public class GitSiteRepositoryStoreTests
             Throws.TypeOf<RepositoryException>());
     }
 
+    /// <summary>
+    /// A tree is assembled by a language model on a machine we do not own, so its paths are input. git refuses
+    /// all of these itself; this pins that the store refuses them first, with a sentence somebody can read.
+    /// </summary>
+    [Test]
+    public async Task A_path_that_reaches_outside_the_project_is_refused()
+    {
+        var first = await _store.InitializeAsync("guarded", "main", Tree(("a.txt", "a")), Author, "First");
+
+        var refused = new[]
+        {
+            "../evil.txt",
+            "/etc/passwd",
+            "src/../../escape.txt",
+            ".git/config",
+            "src/.git/hooks/pre-commit",
+            ".GIT/config",
+            "src//double.txt",
+            "",
+        };
+
+        Assert.Multiple(() =>
+        {
+            foreach (var path in refused)
+            {
+                Assert.That(
+                    async () => await _store.CommitAsync(
+                        "guarded", "main", first.Sha, Tree((path, "x")), Author, "Nope", null),
+                    Throws.TypeOf<RepositoryException>(), $"'{path}' must be refused");
+            }
+        });
+    }
+
+    /// <summary>
+    /// The other half of the rule, and the reason it is written by hand rather than as "anything starting with
+    /// a dot": a Next.js project is full of dotfiles, and refusing them would break real sites.
+    /// </summary>
+    [Test]
+    public async Task A_dotfile_is_an_ordinary_file()
+    {
+        var first = await _store.InitializeAsync("dotfiles", "main", Tree(("a.txt", "a")), Author, "First");
+
+        var commit = await _store.CommitAsync(
+            "dotfiles", "main", first.Sha,
+            Tree(("a.txt", "a"), (".gitignore", "node_modules"), (".env.example", "KEY="), ("src/.keep", "")),
+            Author, "Dotfiles", null);
+
+        Assert.That(commit, Is.Not.Null);
+
+        var tree = await _store.ReadTreeAsync("dotfiles", commit!.Sha);
+
+        Assert.That(tree.Files.Select(x => x.Path), Does.Contain(".gitignore").And.Contain("src/.keep"));
+    }
+
     [Test]
     public async Task The_head_of_an_unknown_site_is_null_rather_than_an_error()
     {

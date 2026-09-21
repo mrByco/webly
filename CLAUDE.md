@@ -287,8 +287,14 @@ structured-document model it replaced was better at.
   reaches a path, and a path concatenated into a command line is an injection waiting for its first
   customer.
 - **A tree coming back from a sandbox is untrusted input.** `PathFor` refuses a site id that is not
-  `[A-Za-z0-9-_]{1,40}`; tree writes refuse absolute paths, `..` segments, and anything over the configured
-  file-count and byte limits. It was assembled by a language model on a machine we do not own.
+  `[A-Za-z0-9-_]{1,40}`; `RejectUnsafePath` refuses an absolute path, a `..` or `.` segment, a `.git` component
+  in any case, a doubled slash, a backslash and a control character; and the file-count and byte limits are
+  configured. It was assembled by a language model on a machine we do not own.
+  **git refuses every one of those paths itself**, and the rule is written here anyway for two reasons: a
+  protection that exists only because of what the tool we shell out to happens to do disappears in a refactor
+  nobody connects to it, and git's own sentence — `fatal: git update-index: --cacheinfo cannot add ../evil.txt`
+  — reaches the chat as a failed turn nobody can act on. A *leading dot* is deliberately fine: `.gitignore` and
+  `.env.example` are ordinary files in a Next.js project.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
   `npm run build`. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the
   standing rules (never invent a fact, never write a testimonial nobody gave you, keep the build working,
@@ -365,7 +371,11 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **The permission model is where it runs, not a tool list.** The sandbox has the site's files, node, git,
   the CLIs and one model key. No connection string, no Vercel token, no session cookie, no git remote.
   Publishing, domains, billing and deleting a site are not tools it lacks — they are unreachable from
-  there.
+  there. **And not the sandbox agent's own token either**: every command used to inherit the whole environment,
+  which handed the workload the bearer token Webly authenticates to *that* service with. Nothing about the site
+  was at risk — the agent has a shell in there — but speaking as the control plane on its own machine is one
+  step it should not have towards speaking as the control plane anywhere else. `tools/e2e/run.mjs` asserts a
+  command cannot see it.
 - **`AGENTS.md` in the site's repository is the other half of it.** A tool list cannot say "never write a
   testimonial nobody gave you", and a plausible invention published on a real business's website is the
   worst thing this product can do. The agent asks in its reply and the turn ends; the answer is the

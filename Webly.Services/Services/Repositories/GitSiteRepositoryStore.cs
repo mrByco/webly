@@ -241,6 +241,8 @@ public class GitSiteRepositoryStore(
         string? details,
         CancellationToken cancellationToken)
     {
+        foreach (var file in tree.Files) RejectUnsafePath(file.Path);
+
         var indexFile = Path.Combine(Path.GetTempPath(), $"webly-index-{Guid.NewGuid():N}");
         var environment = new Dictionary<string, string> { ["GIT_INDEX_FILE"] = indexFile };
 
@@ -322,6 +324,41 @@ public class GitSiteRepositoryStore(
             "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", commitSha);
 
         return output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    /// <summary>
+    /// Refuses a path a tree from a sandbox has no business containing.
+    ///
+    /// <b>git already refuses every one of these</b> — it rejects an absolute path, a <c>..</c> segment, a
+    /// <c>.git</c> component in any case, a doubled slash and an empty name, and that was the only thing
+    /// standing between an agent and the rest of the disk. This exists for two reasons anyway. The first is
+    /// that the rule belongs to us: the tree was assembled by a language model on a machine we do not own, and
+    /// "it happens to be safe because of what the tool we shell out to does" is the kind of protection that
+    /// disappears in a refactor nobody connects to it. The second is the sentence somebody reads — git's is
+    /// <c>fatal: git update-index: --cacheinfo cannot add ../evil.txt</c>, which reaches the chat as a failed
+    /// turn nobody can act on.
+    ///
+    /// Note what is <i>not</i> refused: a leading dot. `.gitignore`, `.env.example` and `.eslintrc.json` are
+    /// ordinary files in a Next.js project, and a rule that swallowed them would break real sites.
+    /// </summary>
+    private static void RejectUnsafePath(string path)
+    {
+        var segments = path.Split('/');
+
+        var unsafeSegments = path.Length == 0
+            || path.StartsWith('/')
+            || path.Contains('\\')
+            || path.Any(char.IsControl)
+            || segments.Any(segment =>
+                segment.Length == 0
+                || segment == "."
+                || segment == ".."
+                || segment.Equals(".git", StringComparison.OrdinalIgnoreCase));
+
+        if (unsafeSegments)
+            throw new RepositoryException(
+                $"'{path}' is not a path this site can hold. Files live under the project, and nothing may "
+                + "write outside it or into its git directory.");
     }
 
     private string PathFor(string siteNanoid)
