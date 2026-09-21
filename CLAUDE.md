@@ -251,7 +251,10 @@ neither. Collaboration, when it lands, is a membership table plus one clause ins
   rows for the operations that only touch the site row — and it is the one the **preview proxy** calls on
   every single request, including every chunk and the hot-reload socket, so it has to stay cheap.
 - **Not yours reads as 404, never 403.** A 403 would confirm that a guessed nanoid names a real site.
-  `SiteController.Failure` is the one place that mapping lives.
+  `SiteController.Failure` is the one place that mapping lives, and `SiteIsolationTests` is what keeps the
+  sixteenth caller honest: it drives every route under a site as a second account and fails on anything that is
+  not a 404. The one deliberate exception is `chat/status`, which never looks at the site — it says whether this
+  deployment has an agent — and the test proves that by checking an invented nanoid gets the same answer.
 - **A site never exists without a version.** `CreateSite` writes the row, initializes the bare repository
   from the template, commits it, and points `HeadVersionId` at that commit — so no code anywhere else has to
   handle a site with no source. It saves the row first, because the repository is keyed by the nanoid the
