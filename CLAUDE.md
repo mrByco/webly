@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 145-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 152-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -540,9 +540,29 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   (clearing the agent's session id, because a resumed session would remember a different tree), and
   `WorkspaceReaper` closes it when idle — a warm sandbox bills by the second.
 - **The preview is the site's own `next dev`, proxied.** `PreviewController` forwards with YARP's
-  `IHttpForwarder`: same origin, ownership re-checked per request, WebSockets forwarded (hot reload is one),
-  our cookie stripped on the way out. A cold site answers 503 with a sentence rather than starting a
-  workspace on a GET, because tens of seconds of a hanging iframe looks broken.
+  `IHttpForwarder`: ownership re-checked per request, WebSockets forwarded (hot reload is one), our cookie
+  stripped on the way out. A cold site answers 503 with a sentence rather than starting a workspace on a GET,
+  because tens of seconds of a hanging iframe looks broken.
+- **The preview frame is sandboxed, and being same-origin was the bug rather than the safeguard.** It was
+  written down here that same-origin is what made the preview safe. It is what made it dangerous: the page in
+  that frame is the customer's own website, written by a coding agent, and running on Webly's origin it could
+  call `/api/sites`, read the site's inbound messages or `DELETE /api/auth/account` with the owner's session,
+  indistinguishably from the app doing it. The tokens are `HttpOnly`, so it could not read them — it did not
+  need to. Confirmed by putting a `fetch('/api/sites')` in a site's home page and watching the preview print
+  the owner's sites back; refused, from the same page, once the frame was sandboxed.
+  `sandbox="allow-scripts allow-forms allow-popups"` — never `allow-same-origin`, which undoes all of it in
+  one word. What that costs is the session cookie: an opaque origin is cross-site to everything, so
+  `PreviewAccess` mints a **signed, per-site, path-scoped `SameSite=None` cookie** and the preview route is the
+  one `[AllowAnonymous]` under a site. It is not an authorization — the same `FindForOwnerLightAsync` check
+  runs on the user the token names.
+  **A font is the one exception**, and it has to be: a font is always fetched with CORS in credentials mode
+  `same-origin`, and nothing is same-origin to an opaque origin, so no cookie can ever ride with it. Scripts,
+  styles, images and the hot-reload socket are fetched in modes that do send one, which is why only the
+  typeface broke — the preview rendered in a fallback while the published site rendered in Inter. Font files
+  under `_next/static/media/` are served on the nanoid alone with `Access-Control-Allow-Origin: *`: a copy of a
+  public typeface, to somebody who already knows an unguessable id.
+  **The proper fix is a separate origin** (`{id}.preview.webly.site`), where the frame's own origin serves its
+  own assets and none of this arises. It needs a wildcard record and a certificate.
 - **The dev server is told where it is, and that is load-bearing.** Next.js writes absolute URLs for its
   stylesheets, its chunks and its hot-reload socket, so a dev server that thinks it is at `/` asks the browser
   for `/_next/...` at the root of Webly's origin — which is Webly's app. `SiteWorkspaceRegistry` passes

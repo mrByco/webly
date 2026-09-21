@@ -37,9 +37,24 @@
   -->
   <div class="flex min-h-0 flex-1 justify-center overflow-hidden p-3">
     @if (ready()) {
+      <!--
+        `sandbox` without `allow-same-origin`, which is the whole point of it.
+
+        What is in this frame is the customer's own website, written by a coding agent. Served from Webly's
+        origin without this, a script in that page could call `/api/sites`, read the site's inbound messages
+        or close the account, with the owner's session, and be indistinguishable from this app doing it. The
+        tokens are HttpOnly, so it could not read them — it did not need to.
+
+        `allow-scripts` because a Next.js page hydrates; `allow-forms` because the starter template's contact
+        form posts to Webly; `allow-popups` because a link in somebody's site may open one. Not
+        `allow-same-origin`, ever: adding it back alongside `allow-scripts` undoes all of this in one word.
+        `PreviewAccess` on the server is the credential that replaces the session cookie an opaque origin
+        cannot send.
+      -->
       <iframe
         class="h-full w-full rounded-box border border-base-300 bg-base-100 shadow-sm"
         title="Site preview"
+        sandbox="allow-scripts allow-forms allow-popups"
         [class.max-w-96]="width() === 'phone'"
         [class.max-w-3xl]="width() === 'tablet'"
         [src]="url()"></iframe>

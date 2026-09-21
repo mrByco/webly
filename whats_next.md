@@ -221,6 +221,21 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     to. Its field also offered "Kovács Bakery" as the example name, the last of the reference project's
     fingerprints on a screen a customer sees.
 
+30. **The preview let a customer's site act as the customer.** The frame was same-origin with the app — which
+    `PreviewController` stated as the thing that made it safe — so a script in the page it rendered could call
+    `/api/sites`, read the site's inbound messages or close the account, with the owner's session, and look
+    exactly like the app doing it. The page in that frame is written by a coding agent. The sandbox's whole
+    argument is that the agent is confined by *where it runs*; the preview brought its output back into the
+    owner's browser on Webly's origin and undid a good part of that.
+
+    Found by putting a `fetch('/api/sites')` into a site's home page and reading what the preview printed: the
+    owner's sites. The frame is sandboxed now and the same page is refused. The cost is that an opaque origin
+    sends no session cookie, so the preview has its own signed, per-site, path-scoped credential — and that a
+    font, which can never carry a credential in any origin-less frame, is served on the nanoid alone.
+
+    The proper fix is a separate origin for previews. It needs a wildcard DNS record and a certificate, which
+    is why it is written down rather than done.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

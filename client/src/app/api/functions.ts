@@ -87,6 +87,8 @@ export type { ApiAuthPasswordChangePost$Plain$Params as ApiAuthPasswordChangePos
 export { apiAuthPasswordChangePost$Plain as apiAuthPasswordChangePost$Plain } from './fn/password/api-auth-password-change-post-plain';
 export type { ApiAuthPasswordChangePost$Json$Params as ApiAuthPasswordChangePost$Json$Params } from './fn/password/api-auth-password-change-post-json';
 export { apiAuthPasswordChangePost$Json as apiAuthPasswordChangePost$Json } from './fn/password/api-auth-password-change-post-json';
+export type { ApiSitesSiteNanoidPreviewAccessPost$Params as ApiSitesSiteNanoidPreviewAccessPost$Params } from './fn/preview-access/api-sites-site-nanoid-preview-access-post';
+export { apiSitesSiteNanoidPreviewAccessPost as apiSitesSiteNanoidPreviewAccessPost } from './fn/preview-access/api-sites-site-nanoid-preview-access-post';
 export type { ApiSitesGet$Plain$Params as ApiSitesGet$Plain$Params } from './fn/site/api-sites-get-plain';
 export { apiSitesGet$Plain as apiSitesGet$Plain } from './fn/site/api-sites-get-plain';
 export type { ApiSitesGet$Json$Params as ApiSitesGet$Json$Params } from './fn/site/api-sites-get-json';

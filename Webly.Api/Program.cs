@@ -39,6 +39,12 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
+// Explicit, though the host would register it anyway: the preview's own credential is signed with it, and the
+// Dockerfile provisions the key directory for exactly this reason. One line naming the dependency beats a
+// dependency that is there by accident.
+builder.Services.AddDataProtection();
+builder.Services.AddSingleton<PreviewAccess>();
+
 // The hub's JSON has to agree with the controllers': the client deserializes RunEventEnvelope with the same generated
 // types as every REST response, and a hub that numbered its enums would hand it values its union cannot express.
 builder.Services.AddSignalR()

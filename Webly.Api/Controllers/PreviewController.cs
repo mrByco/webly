@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Webly.Api.Extensions;
 using Webly.Api.Infrastructure;
@@ -14,14 +15,18 @@ namespace Webly.Api.Controllers;
 /// land in, with hot reload, so what somebody approves is what the next build will produce. That is the whole
 /// reason a workspace stays warm.
 ///
-/// Three things make it safe to point a browser at somebody else's machine:
+/// Four things make it safe to point a browser at somebody else's machine:
 ///
 /// <list type="bullet">
-/// <item><b>It is same-origin.</b> The sandbox is never given to the browser; the browser talks to Webly and Webly
-/// talks to the sandbox. So the session cookie is enough, there is no CORS, and the sandbox's own URL and token
-/// stay server-side.</item>
+/// <item><b>The browser never reaches the sandbox.</b> It talks to Webly and Webly talks to the sandbox, so the
+/// sandbox's URL and token stay server-side and there is no CORS.</item>
 /// <item><b>Ownership is checked per request</b>, by the same repository method as everything else. A site's
 /// preview is not a public URL with a guessable id.</item>
+/// <item><b>The framed document has no origin of Webly's.</b> The editor sandboxes the frame, so the customer's
+/// own page — written by a coding agent — cannot call this app's API as the person watching it. This used to be
+/// the opposite: being same-origin was written down here as the thing that made the preview safe, and it was
+/// what made it dangerous. See <see cref="PreviewAccess"/>, which is the credential that replaces the session
+/// cookie once the frame has no origin to send one from.</item>
 /// <item><b>WebSockets are forwarded</b>, because hot reload is one — without it the preview loads once and then
 /// silently stops updating, which looks exactly like the agent not working.</item>
 /// </list>
@@ -35,6 +40,7 @@ public class PreviewController(
     IHttpForwarder forwarder,
     ISiteRepository siteRepository,
     ISiteWorkspaceRegistry workspaces,
+    PreviewAccess previewAccess,
     PreviewForwarder client,
     ILogger<PreviewController> logger) : ControllerBase
 {
@@ -47,18 +53,44 @@ public class PreviewController(
     /// to maintain; and the page being served is the customer's, so the list is not ours to predict.
     /// </summary>
     ///
+    /// <remarks>
+    /// <para>
     /// Out of the OpenAPI document, and it has to be: Swashbuckle refuses an action with no explicit method
     /// ("Ambiguous HTTP method for action"), so accepting every verb and describing the endpoint are mutually
     /// exclusive. Describing it is the one to give up. It is not an operation a generated client calls — the
     /// editor puts this URL in an <c>iframe</c>'s <c>src</c> and the browser asks for everything under it —
     /// and a catch-all proxy has no request or response shape to generate anyway.
+    /// </para>
+    /// <para>
+    /// <c>[AllowAnonymous]</c> is deliberate and is the only one under a site. The frame is sandboxed, so
+    /// everything the framed document asks for arrives without the session cookie — the browser treats an
+    /// opaque origin as cross-site and withholds it. The credential is <see cref="PreviewAccess"/>'s own
+    /// cookie, and the check below is the same ownership query every other per-site route makes. A request
+    /// with neither credential gets the same 404 a stranger gets.
+    /// </para>
+    /// </remarks>
     [Route("{**path}")]
+    [AllowAnonymous]
     [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> Forward(string siteNanoid, CancellationToken cancellationToken)
     {
-        var site = await siteRepository.FindForOwnerLightAsync(siteNanoid, this.GetUserId(), cancellationToken);
+        // A font, and only a font, is let through without a credential. See `IsFont` for why it has to be.
+        if (IsFont(Request))
+        {
+            Response.Headers.AccessControlAllowOrigin = "*";
+        }
+        else
+        {
+            // The preview cookie first, because it is the one the frame can send. The session is the fallback,
+            // for the top-level navigation that loads the frame and for anybody opening the URL directly.
+            var userId = previewAccess.UserFor(Request, siteNanoid) ?? this.GetUserIdUnverified();
 
-        if (site is null) return NotFound();
+            if (userId is null) return NotFound();
+
+            var site = await siteRepository.FindForOwnerLightAsync(siteNanoid, userId.Value, cancellationToken);
+
+            if (site is null) return NotFound();
+        }
 
         var workspace = workspaces.Find(siteNanoid);
 
@@ -128,6 +160,42 @@ public class PreviewController(
         }
 
         return Empty;
+    }
+
+    /// <summary>
+    /// Whether this is a request for one of the site's own font files, which is the one thing a sandboxed
+    /// frame cannot ask for with a credential.
+    ///
+    /// <b>A font is always fetched with CORS</b>, in credentials mode <c>same-origin</c> — and the framed
+    /// document's origin is opaque, so nothing is same-origin to it and no cookie is ever attached. Scripts,
+    /// stylesheets, images and the hot-reload socket are all fetched in modes that do send one, which is why
+    /// they kept working and only the typeface did not: the preview rendered in a fallback font while the
+    /// published site rendered in Inter, and "what you approve is what you publish" is the preview's whole
+    /// job.
+    ///
+    /// So this one shape of request is served on the nanoid alone. What it exposes is a copy of a public
+    /// typeface, under a path this build put it at, to somebody who already knows an unguessable id — not the
+    /// site's pages, not its code, and nothing of its owner's. Method, directory and extension all have to
+    /// match; anything else takes the credential.
+    ///
+    /// <b>The real answer is a separate origin for previews</b> — <c>{id}.preview.webly.site</c> — where the
+    /// frame's own origin serves its own assets and none of this arises. That needs a wildcard record and a
+    /// certificate; see <see cref="PreviewAccess"/>.
+    /// </summary>
+    private static bool IsFont(HttpRequest request)
+    {
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return false;
+
+        var path = request.Path.Value ?? string.Empty;
+
+        // Next puts what `next/font` produces under `_next/static/media`, beside images — hence the extension
+        // check as well as the directory.
+        if (!path.Contains("/_next/static/media/", StringComparison.Ordinal)) return false;
+
+        return path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

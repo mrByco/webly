@@ -3,6 +3,7 @@ import { Api } from '../api/api';
 import { apiSitesGet$Json } from '../api/fn/site/api-sites-get-json';
 import { apiSitesPost$Json } from '../api/fn/site/api-sites-post-json';
 import { apiSitesNanoidGet$Json } from '../api/fn/site/api-sites-nanoid-get-json';
+import { apiSitesSiteNanoidPreviewAccessPost } from '../api/fn/preview-access/api-sites-site-nanoid-preview-access-post';
 import { apiSitesNanoidPut } from '../api/fn/site/api-sites-nanoid-put';
 import { apiSitesNanoidOpenPost } from '../api/fn/site/api-sites-nanoid-open-post';
 import { apiSitesNanoidWorkspacePost$Json } from '../api/fn/site/api-sites-nanoid-workspace-post-json';
@@ -51,7 +52,30 @@ export class SiteService {
     const site = await this.api.invoke(apiSitesNanoidGet$Json, { nanoid });
     this.current.set(site);
 
+    await this.issuePreviewAccess(nanoid);
+
     return site;
+  }
+
+  /**
+   * The credential the preview frame needs, minted before anything renders a frame.
+   *
+   * The frame is sandboxed — the site inside it is written by a coding agent and must not be able to call
+   * this app's API as the person watching it — so it has an opaque origin, and an opaque origin sends no
+   * session cookie. `PreviewAccess` on the server explains the whole of it. Here it only has to happen
+   * *before* the iframe's first request, which is why it is awaited inside the one method that loads a site
+   * rather than fired off beside it.
+   *
+   * A failure is swallowed on purpose. It would leave the preview broken, which the preview says for itself;
+   * failing the whole site load would take the chat, the history and the settings down with it over a frame
+   * somebody may not even be looking at.
+   */
+  private async issuePreviewAccess(nanoid: string): Promise<void> {
+    try {
+      await this.api.invoke(apiSitesSiteNanoidPreviewAccessPost, { siteNanoid: nanoid });
+    } catch {
+      // See above.
+    }
   }
 
   /** Re-reads the open site. What a committed version, a publish or a rename ends with. */
