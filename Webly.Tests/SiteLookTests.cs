@@ -181,13 +181,8 @@ public class SiteLookTests
             Assert.That(SiteLooks.All, Does.Contain(SiteLooks.Choose()));
     }
 
-    /// <summary>
-    /// Not a rule about taste — a rule about whether text on the brand colour can be read. Every look's brand
-    /// is used as a button background with white text, so its lightness has to stay in the band the template
-    /// was designed against.
-    /// </summary>
     [Test]
-    public void No_look_is_so_pale_that_white_text_would_disappear_on_it()
+    public void Every_look_is_a_colour_and_a_length_that_css_accepts()
     {
         Assert.Multiple(() =>
         {
@@ -198,5 +193,57 @@ public class SiteLookTests
                 Assert.That(look.Radius, Does.Match(@"^[\d.]+(rem|px)$"), look.Name);
             }
         });
+    }
+
+    /// <summary>
+    /// White text on the brand colour is readable, as the standard defines readable rather than as a range of
+    /// chroma stands in for it.
+    ///
+    /// This used to assert that the chroma was under 0.25 and call that "not so pale that white text would
+    /// disappear". It is a proxy, and it is the wrong one: lightness decides contrast and chroma barely
+    /// touches it, so a sixth look at 70% lightness would have sailed through and shipped a button nobody can
+    /// read on somebody's business website. Now that <see cref="Oklch"/> exists the real number is two dozen
+    /// lines away, so the test asks the real question.
+    ///
+    /// 4.5:1 is WCAG AA for normal-sized text. The five that ship are between 4.9 and 5.9, so there is room —
+    /// which is worth knowing when the sixth is chosen, because the margin is where it will be spent.
+    /// </summary>
+    [Test]
+    public void White_text_on_every_look_meets_the_contrast_standard()
+    {
+        Assert.Multiple(() =>
+        {
+            foreach (var look in SiteLooks.All)
+            {
+                var brand = Oklch.ToHex(0.52, look.Chroma, look.Hue);
+                var ratio = Contrast(brand, "#ffffff");
+
+                Assert.That(ratio, Is.GreaterThanOrEqualTo(4.5),
+                    $"{look.Name} ({brand}) gives white text {ratio:0.00}:1");
+            }
+        });
+    }
+
+    /// <summary>The WCAG contrast ratio between two <c>#rrggbb</c> colours: sRGB to relative luminance, then
+    /// the standard's own formula. Here rather than in the product, because nothing in the app computes it at
+    /// run time — it is a rule about five constants, checked where the constants are.</summary>
+    private static double Contrast(string left, string right)
+    {
+        var a = Luminance(left);
+        var b = Luminance(right);
+
+        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
+    }
+
+    private static double Luminance(string hex)
+    {
+        double Channel(int offset)
+        {
+            var value = Convert.ToInt32(hex.Substring(offset, 2), 16) / 255.0;
+
+            return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+        }
+
+        return 0.2126 * Channel(1) + 0.7152 * Channel(3) + 0.0722 * Channel(5);
     }
 }

@@ -77,7 +77,11 @@ shows up.
   change it alongside `look.css` if you change the colour. Replace the whole file when the business has a
   photograph worth putting in front of a link.
 - `src/app/globals.css` — Tailwind plus the tokens derived from `look.css`. Change *how* a token is derived
-  here, once, rather than putting class names for one brand colour on forty elements.
+  here, once, rather than putting class names for one brand colour on forty elements. Two of those tokens are
+  a pair worth knowing: a card's outline is `border-edge` and something you **type into** is
+  `border-field-edge`, which is darker on purpose. A card is identified by what is in it, so a faint rule is
+  enough; an empty field's border is the only thing saying where to click, and the accessibility standard asks
+  for more contrast on exactly that. Use `border-field-edge` on every input, textarea and select you add.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
 - `src/app/sitemap.ts` — `/sitemap.xml`. It reads the folders under `src/app` at build time, so a page you
   add is in it without you doing anything. Leave it alone.

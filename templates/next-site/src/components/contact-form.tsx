@@ -92,7 +92,7 @@ export function ContactForm({
               required={field.required}
               rows={5}
               maxLength={4000}
-              className="rounded-field border border-edge bg-white px-3 py-2 font-normal outline-none focus:border-brand"
+              className="rounded-field border border-field-edge bg-white px-3 py-2 font-normal outline-none focus:border-brand"
             />
           ) : (
             <input
@@ -100,7 +100,7 @@ export function ContactForm({
               name={field.name}
               required={field.required}
               maxLength={300}
-              className="rounded-field border border-edge bg-white px-3 py-2 font-normal outline-none focus:border-brand"
+              className="rounded-field border border-field-edge bg-white px-3 py-2 font-normal outline-none focus:border-brand"
             />
           )}
         </label>

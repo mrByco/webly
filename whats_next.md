@@ -251,6 +251,31 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     on, so a site builds and publishes in a font nobody chose. The fix is `next/font/local` with the file
     committed, which needs the `.woff2` in the repository.
 
+32. **Every form field in the product had a border nobody could see.** daisyUI draws one at 20% of the content
+    colour, which is 1.5:1 against the panel it sits on, and the site template used the same token for a
+    field's boundary as for a card's outline — 1.3:1. WCAG 1.4.11 asks for 3:1 on exactly this, and the reason
+    it asks is the reason a card can get away with less: a card is identified by what is in it, and a field is
+    empty by definition, so its border is the only thing on screen saying where to click. Login and register
+    are made of nothing else.
+
+    It was invisible to every check this repository has, including the screenshot sweep: a screenshot of a
+    faint border looks like a design, and nobody compares it against a number. So the number is the fix —
+    `screens.mjs` now measures each field's border against what is behind it and fails under 3:1, resolving
+    the colour through a canvas, because `oklch()`, `color-mix()` and a translucent border are all things a
+    computed style hands back unresolved and only the browser can composite.
+
+    Two edits, both measured in a browser afterwards rather than reasoned about: `--input-color` at 59%
+    lightness in the app, which is the one value that clears 3:1 on **both** themes (4.0:1 light, 3.8:1 dark)
+    — and `--color-field-edge` at 65% in the template, which clears it across all five looks. The app's rule
+    is scoped `:not(:focus, :focus-within)` because an unlayered declaration beats anything in a cascade layer
+    whatever its specificity: without that exclusion it would have quietly deleted the focus ring on every
+    field in the app, which is a worse version of the same defect.
+
+    Beside it, in the same file: 28 lines of `cat-tint` / `cat-chip` / `cat-ink` / `cat-edge`, the reference
+    project's twelve-ingredient-category recognition layer, carried over wholesale and referenced by nothing
+    here. Dead CSS is cheap; a comment in Webly's stylesheet explaining how Webly colours ingredient
+    categories is not.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

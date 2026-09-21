@@ -40,7 +40,8 @@ Two harnesses drive it, and they answer different questions:
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
   error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, **an obvious accessibility
   mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
-  page with no `h1` or several), or **a 404 on anything the page asked for** — which is the defect it was
+  field whose border is under 3:1 against what is behind it, a page with no `h1` or several), or **a 404 on
+  anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
   that was perfect. It **presses one thing** on the screens that have something the default selection does not
   reach — the oldest version, a photograph — because three defects in a row were found by clicking once on
@@ -59,7 +60,12 @@ Two harnesses drive it, and they answer different questions:
   this app writes in its classes — tells them apart. The accessibility rules are deliberately a handful rather
   than an audit: a real audit needs a dependency and produces a report somebody has to triage, and what is
   here is the set that is unambiguous, that a component can regress silently, and that each make a page
-  unusable for somebody. They apply to the published site too, which is the half `AGENTS.md` asks the agent
+  unusable for somebody. The contrast one is the clearest case for being a number rather than a review: a
+  border drawn too faintly *photographs* as a design choice, so every screenshot this sweep has ever taken
+  showed fields at 1.5:1 and nothing looked wrong. It resolves the colour through a canvas, because `oklch()`,
+  `color-mix()` and a translucent border are things a computed style hands back unresolved — only the browser
+  can composite them — and it measures only a field that draws a border, so a deliberately borderless one is
+  not something to work around. They apply to the published site too, which is the half `AGENTS.md` asks the agent
   for. It exists because five defects in one afternoon — an unstyled published
   site, a 404 that served Webly's dashboard, a title that named no site, pill-shaped form fields, a deleted
   site still serving — had all been "checked" by reading HTML that was perfect.
@@ -917,6 +923,17 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   compiler's own words.
 - **The app's own colours are quiet on purpose.** This app is a frame around somebody else's website, and
   the accents on screen should be the preview's.
+- **A field's border is the one place a faint line is not a style choice**, and daisyUI's default is 1.5:1
+  against the panel — under WCAG 1.4.11's 3:1 for the boundary of a control. A card can be outlined faintly
+  because what is in it says what it is; a field is empty by definition, so its border is the only thing
+  saying where to click, and login and register are made of nothing else. `styles.css` repoints
+  `--input-color` (the variable daisyUI derives both the border and its inset shadow from) at 59% lightness,
+  which is the single value that clears 3:1 on **both** themes — 4.0:1 light, 3.8:1 dark, measured in a
+  browser rather than reasoned about. The `:not(:focus, :focus-within)` on that rule is load-bearing: an
+  unlayered declaration beats anything in a cascade layer whatever its specificity, so without it the rule
+  would also win against daisyUI's `:focus`, which repoints the same variable — and silently delete the focus
+  ring on every field in the app. The site template has the same rule for the same reason, as its own
+  `--color-field-edge`, and deliberately its own number: the two are different palettes.
 - **`shared/icon.ts` writes its whole `<svg>` into the host element's `innerHTML`**, rather than binding the
   paths inside an `<svg>` in its own template. That looks like the long way round and is the only way that
   prerenders: SSR's DOM has no `innerHTML` setter on an `SVGElement`, so the shorter version throws

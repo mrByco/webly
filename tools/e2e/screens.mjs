@@ -162,8 +162,8 @@ async function sidewaysScroll(page) {
  * Not an audit — a real one needs a dependency and produces a report somebody has to triage, and the whole
  * point of this file is a check that is green or red. What is here is the handful that are unambiguous, that
  * a template or a component can regress silently, and that each make the page unusable for somebody: a
- * control nothing can announce, a picture with nothing to say instead, a field with no label, and a page with
- * no heading to land on.
+ * control nothing can announce, a picture with nothing to say instead, a field with no label, a field whose
+ * border is too faint to find, and a page with no heading to land on.
  *
  * `templates/next-site/AGENTS.md` tells the agent that accessibility is not optional. This is the half of
  * that sentence the product can actually check, and it checks Webly's own screens by the same rule.
@@ -199,6 +199,44 @@ async function accessibility(page) {
       if (!named(control)) problems.push(`${describe(control)} has no accessible name`);
     }
 
+    /*
+     * A colour as the screen actually paints it, which only the browser can work out: `oklch()`,
+     * `color-mix()` and a translucent border are all things a computed style hands back unresolved. A
+     * canvas resolves and composites both in one go — paint what is behind, paint the colour over it, read
+     * the pixel — so a 20%-opacity border is measured as the line somebody really sees.
+     */
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 2;
+    const paint = canvas.getContext('2d', { willReadFrequently: true });
+    const srgb = (over, under) => {
+      paint.globalCompositeOperation = 'copy';
+      paint.fillStyle = under;
+      paint.fillRect(0, 0, 2, 2);
+      paint.globalCompositeOperation = 'source-over';
+      paint.fillStyle = over;
+      paint.fillRect(0, 0, 2, 2);
+      const pixel = paint.getImageData(0, 0, 1, 1).data;
+
+      return [pixel[0], pixel[1], pixel[2]];
+    };
+
+    const contrast = (a, b) => {
+      const luminance = ([r, g, b]) => {
+        const channel = value => {
+          const c = value / 255;
+
+          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        };
+
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      };
+      const [x, y] = [luminance(a), luminance(b)];
+
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    };
+
+    const transparent = colour => /^rgba\(0, 0, 0, 0\)?$/.test(colour);
+
     for (const field of document.querySelectorAll('input:not([type="hidden"]), textarea, select')) {
       if (!visible(field)) continue;
 
@@ -208,6 +246,34 @@ async function accessibility(page) {
         || field.getAttribute('placeholder');
 
       if (!labelled) problems.push(`${describe(field)} has nothing naming it`);
+
+      /*
+       * WCAG 1.4.11: 3:1 for the boundary of a control. A card can be outlined faintly because what is in
+       * it says what it is; a field is empty by definition, and its border is the only thing on screen
+       * saying where to click. Both this app's fields and the site template's were under 2:1 — daisyUI
+       * draws one at 20% of the content colour, and the template's used the same token as its cards — and
+       * neither is visible in a screenshot to anybody who is not looking for it, which is the whole reason
+       * this belongs to a harness rather than to a review.
+       *
+       * Only a field that draws a border is measured. A deliberately borderless one (a visually hidden
+       * file input, a ghost field inside a bordered group) is a different decision, and failing it here
+       * would make this rule something to work around rather than to satisfy.
+       */
+      const style = getComputedStyle(field);
+
+      if (parseFloat(style.borderTopWidth) > 0 && !transparent(style.borderTopColor)) {
+        let behind = 'rgba(0, 0, 0, 0)';
+
+        for (let node = field.parentElement; node && transparent(behind); node = node.parentElement) {
+          behind = getComputedStyle(node).backgroundColor;
+        }
+
+        if (transparent(behind)) behind = 'white';
+
+        const ratio = contrast(srgb(style.borderTopColor, behind), srgb(behind, 'white'));
+
+        if (ratio < 3) problems.push(`${describe(field)} has a ${ratio.toFixed(2)}:1 border, under 3:1`);
+      }
     }
 
     const headings = [...document.querySelectorAll('h1')].filter(visible);

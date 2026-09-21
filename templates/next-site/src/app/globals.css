@@ -23,6 +23,14 @@
   --color-page: oklch(99.5% 0.002 var(--brand-hue));
   --color-edge: oklch(91% 0.008 var(--brand-hue));
 
+  /* The boundary of something you type into, which is a different job from the line around a card.
+   *
+   * `edge` is decorative: a card is identified by what is in it, so a faint rule is enough and anything
+   * stronger boxes the page in. A form field has nothing in it — that is the point of it — so its border is
+   * the only thing saying where to click, and at `edge`'s 1.3:1 against the page it is a suggestion. WCAG
+   * 1.4.11 asks for 3:1 on exactly this, and 65% lightness is what clears it across all five looks. */
+  --color-field-edge: oklch(65% 0.02 var(--brand-hue));
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: var(--card-radius);

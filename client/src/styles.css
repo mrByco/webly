@@ -139,9 +139,34 @@
 }
 
 /*
- * Disabled controls in the dark theme were fading into the panel they sat on, so a read-only
- * ingredient looked broken rather than deliberately not-yours. daisyUI dims them with opacity; in
- * dark that lands under the contrast floor, so the floor is raised here instead of per component.
+ * A form field's border, which daisyUI draws at 20% of the content colour — about 1.5:1 against the
+ * panel it sits on, in both themes.
+ *
+ * That is the one place a faint line is not a style choice. A card is identified by what is in it, so
+ * a barely-there rule around it is enough; a field is empty by definition, and its border is the only
+ * thing on screen saying where to click. WCAG 1.4.11 asks for 3:1 on exactly that, and the login and
+ * register screens — the first two anybody sees — are made of nothing else. Measured in a browser
+ * rather than reasoned about: 59% lightness clears it on both themes at once (4.0:1 light, 3.8:1
+ * dark), which is why there is one value here and not a `light-dark()` pair.
+ *
+ * `--input-color` rather than `border-color`, because that is the variable daisyUI derives the field's
+ * border *and* its inset shadow from — and because `:focus` re-points the same variable at the full
+ * content colour, which this must not undo. Hence `:not(:focus, :focus-within)`: an unlayered rule
+ * beats anything in a cascade layer whatever its specificity, so without that exclusion this would
+ * quietly delete the focus ring on every field in the app.
+ *
+ * The site template has the same rule for the same reason, as `--color-field-edge` in its
+ * `globals.css`. The two are deliberately unrelated numbers: this app's fields and a customer's are
+ * on different palettes.
+ */
+:where(.input, .textarea, .select, .file-input):not(:focus, :focus-within) {
+  --input-color: oklch(59% 0.02 265);
+}
+
+/*
+ * Disabled controls in the dark theme were fading into the panel they sat on, so the composer while a
+ * turn is running looked broken rather than deliberately busy. daisyUI dims them with opacity; in dark
+ * that lands under the contrast floor, so the floor is raised here instead of per component.
  */
 @media (prefers-color-scheme: dark) {
   :where(.input, .select, .textarea, .btn, .checkbox):disabled,
@@ -151,36 +176,6 @@
     background-color: var(--color-base-200);
     border-color: var(--color-base-300);
   }
-}
-
-/*
- * The recognition layer for the twelve ingredient categories.
- *
- * Text was doing all the work in the old list: the category was grey micro-text, third in a run-on
- * line. Here each category owns a hue, and that one number drives the group header's tint, its
- * chip and the coloured edge on every row beneath it — so a scanning eye finds the dairy block
- * without reading a word. The hue arrives as `--cat-h` from `CATEGORY_HUES`; everything else is
- * derived here, once.
- *
- * `light-dark()` rather than a second palette: the dark theme wants the tint to sit *above* the
- * panel and the ink to be bright, which is the same two formulas with the lightness swapped, not a
- * separate set of colours to keep in step.
- */
-@utility cat-chip {
-  background-color: oklch(0.54 0.12 var(--cat-h, 60));
-  color: oklch(0.98 0.01 var(--cat-h, 60));
-}
-
-@utility cat-tint {
-  background-color: light-dark(oklch(0.95 0.03 var(--cat-h, 60)), oklch(0.3 0.035 var(--cat-h, 60)));
-}
-
-@utility cat-ink {
-  color: light-dark(oklch(0.4 0.11 var(--cat-h, 60)), oklch(0.87 0.07 var(--cat-h, 60)));
-}
-
-@utility cat-edge {
-  background-color: oklch(0.58 0.12 var(--cat-h, 60));
 }
 
 /*
