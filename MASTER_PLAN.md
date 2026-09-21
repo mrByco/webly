@@ -134,12 +134,10 @@ paragraphs are kept because each one names a thing to check again after a change
 
 The phase that is now the product rather than a catalogue expansion:
 
-- **Iterate on `AGENTS.md` against real turns.** It is the closest thing to a prompt this product has — and
-  note what an earlier version of this line got wrong: it ships in every site's repository, so a change reaches
-  **new sites only**. `CreateSite` copies the template once and nothing refreshes it afterwards. Either that is
-  fine and it is a fact to know, or the fix is a step that commits an updated `AGENTS.md` into every existing
-  site, which is a version in everyone's history for a file their visitors never see. Decide it before the
-  first iteration, not after.
+- **Iterate on `AGENTS.md` against real turns.** It is the closest thing to a prompt this product has, and a
+  change to it now reaches existing sites: `SyncSiteInstructions` refreshes a site's copy before a turn and
+  commits it as its own version. That question — raised here when the forms rule landed and would have reached
+  nobody — is answered; what is left is the iterating, which needs a model key and real turns to judge.
 - ~~**Give the agent the build's own feedback loop**~~ — done, and it is a check rather than an instruction.
   The turn runs `npm run typecheck` in the workspace after the dev-server log check and reports what it says as
   the same `BuildFailed` event, because the dev server compiles with SWC and cannot see a type error at all.

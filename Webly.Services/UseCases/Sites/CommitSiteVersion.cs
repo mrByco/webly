@@ -84,6 +84,12 @@ public class CommitSiteVersion(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         site.HeadVersionId = version.Id;
+
+        // The navigation property as well as the key, because callers read it: `SiteWorkspaceRegistry` seeds
+        // from `site.HeadVersion.CommitSha`, so a site object left pointing at the previous version would have
+        // it copy the tree this commit just replaced into the sandbox — an edit that appears to vanish.
+        site.HeadVersion = version;
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(

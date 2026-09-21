@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 102-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 103-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -393,6 +393,16 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   was at risk — the agent has a shell in there — but speaking as the control plane on its own machine is one
   step it should not have towards speaking as the control plane anywhere else. `tools/e2e/run.mjs` asserts a
   command cannot see it.
+- **`AGENTS.md` is refreshed before a turn, as its own version.** It ships inside each site's repository —
+  which is what makes a site self-contained and what makes its rules as old as the site. The forms rule
+  ("never write a server for one; this site is a static export") would have reached no existing site at all,
+  and a stale rule is the agent confidently doing the thing the rule exists to prevent. `SyncSiteInstructions`
+  compares the site's copy with the template's before the workspace is acquired and commits the difference as
+  **"Updated the editing instructions"**, origin `Template`. Its own version rather than folded into the
+  turn's, because a person's version has to say what they asked for — the same lesson as the `npm install`
+  that put eighty-four lines of lockfile into somebody's headline change. Two `cat-file`s decide the usual
+  case, so the whole tree is only read when something really changed; and `CommitSiteVersion` now updates
+  `Site.HeadVersion` as well as the id, or the workspace would be seeded with the tree that commit replaced.
 - **`AGENTS.md` in the site's repository is the other half of it.** A tool list cannot say "never write a
   testimonial nobody gave you", and a plausible invention published on a real business's website is the
   worst thing this product can do. The agent asks in its reply and the turn ends; the answer is the

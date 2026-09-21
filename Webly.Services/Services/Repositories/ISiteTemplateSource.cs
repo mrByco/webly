@@ -43,7 +43,14 @@ public class DirectorySiteTemplateSource(
     /// is what makes the install reproducible.
     /// </summary>
     private static readonly string[] Excluded =
-        [".git", "node_modules", ".next", "out", ".vercel", ".turbo", ".env", ".env.local", ".DS_Store"];
+    [
+        ".git", "node_modules", ".next", "out", ".vercel", ".turbo", ".env", ".env.local", ".DS_Store",
+
+        // The typecheck's incremental cache. The template points it into `.next`, and this entry is here for
+        // the developer who has an older one sitting in the template's root from before that: without it, a
+        // machine-readable dump of somebody's working copy would be in every new site's first commit.
+        "tsconfig.tsbuildinfo",
+    ];
 
     private WorkspaceTree? _cached;
 

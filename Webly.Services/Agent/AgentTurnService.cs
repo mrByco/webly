@@ -70,6 +70,7 @@ public class AgentTurnService(
     ISiteWorkspaceRegistry workspaces,
     CodingAgentRegistry agents,
     CommitSiteVersion commitSiteVersion,
+    SyncSiteInstructions syncInstructions,
     RunWriter writer,
     WeblyDbContext dbContext,
     ILogger<AgentTurnService> logger) : IAgentTurnService
@@ -175,6 +176,13 @@ public class AgentTurnService(
         CancellationToken cancellationToken)
     {
         var agent = agents.Resolve(request.Agent);
+
+        // Before the workspace, so the sandbox is seeded with the instructions the agent is about to read.
+        // `AGENTS.md` lives in the site's repository, so a site created before a rule changed still carries the
+        // old one — and the rules are there to stop the agent doing exactly the things it would otherwise
+        // confidently do. Its own version, never folded into this turn's: see SyncSiteInstructions.
+        await syncInstructions.ExecuteAsync(
+            site, new CommitAuthor(user.DisplayName, user.Email), user.Id, cancellationToken);
 
         await using var lease = await workspaces.AcquireAsync(
             site,
