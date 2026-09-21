@@ -337,6 +337,21 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     The web address still does not move, and that stays right: it may be published, linked, indexed and
     printed on a van.
 
+37. **One site's turn wrote into another site's chat.** The editor keeps a single `SiteChat` alive across a
+    switch between sites, and the effect that reloads it reset the transcript without letting go of the run it
+    was watching. So with a turn running on site A, opening site B showed B's history with A's "waking up your
+    site" line appended to it — and a Stop button, which would have cancelled a turn on a site that was no
+    longer on screen.
+
+    Coming back was the other half: `RealtimeService.watch` hands back the *same* stream for a run it is
+    already watching, so the second subscribe was not a second stream but every event applied twice, and the
+    tail of the transcript appeared in duplicate.
+
+    `detach()` fixes both — unsubscribe, unwatch, and only then load the new thread. The run is untouched by
+    design: a turn outlives the page looking at it, and returning re-attaches through `activeRunId` exactly as
+    a reload does. Found by driving it in a browser: send a message on one site, click the other in the
+    sidebar, come back.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

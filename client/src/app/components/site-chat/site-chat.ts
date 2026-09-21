@@ -5,6 +5,7 @@ import { AppRoutes } from '../../app.routes.paths';
 import { Icon } from '../../shared/icon';
 import { AutoGrow } from '../../shared/auto-grow';
 import { ChatService } from '../../services/chat.service';
+import { Subscription } from 'rxjs';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { messageOf } from '../../models/problem-details';
 import { shrinkImage } from '../../models/image-file';
@@ -104,6 +105,14 @@ export class SiteChat {
 
   private runId?: string;
 
+  /**
+   * The subscription to the watched run, held so that leaving can end it.
+   *
+   * Dropping it on the floor is what made switching sites mid-turn write one site's turn into another's
+   * chat — see `detach`.
+   */
+  private events?: Subscription;
+
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
 
   constructor() {
@@ -116,6 +125,10 @@ export class SiteChat {
   }
 
   private async load(siteNanoid: string): Promise<void> {
+    // Before anything else: this component survives a switch between sites, and what it was watching belongs
+    // to the site being left.
+    await this.detach();
+
     this.entries.set([]);
     this.enabled.set(await this.chat.enabled(siteNanoid));
 
@@ -257,7 +270,33 @@ export class SiteChat {
     this.running.set(true);
 
     const events = await this.realtime.watch('Chat', runId);
-    events.subscribe({ next: event => this.apply(event) });
+
+    // Kept, and the previous one ended first. `watch` hands back the *same* stream for a run it is already
+    // watching, so subscribing twice to it is not a second stream — it is every event applied twice, which is
+    // how coming back to a site mid-turn drew its last two entries in duplicate.
+    this.events?.unsubscribe();
+    this.events = events.subscribe({ next: event => this.apply(event) });
+  }
+
+  /**
+   * Stops watching whatever this was watching, without stopping it.
+   *
+   * Switching sites keeps this component alive — the effect in the constructor reloads it — so without this
+   * the run belonging to the site being left went on writing into the new site's transcript: its "waking up
+   * your site" line appeared under somebody else's history, and the composer offered a Stop button that would
+   * have cancelled a turn on a site that was no longer on screen. The run itself is untouched, which is the
+   * point: a turn outlives the page looking at it, and coming back re-attaches through `activeRunId` exactly
+   * as a reload does.
+   */
+  private async detach(): Promise<void> {
+    this.events?.unsubscribe();
+    this.events = undefined;
+    this.running.set(false);
+
+    const runId = this.runId;
+    this.runId = undefined;
+
+    if (runId) await this.realtime.unwatch(runId);
   }
 
   private apply(event: RunEvent): void {
@@ -329,6 +368,9 @@ export class SiteChat {
   private finish(): void {
     this.running.set(false);
     this.turnFinished.emit();
+
+    this.events?.unsubscribe();
+    this.events = undefined;
 
     if (this.runId) {
       void this.realtime.unwatch(this.runId);

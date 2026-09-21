@@ -925,6 +925,16 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on
   reconnect.
+- **Switching sites has to let go of the run**, and it did not. The editor keeps one `SiteChat` alive across
+  the switch — an effect reloads it — so a turn running on the site being left went on writing into the new
+  site's transcript: its "waking up your site" line appeared under somebody else's history, and the composer
+  offered a **Stop button that would have cancelled a turn on a site no longer on screen**. `detach()` ends
+  the subscription and unwatches before the new thread loads; the run itself is untouched, which is the point,
+  and coming back re-attaches through `activeRunId` exactly as a reload does. The subscription is now *held*
+  rather than dropped on the floor, which matters for a second reason: `RealtimeService.watch` hands back the
+  **same** stream for a run it is already watching, so subscribing twice is not a second stream, it is every
+  event applied twice — which is how returning to a site mid-turn drew the tail of its transcript in
+  duplicate. Found by switching between two sites while one was mid-turn.
 - **The hub's DTOs are generated too**, which took a document filter. Swagger describes HTTP and a hub is not
   HTTP, so `ng-openapi-gen` deleted anything only the hub used and `realtime.service.ts` re-declared it by hand —
   including `RunEventType`, a union the client switches on, which meant adding a value on the server changed
