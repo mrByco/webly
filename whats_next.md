@@ -19,17 +19,24 @@ running it and none of it by reading.
 ## What is now evidence
 
 **The product loop works in the running app.** Register → verify from the mail in `.run/mail/` → create a
-site (a bare repository with the template in one commit) → three turns over the hub, each committing one
-version → the preview served through Webly's own origin → publish → a page at `/published/{nanoid}/` that
-says what the person typed. `tools/e2e/turn.mjs` is what starts a turn, because `StartChat` is a hub method
-and a SignalR client is the only way to press that button.
+site (a bare repository with the template in one commit) → turns over the hub, each committing one version →
+the preview served through Webly's own origin → publish → a page at `/published/{nanoid}/` that says what the
+person typed. `tools/e2e/turn.mjs` is what starts a turn, because `StartChat` is a hub method and a SignalR
+client is the only way to press that button.
+
+**And every screen of it has been pressed in a browser**, which is where most of the defects below came from:
+a turn reloaded mid-flight and stopped; publish (succeeding and failing) with its progress and its build log;
+restore; the domains flow end to end against the simulated provider; the code view and the git-bundle download,
+cloned and checked; the whole forgotten-password round trip including a replayed link; a fourth site refused;
+"wake it up"; and the app at 390 px and in dark mode. `SiteIsolationTests` drives every route under a site as a
+second account, which is the rule that most wants a test rather than a screenshot.
 
 **The backend compiles, migrates and tests.** `dotnet build Webly.slnx` is clean, `InitialSchema` is applied
-to a real Postgres with the ten deferrable constraints written into it by hand, and all 70 tests pass.
+to a real Postgres with the ten deferrable constraints written into it by hand, and all 82 tests pass.
 `PostgresTestBase` will use an existing server (`WEBLY_TEST_POSTGRES`) instead of Testcontainers, so the
 suite runs where there is a Postgres and no Docker.
 
-**The client is real.** `client/src/app/api/` is generated from the live swagger — 29 models, 8 services —
+**The client is real.** `client/src/app/api/` is generated from the live swagger — 37 models, 8 services —
 and the Angular app type-checks and prerenders against it.
 
 **The lower layers were already evidence** before any of that, from `tools/e2e/run.mjs`: the git plumbing
