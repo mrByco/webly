@@ -91,6 +91,10 @@ public static class ControllerBaseExtensions
         return userId;
     }
 
+    /// <summary>The session this caller's access token was minted under, or null for one that predates the claim.</summary>
+    public static string? GetSessionId(this ControllerBase controller) =>
+        controller.User.FindFirst(JwtTokenService.SessionIdClaim)?.Value;
+
     /// <summary>The current access token's id and expiry, for blacklisting it on logout.</summary>
     public static (string? TokenId, DateTimeOffset? ExpiresAt) GetAccessTokenIdentity(this ControllerBase controller)
     {

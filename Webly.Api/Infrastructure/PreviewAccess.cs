@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Webly.Services.Services.Authentication;
 
 namespace Webly.Api.Infrastructure;
 
@@ -27,10 +28,18 @@ namespace Webly.Api.Infrastructure;
 /// It is not an authorization: <c>PreviewController</c> still calls <c>FindForOwnerLightAsync</c> with the user
 /// it names, so a token for a site that has since been deleted, or transferred, grants exactly nothing.
 ///
+/// <b>And it ends when the session that minted it ends.</b> It used to survive a sign-out for the rest of its
+/// twelve hours — narrow, because it reaches one site's preview and nothing else, and real, because a site
+/// nobody has published is not otherwise readable and a shared machine is exactly where somebody signs out. It
+/// could not be fixed until a session had a name: the token carried a user id, and a user is not a session. It
+/// now carries the <c>sid</c> of the session it was issued under and is refused once that session is revoked.
+///
 /// <b>The stronger answer is a separate origin</b> — <c>{id}.preview.webly.site</c> — which needs a wildcard
 /// record and a certificate this repository does not have yet. See <c>docs/agent-plan.md</c>.
 /// </summary>
-public class PreviewAccess(IDataProtectionProvider dataProtection)
+public class PreviewAccess(
+    IDataProtectionProvider dataProtection,
+    IAccessTokenBlacklist blacklist)
 {
     public const string CookieName = "webly_preview";
 
@@ -45,10 +54,10 @@ public class PreviewAccess(IDataProtectionProvider dataProtection)
     /// <summary>Where the cookie lives: one site's preview and nothing else on this origin.</summary>
     public static string PathFor(string siteNanoid) => $"/api/sites/{siteNanoid}/preview";
 
-    public void Issue(HttpResponse response, string siteNanoid, int userId)
+    public void Issue(HttpResponse response, string siteNanoid, int userId, string? sessionId)
     {
         var expires = DateTimeOffset.UtcNow.Add(Lifetime);
-        var token = _protector.Protect($"{userId}|{siteNanoid}|{expires.ToUnixTimeSeconds()}");
+        var token = _protector.Protect($"{userId}|{siteNanoid}|{expires.ToUnixTimeSeconds()}|{sessionId}");
 
         response.Cookies.Append(CookieName, token, new CookieOptions
         {
@@ -91,11 +100,18 @@ public class PreviewAccess(IDataProtectionProvider dataProtection)
 
         var parts = plain.Split('|');
 
-        if (parts.Length != 3) return null;
+        // Three parts is a token minted before this carried a session, and it is honoured for the rest of its
+        // twelve hours rather than refused: the alternative is every open editor's preview breaking the moment
+        // a deployment lands, to close a window that closes itself by tomorrow morning.
+        if (parts.Length is not (3 or 4)) return null;
         if (!string.Equals(parts[1], siteNanoid, StringComparison.Ordinal)) return null;
         if (!int.TryParse(parts[0], out var userId)) return null;
         if (!long.TryParse(parts[2], out var expiry)) return null;
         if (DateTimeOffset.FromUnixTimeSeconds(expiry) <= DateTimeOffset.UtcNow) return null;
+
+        // The session that minted it. A signed-out session's preview token is not a credential any more, which
+        // is the whole reason `RefreshToken.SessionId` exists — a user id could never have answered this.
+        if (parts.Length == 4 && parts[3].Length > 0 && blacklist.IsSessionRevoked(parts[3])) return null;
 
         return userId;
     }

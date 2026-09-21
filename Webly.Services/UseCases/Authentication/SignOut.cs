@@ -28,15 +28,30 @@ public class SignOut(
     IAccessTokenBlacklist accessTokenBlacklist,
     IRealtimeSessions realtimeSessions)
 {
+    /// <summary>
+    /// How long a revoked session is remembered: the longest any credential minted under it can outlive the
+    /// sign-out. The preview token's twelve hours is that credential today, and the access token's fifteen
+    /// minutes is caught by its own id anyway. A day rather than the refresh token's sixty, because the
+    /// entries are held in memory and remembering a session long after everything it could have minted has
+    /// expired is paying for nothing.
+    /// </summary>
+    private static readonly TimeSpan SessionRevocationWindow = TimeSpan.FromDays(1);
+
     public async Task Execute(
         int userId,
         string? rawRefreshToken,
         string? accessTokenId = null,
         DateTimeOffset? accessTokenExpiresAt = null,
+        string? sessionId = null,
         CancellationToken cancellationToken = default)
     {
         if (accessTokenId is not null && accessTokenExpiresAt is not null)
             accessTokenBlacklist.Revoke(accessTokenId, accessTokenExpiresAt.Value);
+
+        // The caller's own session, whether or not a refresh cookie came with the request — an access token is
+        // enough to say which session is signing out, and everything minted under it goes with it.
+        if (!string.IsNullOrEmpty(sessionId))
+            accessTokenBlacklist.RevokeSession(sessionId, DateTimeOffset.UtcNow.Add(SessionRevocationWindow));
 
         if (string.IsNullOrEmpty(rawRefreshToken))
         {
@@ -57,6 +72,10 @@ public class SignOut(
             return;
 
         await refreshTokenRepository.RevokeAsync(token, DateTime.UtcNow, cancellationToken);
+
+        // The session the cookie names as well, which is the same one in every ordinary case — and is not when
+        // the access token has expired and the browser is signing out on the refresh cookie alone.
+        accessTokenBlacklist.RevokeSession(token.SessionId, DateTimeOffset.UtcNow.Add(SessionRevocationWindow));
 
         // Last, and after the row is really revoked: a socket that outlives this call by a moment is harmless,
         // and one ended before the session was would be ended for a sign-out that then failed.

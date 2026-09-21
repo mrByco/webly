@@ -135,6 +135,34 @@ public class PreviewAccessTests : AuthEndpointTestBase
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
+    /// <summary>
+    /// The preview token used to outlive the session that minted it — for twelve hours, on whatever machine
+    /// the browser was left on. It is narrow (one site's preview and nothing else) and it is real: a site
+    /// nobody has published is not otherwise readable, and a shared computer is exactly where somebody signs
+    /// out. It could not be fixed until a session had a name to put in the token.
+    /// </summary>
+    [Test]
+    public async Task Signing_out_ends_the_preview_credential_that_session_minted()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+        var cookie = await PreviewCookieAsync(owner, site);
+
+        // It works first, or the rest of this proves nothing.
+        var before = await Client.SendAsync(Request(
+            HttpMethod.Get, $"/api/sites/{site}/preview/", (PreviewAccess.CookieName, cookie)));
+
+        Assert.That(before.StatusCode, Is.Not.EqualTo(HttpStatusCode.NotFound), "the credential should be good");
+
+        await Client.SendAsync(Request(HttpMethod.Post, "/api/auth/logout", (AuthCookies.AccessTokenName, owner)));
+
+        var after = await Client.SendAsync(Request(
+            HttpMethod.Get, $"/api/sites/{site}/preview/", (PreviewAccess.CookieName, cookie)));
+
+        // 404, the answer every per-site route gives to somebody it does not recognise.
+        Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
     [Test]
     public async Task A_forged_credential_is_not_a_credential()
     {

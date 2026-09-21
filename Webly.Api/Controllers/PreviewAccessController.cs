@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Webly.Api.Extensions;
 using Webly.Api.Infrastructure;
 using Webly.Data.Repositories.Sites;
+using Webly.Services.Services.Authentication;
 
 namespace Webly.Api.Controllers;
 
@@ -29,7 +30,10 @@ public class PreviewAccessController(ISiteRepository siteRepository, PreviewAcce
         // 404 rather than 403, the rule every per-site route follows.
         if (site is null) return NotFound(new ProblemDetails { Title = "That site could not be found." });
 
-        previewAccess.Issue(Response, siteNanoid, userId);
+        // The session it is minted under, so that signing out takes it with everything else. A caller whose
+        // token predates the claim gets a token without one, which is honoured until it expires — see
+        // `PreviewAccess`.
+        previewAccess.Issue(Response, siteNanoid, userId, User.FindFirst(JwtTokenService.SessionIdClaim)?.Value);
 
         return NoContent();
     }

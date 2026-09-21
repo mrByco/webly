@@ -30,4 +30,19 @@ public interface IAccessTokenBlacklist
 
     /// <param name="tokenSaysEmailVerified">The token's own <c>email_verified</c> claim.</param>
     bool IsRevoked(string tokenId, int userId, bool tokenSaysEmailVerified);
+
+    /// <summary>
+    /// Refuses everything minted under one session — see <c>RefreshToken.SessionId</c> — until
+    /// <paramref name="until"/>, which is the moment the last credential that session could have produced
+    /// would have expired anyway.
+    ///
+    /// The per-token entries above cannot do this job: they name a <c>jti</c>, and a session outlives fifteen
+    /// minutes' worth of those. What needs it is the credential that is neither the access token nor a cookie
+    /// the browser will drop — the preview token, which lives twelve hours and survived a sign-out because
+    /// nothing could tell it that its session had ended.
+    /// </summary>
+    void RevokeSession(string sessionId, DateTimeOffset until);
+
+    /// <summary>Whether that session has been ended. Cheap enough for a path that runs per chunk.</summary>
+    bool IsSessionRevoked(string sessionId);
 }

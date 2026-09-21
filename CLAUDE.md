@@ -291,8 +291,18 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   than the gap being closed. Watched both ways afterwards: the signed-out session's socket dies, the other
   session stays `Connected` and still answers. A connection whose token predates the claim carries no `sid` and
   is ended whenever its user signs out anywhere, because being unable to name something is not a reason to
-  leave it running. The 12-hour `PreviewAccess` cookie is the next thing that should read `sid`; it still
-  survives a sign-out.
+  leave it running.
+- **The preview cookie reads `sid` too, so signing out ends it.** It used to outlive the session by the rest of
+  its twelve hours — narrow, because it reaches one site's preview and nothing else, and real, because a site
+  nobody has published is not otherwise readable and a shared machine is exactly where somebody signs out. It
+  could not be fixed before this: the token named a *user*, and a user is not a session. A token minted before
+  the change has three fields instead of four and is honoured until it expires, deliberately — the alternative
+  is every open editor's preview breaking the moment a deployment lands, to close a window that closes itself
+  by the next morning. `IAccessTokenBlacklist` gained the session half of its job for this (`RevokeSession` /
+  `IsSessionRevoked`), which is also what makes the check cheap enough for a path that runs per chunk. The
+  window it remembers is a **day**, not the refresh token's sixty: the longest-lived thing a session can mint is
+  that twelve-hour cookie, and remembering a revocation after everything it could revoke has expired is paying
+  memory for nothing.
 - **Refresh tokens are single-use, with a thirty-second window.** Replaying a spent one is treated as theft
   and revokes the whole chain — but not immediately, and the exception is not a weakening. A browser sends
   requests in parallel, so when the access token dies they all arrive carrying the same live refresh cookie:

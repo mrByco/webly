@@ -72,6 +72,10 @@ public class AuthController(
             AuthCookies.GetRefreshToken(Request),
             tokenId,
             expiresAt,
+            // The caller's own session, which is the one signing out. Taken from the access token rather than
+            // from the refresh row, because a sign-out with no refresh cookie is an ordinary case — it is how
+            // the client's own tests do it — and it still has to end this session's preview token and sockets.
+            this.GetSessionId(),
             cancellationToken);
         AuthCookies.Clear(Response);
 

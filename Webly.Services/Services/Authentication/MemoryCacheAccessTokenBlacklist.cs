@@ -15,6 +15,7 @@ public class MemoryCacheAccessTokenBlacklist(IMemoryCache cache) : IAccessTokenB
 {
     private const string TokenKeyPrefix = "revoked-access-token:";
     private const string UnverifiedKeyPrefix = "revoked-unverified-tokens:";
+    private const string SessionKeyPrefix = "revoked-session:";
 
     public void Revoke(string tokenId, DateTimeOffset expiresAt)
     {
@@ -31,6 +32,21 @@ public class MemoryCacheAccessTokenBlacklist(IMemoryCache cache) : IAccessTokenB
 
         cache.Set(UnverifiedKeyPrefix + userId, true, expiresAt);
     }
+
+    public void RevokeSession(string sessionId, DateTimeOffset until)
+    {
+        if (until <= DateTimeOffset.UtcNow)
+            return;
+
+        // Kept until the session's own refresh token would have expired, which is the upper bound on anything
+        // that session could have minted. That is up to sixty days per sign-out, in memory, and is the sharpest
+        // version of what this whole class already admits: it is per process, so a restart forgets it and a
+        // second instance never knew. Moving it to shared storage is the same piece of work for all three
+        // entries here.
+        cache.Set(SessionKeyPrefix + sessionId, true, until);
+    }
+
+    public bool IsSessionRevoked(string sessionId) => cache.TryGetValue(SessionKeyPrefix + sessionId, out _);
 
     public bool IsRevoked(string tokenId, int userId, bool tokenSaysEmailVerified)
     {

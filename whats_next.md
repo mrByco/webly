@@ -417,10 +417,23 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     A connection whose token predates the claim carries no `sid`, and is ended whenever its user signs out
     anywhere. Being unable to name something is not a reason to leave it running as somebody who has signed out.
 
-    Still open, and now the only piece: the 12-hour `PreviewAccess` cookie survives a sign-out, so whoever has
-    the browser can read that one site's preview — which matters for a site nobody has published. It should
-    carry the `sid` it was minted under and refuse when that session is gone, which is the same shape of check
-    the hub does and is now possible.
+42. **And the preview cookie now ends with its session**, which is what having a session id was for. It carried
+    a user and a site and twelve hours, so a sign-out left it working: on a shared machine, whoever had the
+    browser could read that site's preview until the evening — which matters most for a site nobody has
+    published, because that is the one nothing else will show them.
+
+    It carries the `sid` it was minted under and is refused once that session is revoked; `IAccessTokenBlacklist`
+    gained `RevokeSession` / `IsSessionRevoked` for it, cheap enough for a path that runs per chunk of every
+    page. A token minted before the change has three fields rather than four and is honoured until it expires,
+    deliberately: refusing it would break every open editor's preview the moment a deployment lands, to close a
+    window that closes itself overnight.
+
+    Two details worth keeping. The revocation is remembered for a **day** rather than the refresh token's sixty,
+    because the longest-lived credential a session can mint is that twelve-hour cookie and the rest is paying
+    memory for nothing. And the session being ended is read from the **access token**, not from the refresh row:
+    the first version read the row, and the test that signs out with only an access cookie — which is what the
+    client's own sign-out does when the access token is still live — went straight through it and answered 503
+    instead of 404. Found by writing the test before believing the code.
 
 ## What is still intent
 
