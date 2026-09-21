@@ -216,10 +216,13 @@ public class SiteController(
         SiteError.NotFound => NotFound(new ProblemDetails { Title = "That site could not be found." }),
         SiteError.VersionNotFound => NotFound(new ProblemDetails { Title = "That version could not be found." }),
         SiteError.FileNotFound => NotFound(new ProblemDetails { Title = "That file is not in this version." }),
+        // "or upgrade" was here, and there is nothing to upgrade to: billing is P7 and unbuilt. Telling
+        // somebody to buy their way past a wall that has no door is the kind of copy that is discovered at
+        // exactly the wrong moment. It says what is true, and it will say the other thing when it is.
         SiteError.LimitReached => Conflict(new ProblemDetails
         {
-            Title = "You have reached the number of sites your plan includes.",
-            Detail = "Delete one you no longer need, or upgrade."
+            Title = "You have as many sites as an account can have for now.",
+            Detail = "Delete one you no longer need to make room for another."
         }),
         SiteError.InvalidName => BadRequest(new ProblemDetails { Title = "A site needs a name of at most 80 characters." }),
         // No Detail, deliberately. The detail here is git's own stderr, and RepositoryException says in its own

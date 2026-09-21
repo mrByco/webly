@@ -17,8 +17,25 @@ node tools/e2e/screens.mjs --email you@example.com --password ... [--site nanoid
 ```
 
 The third harness, and the one that answers a question the other two cannot: *is the page wrong to look at?*
-It signs in, walks every screen of the app and the published site at 1400 px and 390 px, and fails on a page
-error, a 5xx or a screen that comes back blank — leaving the screenshots behind either way.
+It walks the signed-out screens, signs in, walks every screen of the app and of the published site at 1400 px
+and 390 px, and leaves the screenshots behind either way.
+
+It fails on five things, and each was added the day something got past the four before it:
+
+| It fails on | Because |
+|---|---|
+| a page error or a 5xx | an Angular template error reaches the console and nowhere else |
+| a screen that comes back blank | a route that renders nothing still answers 200 |
+| **a 404 on anything the page asked for** | a published site whose every stylesheet and chunk 404ed behind a document that was 200 |
+| **a pane that has started scrolling sideways** | a diff cut off at the window edge while `document.scrollWidth` never changed — clipping is what hides it |
+| **an obvious accessibility mistake** | an icon-only control that announced "link" and stopped; also `<img>` with no `alt`, a field with nothing naming it, a page with no `h1` or several |
+
+Two things it does beyond looking. It **presses one thing** on the screens where the default selection does
+not reach the interesting case — the oldest version, a photograph — because opening a screen is not using it,
+and three defects in a row were found by one click on screens this had walked clean a dozen times. And it
+renders the **sign-in-with-Google** branch by stubbing `/api/auth/providers`, because that button appears only
+where a client id is configured and no development machine has one: it had carried the word "vagy" —
+Hungarian, from the reference project — on the two screens every new customer sees first.
 
 It exists because five defects in one afternoon came from opening pages by hand: a published site that had
 rendered without its stylesheet since the very first publish, a mistyped address that served Webly's own
