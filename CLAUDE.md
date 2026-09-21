@@ -348,7 +348,8 @@ neither. Collaboration, when it lands, is a membership table plus one clause ins
   the same role. Read it **before** deleting anything: the FK nulls it on cascade, so a check afterwards
   can no longer tell "was looking at this site" from "was looking at nothing".
 - **The slug does not follow the name.** A rename leaves the address alone, because the address may already
-  be published, linked to and indexed.
+  be published, linked to and indexed. What the name *does* reach, when the person asks for it, is the site's
+  own source — see `SiteIdentity` under "A site's source".
 
 ### A site's source
 
@@ -377,8 +378,17 @@ structured-document model it replaced was better at.
   until `SiteIdentity` that name reached the dashboard and nothing else: the header, the footer and every
   page's title said "Your site" until an agent turn changed them. It writes the name into `src/site.ts` as
   `siteName`, which the whole project imports, and into `content/brand.md` as the first **confirmed** fact, so
-  the first turn starts knowing it rather than asking. Written once, like the look: a rename in Webly does not
-  come back and rewrite the pages, for the same reason it does not move the web address. **It is customer
+  the first turn starts knowing it rather than asking. **And a rename can write it again**, which it could
+  not: renaming "My Shop" to "Ridgeway Cycles" changed one row, so the dashboard said one thing and the
+  website — header, footer, every page's title, the card a shared link draws — said the other, with nothing
+  on screen admitting it. Found by renaming a site and reading its published home page. The settings screen
+  offers it ticked, because renaming a business and wanting the business's site to say so is one thought;
+  unticking is for a label over pages the agent has since reworded. It is a version like everything else that
+  changes a site — `SiteIdentity`'s rewrite applied to the head commit, committed through `CommitSiteVersion`
+  — and safe by construction rather than by care: `TemplateFile` leaves a file that has moved or been reshaped
+  exactly as it is, and a tree identical to its parent commits nothing. The **web address** still does not
+  follow the name, and that is a different case rather than an inconsistency: an address may already be
+  published, linked to, indexed, and printed on a van. **It is customer
   input reaching a source file that gets compiled**, so it is escaped for a single-quoted TypeScript literal —
   "Joe's Garage" is an ordinary business name and an unescaped apostrophe is a site that does not build, in a
   sandbox, reported as a chat message nobody can act on. `TemplateFile.Rewritten` is the one rule both this

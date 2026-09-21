@@ -87,8 +87,14 @@ export class SiteService {
     }
   }
 
-  async rename(nanoid: string, name: string): Promise<void> {
-    await this.api.invoke(apiSitesNanoidPut, { nanoid, body: { name } });
+  /**
+   * Renames the site, and — when asked — the name the site's own pages say.
+   *
+   * The second half is a version, so the reload afterwards is not optional bookkeeping: the header's version
+   * count, the history and the preview are all looking at a commit that has just moved.
+   */
+  async rename(nanoid: string, name: string, applyToSite: boolean): Promise<void> {
+    await this.api.invoke(apiSitesNanoidPut, { nanoid, body: { name, applyToSite } });
     await this.reload();
   }
 

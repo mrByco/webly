@@ -39,6 +39,17 @@ export class SiteSettingsPage {
   protected readonly exportFileName = computed(() => `${this.site()?.summary.slug ?? 'site'}.bundle`);
 
   protected name = this.sites.current()?.summary.name ?? '';
+
+  /**
+   * Whether the site itself should say the new name too.
+   *
+   * Ticked by default, because that is what somebody typing a new name almost always means: the business is
+   * called this now, and the header, the footer and every page's title read it from one line of the site's
+   * own source. Before this, a rename changed the dashboard's label and nothing else, so the site went on
+   * introducing itself by its old name with nothing on screen admitting it. Unticking is for the case where
+   * the two really are different — a label for the dashboard over pages the agent has since reworded.
+   */
+  protected applyToSite = true;
   protected readonly saving = signal(false);
   protected readonly error = signal<string | undefined>(undefined);
   protected readonly history = signal<DeploymentResponse[]>([]);
@@ -165,7 +176,7 @@ export class SiteSettingsPage {
     this.error.set(undefined);
 
     try {
-      await this.sites.rename(this.siteNanoid, name);
+      await this.sites.rename(this.siteNanoid, name, this.applyToSite);
     } catch (failure) {
       this.error.set(messageOf(failure));
     } finally {

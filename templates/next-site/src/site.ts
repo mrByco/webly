@@ -4,9 +4,9 @@
  * Webly writes this once, from the name the owner typed when they created the site — the only fact about
  * their business it has before anybody says anything. It is a literal rather than an environment variable
  * because it is *content*: the header, the footer and every page's title read it, and it is yours to change
- * from the first message onwards. Renaming the site in Webly deliberately does not come back and change it,
- * for the same reason renaming it does not move the web address: what is on the page is the site's, not the
- * dashboard's.
+ * from the first message onwards. Renaming the site in Webly offers to change this too, and only changes it
+ * if the answer is yes — the web address never moves, because it may already be published and linked to, but
+ * a business that has changed its name has changed the name on its own front page.
  */
 export const siteName = 'Your site';
 

@@ -320,6 +320,23 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     Found by pressing Stop during a cold workspace start, which is the one moment a turn is slow enough to
     interrupt: with a warm workspace the mock agent finishes before a person could reach the button.
 
+36. **Renaming a site renamed a label and nothing else.** The dashboard said "Ridgeway Cycles" and the
+    website said "My Shop" — in the header, in the footer, in the title of every page and in the card a shared
+    link draws — because the name lives in `src/site.ts` and only creation ever wrote it. The settings screen
+    made it worse by answering the question next to the one being asked: "the name is yours to change; the web
+    address is not." Found by renaming a site and reading its published home page.
+
+    The rename now offers to write it into the site as well, ticked by default, because renaming a business
+    and wanting its website to say so is one thought. It is a version like everything else that changes a site
+    — `SiteIdentity`'s own rewrite applied to the head commit, through `CommitSiteVersion` — and it is safe by
+    construction rather than by care: a file the agent has reshaped is left alone, and a tree identical to its
+    parent commits nothing. Both no-op cases are tests, as is the apostrophe: "Joe's Kitchens" reaches a
+    TypeScript literal that has to still compile, and the whole chain was driven — rename, version, publish —
+    to a published page whose title says Joe's Kitchens.
+
+    The web address still does not move, and that stays right: it may be published, linked, indexed and
+    printed on a van.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

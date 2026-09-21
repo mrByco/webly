@@ -2,7 +2,9 @@
   <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
     <div>
       <h2 class="text-base font-bold">Settings</h2>
-      <p class="text-sm text-base-content/60">The name is yours to change; the web address is not.</p>
+      <p class="text-sm text-base-content/60">
+        The name is yours to change, on the site as well if you want it there; the web address is not.
+      </p>
     </div>
 
     @if (error()) {
@@ -12,13 +14,32 @@
       </div>
     }
 
-    <form class="flex flex-wrap items-end gap-2" (ngSubmit)="rename()">
-      <label class="floating-label flex-1">
-        <span>Site name</span>
-        <input class="input w-full" name="name" type="text" maxlength="80" [(ngModel)]="name" />
-      </label>
+    <form class="flex flex-col gap-2" (ngSubmit)="rename()">
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="floating-label flex-1">
+          <span>Site name</span>
+          <input class="input w-full" name="name" type="text" maxlength="80" [(ngModel)]="name" />
+        </label>
 
-      <button class="btn" type="submit" [disabled]="saving() || !name.trim()">Save</button>
+        <button class="btn" type="submit" [disabled]="saving() || !name.trim()">Save</button>
+      </div>
+
+      <!--
+        Ticked by default, because renaming a site and wanting the site to say so is the same thought. Without
+        it a rename changed the dashboard's label alone, and the website carried on introducing itself by its
+        old name — header, footer, every page's title, the card a shared link draws — with nothing on screen
+        saying so.
+      -->
+      <label class="flex cursor-pointer items-start gap-2 text-sm">
+        <input class="checkbox checkbox-sm mt-0.5" name="applyToSite" type="checkbox" [(ngModel)]="applyToSite" />
+        <span>
+          Say this on the site too
+          <span class="block text-xs text-base-content/60">
+            Writes it into the pages as a new version. Leave it off to rename only what this dashboard calls
+            it.
+          </span>
+        </span>
+      </label>
     </form>
 
     <!-- The address does not follow the name: it may already be published, linked to and indexed, and

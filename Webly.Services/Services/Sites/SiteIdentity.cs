@@ -13,9 +13,11 @@ namespace Webly.Services.Services.Sites;
 /// the site's content is the site's source, so a name in a column somewhere else would be a second place it
 /// lives and a second thing to keep in step.
 ///
-/// It is written **once**. Renaming a site in Webly does not come back and rewrite the pages, exactly as a
-/// rename does not move the web address — what is on the page belongs to the site and to whoever last asked
-/// for a change, not to the dashboard's label for it.
+/// It is written at creation and **whenever a rename asks for it** — <see cref="UseCases.Sites.RenameSite"/>
+/// applies the same rewrite to the head commit. It used to be written once, on the argument that what is on
+/// the page belongs to the site rather than to the dashboard's label for it; renaming a site and reading its
+/// published home page is what ended that argument. The web address still never moves, and that is not the
+/// same case: an address may already be printed on a van.
 /// </summary>
 public static partial class SiteIdentity
 {

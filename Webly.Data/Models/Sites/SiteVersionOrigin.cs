@@ -13,7 +13,10 @@ public enum SiteVersionOrigin
     /// <summary>An agent session committed it. The usual case.</summary>
     Agent,
 
-    /// <summary>A person edited a file directly, in the editor's code view.</summary>
+    /// <summary>
+    /// A person changed a file themselves rather than asking the agent for it: the code view, when hand
+    /// editing lands, and today the rename that also writes the new name into the site.
+    /// </summary>
     Manual,
 
     /// <summary>An older version's tree written forward. See <c>SiteVersion.RestoredFromVersionId</c>.</summary>
