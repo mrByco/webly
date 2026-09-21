@@ -348,13 +348,17 @@ structured-document model it replaced was better at.
   a site whose stylesheet we corrupted is a broken website. Four full templates were the alternative, and they
   would be four copies of every convention to keep in step the next time a rule changes.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
-  `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, `sitemap.ts`, a
-  `not-found.tsx` that is a page of the site rather than the host's default, canonical and Open Graph
-  metadata, a generated **share card** (`opengraph-image.tsx` — a link to a small business's site pasted into
-  a message was a grey rectangle with a URL under it, which is how a real website looks like a broken link),
-  and an `icon.svg` — Next's file convention works under `output: 'export'`, and without one every
-  published Webly site showed the browser's blank-page icon in the tab, which is the first thing a visitor sees
-  of a business and the last thing anybody thinks to check. All of those need an absolute URL, and a static export has no server to ask for one later — so the
+  `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, a `sitemap.ts`,
+  a `not-found.tsx` that is a page of the site rather than the host's default, canonical and Open Graph
+  metadata, a generated **share card** and an **`icon.svg`**. Three of those are worth their own sentence.
+  The sitemap **reads the folders under `src/app`** instead of listing pages by hand: the rule it replaced —
+  "add a line when you add a page" — is exactly the kind a busy turn skips, and skipping it is invisible,
+  because the page works, the site looks finished, and search engines find it late or never. The share card
+  (`opengraph-image.tsx`) exists because a link to a small business's site pasted into a message was a grey
+  rectangle with a URL under it, which is how a real website ends up looking like a broken link. And the icon
+  is there because Next's file convention works under `output: 'export'` and without one every published Webly
+  site showed the browser's blank-page icon in the tab — the first thing a visitor sees of a business, and the
+  last thing anybody thinks to check. All of those need an absolute URL, and a static export has no server to ask for one later — so the
   publish passes the site's **address** as `NEXT_PUBLIC_SITE_URL` (`src/site.ts` reads it) and the build is the
   moment it is known. The address rather than the deployment's own URL, because a canonical that changed with
   every publish is not a canonical. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the

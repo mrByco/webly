@@ -26,8 +26,8 @@ actually confirmed.
    `content/brand.md` in the same turn. The next session starts from that file, not from this conversation.
 8. **Accessibility and responsiveness are not optional.** Real alt text, one `h1` per page, visible focus
    states, and every layout works at 390px.
-9. **A new page needs three things**, not one: the route, a link to it from the header or wherever somebody
-   would look for it, and a line in `src/app/sitemap.ts`. A page nothing links to is a page nobody visits.
+9. **A new page needs a link to it**, from the header or from wherever somebody would look for it. A page
+   nothing links to is a page nobody visits. The sitemap takes care of itself — it reads the folders.
 10. **Never write a form by hand, and never write a server for one.** Use `ContactForm` from
     `src/components/contact-form.tsx` — it is already wired to Webly, which stores the message, emails the
     owner and sends the visitor back. This project is built as a **static export**: a route handler, a server
@@ -79,8 +79,8 @@ shows up.
 - `src/app/globals.css` — Tailwind plus the tokens derived from `look.css`. Change *how* a token is derived
   here, once, rather than putting class names for one brand colour on forty elements.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.
-- `src/app/sitemap.ts` — the list of this site's pages. **Add a line when you add a page**: a static export
-  cannot discover its own routes, so a page missing from here is a page search engines find late or not at all.
+- `src/app/sitemap.ts` — `/sitemap.xml`. It reads the folders under `src/app` at build time, so a page you
+  add is in it without you doing anything. Leave it alone.
 - `src/site.ts` — the business's name, where this site lives as the build was told, and where its forms post.
   `siteName` is what the owner called the site when they created it; the header, the footer and every page's
   title read it, so correcting the name is an edit to that one line rather than to four components. Use
