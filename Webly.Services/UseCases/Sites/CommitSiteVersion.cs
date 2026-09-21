@@ -31,13 +31,27 @@ public class CommitSiteVersion(
         string summary,
         string? details = null,
         int? sourceMessageId = null,
+        string? treeBaseSha = null,
         CancellationToken cancellationToken = default)
     {
         var head = site.HeadVersion
             ?? throw new InvalidOperationException($"Site '{site.Nanoid}' has no head version.");
 
+        // The commit this tree was built from, which is the head for every caller that reads the tree and
+        // commits it in the same breath — and is **not** the head for the one that does not. A turn's tree comes
+        // out of a sandbox that was seeded when the turn began; anything that commits while it is running moves
+        // the branch underneath it, and a commit that names the new tip as its parent while carrying the old
+        // tree deletes whatever arrived in between. git refuses it when it is given the sha the tree really came
+        // from, which is the difference between a failed turn and a photograph quietly disappearing.
         var commit = await repositories.CommitAsync(
-            site.Nanoid, site.DefaultBranch, head.CommitSha, tree, author, summary, details, cancellationToken);
+            site.Nanoid,
+            site.DefaultBranch,
+            treeBaseSha ?? head.CommitSha,
+            tree,
+            author,
+            summary,
+            details,
+            cancellationToken);
 
         if (commit is null) return null;
 

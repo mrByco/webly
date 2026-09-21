@@ -167,6 +167,12 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
             cache.Clear();
     }
 
+    /// <summary>
+    /// The host's own services, for the few tests that have to reach past the HTTP surface — moving a site's
+    /// branch out from under the database, say, which no endpoint can be asked to do.
+    /// </summary>
+    protected IServiceProvider Services => _factory.Services;
+
     protected HttpContent Json(object body) =>
         new StringContent(
             System.Text.Json.JsonSerializer.Serialize(body),

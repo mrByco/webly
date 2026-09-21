@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NanoidDotNet;
 using Webly.Services.Agent;
+using Webly.Services.Services.Repositories;
 using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
 
@@ -85,6 +86,16 @@ public class ChatRunLauncher(
             // reloaded the page. It is a note rather than an error because they asked for it.
             detail = AgentTurnService.StoppedNote;
             logger.LogInformation("Run {RunId} was cancelled.", runId);
+        }
+        catch (RepositoryConflictException conflict)
+        {
+            // Expected, explainable, and the person's to act on: something else changed the site while the turn
+            // was working. Its own sentence rather than the generic one, and the same sentence the turn writes
+            // into the thread — the live screen and a reload have to agree, which is what the generic note was
+            // already there for.
+            logger.LogInformation("Run {RunId} hit a conflict: {Message}", runId, conflict.Message);
+            terminal = RunEventType.Failed;
+            error = conflict.Message;
         }
         catch (Exception exception)
         {

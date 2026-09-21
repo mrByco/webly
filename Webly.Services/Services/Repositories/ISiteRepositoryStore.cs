@@ -110,3 +110,14 @@ public interface ISiteRepositoryStore
 
 /// <summary>Who a commit is attributed to. A real person, even when the agent did the typing.</summary>
 public record CommitAuthor(string Name, string Email);
+
+/// <summary>
+/// The branch was not where the caller thought it was, so nothing was written.
+///
+/// Its own type because it is the one repository failure that is **expected**, explainable and the person's to
+/// act on: something else changed the site while this change was being prepared. Everything else a repository
+/// throws is ours — a path we should not have built, a git binary that is not there — and reaches the chat as
+/// "something went wrong", which is all those deserve.
+/// </summary>
+public class RepositoryConflictException(string message, string? detail = null)
+    : RepositoryException(message, detail);

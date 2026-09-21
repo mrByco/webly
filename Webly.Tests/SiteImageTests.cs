@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Webly.Api.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Webly.Services.Services.Repositories;
 using Webly.Services.UseCases.Assets;
 
 namespace Webly.Tests;
@@ -256,4 +258,54 @@ public class SiteImageTests : AuthEndpointTestBase
         Assert.That(theirs.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
+    /// <summary>
+    /// An upload that loses the race answers 409 with a sentence, not 500 with a stack trace.
+    ///
+    /// Every operation that changes a site can lose this race — the branch moved between reading the head and
+    /// writing the commit — and until the mapping existed the upload path answered an unhandled exception. Found
+    /// the first time a commit really was refused: a photograph uploaded a few milliseconds before an agent turn
+    /// committed came back as <c>RepositoryConflictException: …</c> with the repository store's stack under it.
+    ///
+    /// The branch is moved here directly through the store, which is what a concurrent turn does and what no
+    /// endpoint can be asked to do: the site row still points at the version before it, so the upload builds its
+    /// tree on a parent that is no longer the tip.
+    /// </summary>
+    [Test]
+    public async Task An_upload_onto_a_branch_that_has_moved_answers_a_sentence()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        var store = Services.GetRequiredService<ISiteRepositoryStore>();
+        var head = (await store.ResolveHeadAsync(site, "main"))!;
+        var tree = await store.ReadTreeAsync(site, head);
+
+        // Something else commits — the same thing an agent turn does a moment before an upload lands.
+        var moved = await store.CommitAsync(
+            site, "main", head,
+            new WorkspaceTree([.. tree.Files.Where(x => x.Path != "src/app/page.tsx"),
+                WorkspaceFile.Text("src/app/page.tsx", "export default () => <h1>Moved</h1>;\n")]),
+            new CommitAuthor("Someone Else", "else@example.com"), "Set the headline", null);
+
+        Assert.That(moved, Is.Not.Null);
+
+        var refused = await UploadAsync(owner, site, ("shopfront.gif", Gif()));
+
+        Assert.That(refused.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
+
+        var problem = JsonDocument.Parse(await refused.Content.ReadAsStringAsync()).RootElement;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(problem.GetProperty("code").GetString(), Is.EqualTo("site_changed"));
+
+            // The exception's own sentence, because it was written for whoever pressed the button. "Something
+            // went wrong" would be the one answer that does not tell them the remedy is to press it again.
+            Assert.That(problem.GetProperty("title").GetString(), Does.Contain("Please try again"));
+            Assert.That(problem.GetProperty("title").GetString(), Does.Not.Contain("Exception"));
+        });
+
+        // And nothing was written: the other commit is still the tip.
+        Assert.That(await store.ResolveHeadAsync(site, "main"), Is.EqualTo(moved!.Sha));
+    }
 }

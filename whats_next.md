@@ -435,6 +435,55 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     client's own sign-out does when the access token is still live — went straight through it and answered 503
     instead of 404. Found by writing the test before believing the code.
 
+43. **A photograph uploaded during a turn was silently deleted by that turn.** The guard against two writers had
+    been in place since two simultaneous turns were driven against the running app — `update-ref` takes an
+    expected old value, and git refuses atomically rather than moving the branch to a commit that does not
+    contain the other's work. It had never refused anything, because of who was answering "what was this tree
+    built from?": the turn re-read its site row just before committing and handed git *that* head, so the two
+    were equal by construction. The tree it was writing had been seeded from the sandbox minutes earlier.
+
+    Driven: send a message, upload an image three seconds later, and the turn reported success while
+    `ls-tree HEAD public/images/` no longer had the file — with "Added probe.png" still sitting in the history
+    directly under the turn's own commit. Nothing anywhere said a version had been undone. The comment on the
+    guard asserted the invariant it did not have.
+
+    `CommitSiteVersion` now takes an optional `treeBaseSha`, and `AgentTurnService` passes the workspace's own
+    commit. Every other caller passes nothing and means the head it just read, which is true of all of them: an
+    upload, a delete, a rename, a restore and the owned-file sync each build their tree from the head in the
+    same breath. That distinction is the whole fix, and it is what the two tests in `SiteVersionConflictTests`
+    pin — the first is red on the old line.
+
+    **And the clean failure had no answer.** The first real refusal came back from the upload endpoint as an
+    unhandled `RepositoryConflictException` with the repository store's stack trace in the response body. Every
+    operation that changes a site can lose this race, so the mapping belongs in one place rather than in six
+    error enums: `ExceptionHandlingMiddleware` answers 409 with `site_changed` and the exception's own sentence,
+    which was written to be read by whoever pressed the button — "Your site changed while this was being saved,
+    so nothing was written. Please try again." The client already shows `messageOf`, so nothing there changed.
+
+    What is deliberately *not* done: the upload does not retry. It could — its tree is derived from the head it
+    read a millisecond earlier, so re-reading and re-adding is always safe — and the window is small enough that
+    a sentence naming the remedy is an honest answer for now. Worth doing the day somebody hits it twice.
+
+
+44. **Two turns on a *cold* site never queued at all**, which the fix above is what made visible. Starting a
+    sandbox is several seconds of awaiting, so "there is no workspace for this site" and "here is the workspace
+    for this site" were separated by long enough for the second turn to read the same absence: both started their
+    own sandbox, the second overwrote the first in the dictionary, and neither ever met the semaphore whose whole
+    job is to make two turns take turns. One paid machine was left running with nothing pointing at it, and the
+    loser's commit was refused.
+
+    It had always been the case and it had always been invisible, because the warm path — which is every turn
+    after the first — does queue correctly. Driven by starting two turns a millisecond apart against a
+    freshly restarted backend: one turn failed with the conflict sentence and `pgrep sandbox-agent` found two
+    agents for one site. With a per-site start lock, the same run leaves **one** agent and both turns complete
+    in order.
+
+    The other half of the same finding: `AcquireAsync` resolved the branch *before* the queue, so a turn that
+    waited behind another read the head as it was before the winner committed — and would have re-seeded the
+    sandbox backwards to the tree the winner replaced. It asks again once the lease is held, which is the only
+    moment the answer cannot change.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

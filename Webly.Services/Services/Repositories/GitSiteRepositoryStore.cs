@@ -144,6 +144,13 @@ public class GitSiteRepositoryStore(
     ///
     /// An empty expected value means "this ref must not exist yet", which is exactly right for a site's first
     /// commit: a second initialize for the same site is refused by git rather than by a check-then-act.
+    ///
+    /// <b>The expected value has to be the commit the tree was built from</b>, not the branch as it is now — and
+    /// that distinction was the whole defect this guard was supposed to prevent. A turn read the branch again
+    /// just before committing, so the two were the same by construction and git had nothing to refuse; the tree
+    /// it wrote had been seeded minutes earlier. Upload a photograph while a turn is running and the turn's
+    /// commit, built on the tree from before it, silently deleted the file — with "Added probe.png" still in the
+    /// history above it. See <c>AgentTurnService.CommitAsync</c>.
     /// </summary>
     private async Task MoveBranchAsync(
         string repository,
@@ -164,7 +171,7 @@ public class GitSiteRepositoryStore(
         }
         catch (RepositoryException exception)
         {
-            throw new RepositoryException(
+            throw new RepositoryConflictException(
                 "Your site changed while this was being saved, so nothing was written. Please try again.",
                 exception.Detail ?? exception.Message);
         }

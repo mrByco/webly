@@ -148,6 +148,14 @@ public class AgentTurnService(
             await NoteAsync(conversation.Id, StoppedNote);
             throw;
         }
+        catch (RepositoryConflictException conflict)
+        {
+            // The one failure whose own sentence is better than ours: something else changed the site while this
+            // turn was working, so nothing was written. "Something went wrong" would be true and useless — the
+            // person knows what else they did, and asking again is all this needs.
+            await NoteAsync(conversation.Id, conflict.Message);
+            throw;
+        }
         catch (Exception)
         {
             await NoteAsync(conversation.Id, FailureNote);
@@ -306,14 +314,23 @@ public class AgentTurnService(
     {
         var tree = await workspace.Sandbox.ReadTreeAsync(cancellationToken);
 
-        // The site row as it is *now*, not as it was when this turn started. Another turn on the same site can
+        // The site row as it is *now*, not as it was when this turn started: another turn on the same site can
         // have committed while this one queued on the workspace lease — a second tab, a double-click — and the
-        // parent this commit names has to be the tip the sandbox's tree was seeded from. Without it the commit
-        // is built on a version that is no longer the branch, which git refuses (see `MoveBranchAsync`): a
-        // failed turn for a message that was perfectly fine.
+        // row this one records has to hang off the version that is really the branch.
         await dbContext.Entry(site).ReloadAsync(cancellationToken);
         await dbContext.Entry(site).Reference(x => x.HeadVersion).LoadAsync(cancellationToken);
 
+        // And `workspace.CommitSha` — the commit the sandbox's tree was actually seeded from — is what git is
+        // given to check the branch against. Those two are the same thing for a turn that queued behind
+        // another, because acquiring the lease re-seeds a workspace whose head has moved. They are **not** the
+        // same when the branch moves while this turn holds the lease, which an upload does: it commits from the
+        // repository and its re-seed waits politely for the lease it cannot have.
+        //
+        // Reloading the row and using *that* as the expected value is what this code used to do, and it turned
+        // the guard into a formality: the two were equal by construction, git had nothing to refuse, and the
+        // turn's commit — carrying the tree from before the upload — deleted the photograph that had just been
+        // added, with "Added probe.png" sitting in the history directly above it. Found by uploading an image
+        // three seconds after sending a message and then listing `public/images` at the head commit.
         var version = await commitSiteVersion.ExecuteAsync(
             site,
             tree,
@@ -323,6 +340,7 @@ public class AgentTurnService(
             outcome.Summary,
             outcome.Details,
             sourceMessageId,
+            treeBaseSha: workspace.CommitSha,
             cancellationToken: cancellationToken);
 
         if (version is null)

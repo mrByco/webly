@@ -15,6 +15,26 @@ public class SiteWorkspaceRegistry(
     ILogger<SiteWorkspaceRegistry> logger) : ISiteWorkspaceRegistry
 {
     private readonly ConcurrentDictionary<string, SiteWorkspace> _workspaces = new();
+
+    /// <summary>
+    /// One at a time per site through "find a workspace or start one".
+    ///
+    /// The dictionary cannot do this on its own: starting a sandbox is several seconds of awaiting, so
+    /// "not in the dictionary" and "put it in the dictionary" are separated by long enough for a second turn to
+    /// read the same absence. Both then started their own sandbox and the second overwrote the first in the
+    /// dictionary — so the two turns never met the gate that is supposed to queue them, each committed from its
+    /// own copy of the same tree, and the loser was refused. One paid machine was also left running with
+    /// nothing pointing at it. It only happens on a <b>cold</b> site, which is why the warm case has always
+    /// looked right.
+    ///
+    /// A lock per site rather than one for the registry: two people's sites starting at the same moment is the
+    /// ordinary case and has nothing to serialize. Entries are deliberately never removed — a semaphore is a few
+    /// bytes and one per site this process has ever opened is the same order as anything else keyed by site,
+    /// while removing one somebody is queued on would hand the next caller a fresh lock and reopen exactly the
+    /// race this closes.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _starting = new();
+
     private readonly SandboxOptions _options = options.Value;
 
     public IReadOnlyList<SiteWorkspace> All => [.. _workspaces.Values];
@@ -44,24 +64,18 @@ public class SiteWorkspaceRegistry(
             ?? site.HeadVersion?.CommitSha
             ?? throw new SandboxException("This site has no commits yet.");
 
-        var workspace = _workspaces.TryGetValue(site.Nanoid, out var existing) ? existing : null;
+        var starting = _starting.GetOrAdd(site.Nanoid, _ => new SemaphoreSlim(1, 1));
+        SiteWorkspace workspace;
 
-        // A workspace whose sandbox has died — the provider's own timeout, a crash, a deploy — is worse than
-        // none: every command would fail with a transport error. Checked before it is used rather than trusted
-        // because it is in a dictionary.
-        if (workspace is not null && !await workspace.Sandbox.IsHealthyAsync(cancellationToken))
+        await starting.WaitAsync(cancellationToken);
+
+        try
         {
-            logger.LogInformation("Workspace for {Site} is unreachable; starting a new one.", site.Nanoid);
-            await ReleaseAsync(site.Nanoid);
-            workspace = null;
+            workspace = await FindOrStartAsync(site, headSha, onProgress, cancellationToken);
         }
-
-        if (workspace is null)
+        finally
         {
-            if (onProgress is not null) await onProgress("Waking up your site");
-
-            workspace = await StartAsync(site, headSha, onProgress, cancellationToken);
-            _workspaces[site.Nanoid] = workspace;
+            starting.Release();
         }
 
         // Only one turn at a time on a workspace; see SiteWorkspace.Gate.
@@ -69,9 +83,19 @@ public class SiteWorkspaceRegistry(
 
         try
         {
-            // The head moved while this workspace was warm — a restore, or a hand edit. The sandbox's tree is
-            // the old commit, so re-seed it: committing on top of the current head from a stale tree would
-            // silently revert whatever moved it.
+            // Asked again, now that the lease is held, and that is not belt and braces. The resolve above
+            // happens before the queue: a turn that waited behind another one on the same site read the branch
+            // as it was *before* the winner committed, so re-seeding to it would copy the tree the winner
+            // replaced back into the sandbox — and the loser's commit would then revert work somebody watched
+            // land. Which is the defect one layer down, in the same shape: a stale sha used as if it were
+            // current. Inside the gate there is nothing left to race with, because the gate is what a commit is
+            // made behind.
+            headSha = await repositories.ResolveHeadAsync(site.Nanoid, site.DefaultBranch, cancellationToken)
+                ?? headSha;
+
+            // The head moved while this workspace was warm — a restore, a hand edit, or the turn that just
+            // finished ahead of this one. The sandbox's tree is the old commit, so re-seed it: committing on top
+            // of the current head from a stale tree would silently revert whatever moved it.
             if (workspace.CommitSha != headSha)
             {
                 logger.LogInformation(
@@ -100,6 +124,38 @@ public class SiteWorkspaceRegistry(
             workspace.Gate.Release();
             throw;
         }
+    }
+
+    /// <summary>
+    /// The site's warm workspace, starting one if there is none. Called only under <see cref="_starting"/>, which
+    /// is what makes the check and the act one step — see that field for what happened when they were two.
+    /// </summary>
+    private async Task<SiteWorkspace> FindOrStartAsync(
+        Site site,
+        string headSha,
+        Func<string, Task>? onProgress,
+        CancellationToken cancellationToken)
+    {
+        var workspace = _workspaces.TryGetValue(site.Nanoid, out var existing) ? existing : null;
+
+        // A workspace whose sandbox has died — the provider's own timeout, a crash, a deploy — is worse than
+        // none: every command would fail with a transport error. Checked before it is used rather than trusted
+        // because it is in a dictionary.
+        if (workspace is not null && !await workspace.Sandbox.IsHealthyAsync(cancellationToken))
+        {
+            logger.LogInformation("Workspace for {Site} is unreachable; starting a new one.", site.Nanoid);
+            await ReleaseAsync(site.Nanoid);
+            workspace = null;
+        }
+
+        if (workspace is not null) return workspace;
+
+        if (onProgress is not null) await onProgress("Waking up your site");
+
+        workspace = await StartAsync(site, headSha, onProgress, cancellationToken);
+        _workspaces[site.Nanoid] = workspace;
+
+        return workspace;
     }
 
     public async Task ReseedAsync(Site site, string headSha, CancellationToken cancellationToken = default)

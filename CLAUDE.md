@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 160-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 170-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -573,8 +573,33 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   `update-ref` is given the expected old value, so git refuses the second atomically instead of moving the
   branch to a commit that does not contain the first's work and leaving that turn's version row naming a
   commit nobody can reach. Alongside those: the workspace seeds from the **branch** rather than from the site
-  entity a turn read minutes ago, and the turn re-reads its site row before committing, so the parent it names
-  is the tip its tree came from. Two simultaneous turns now both succeed, in order.
+  entity a turn read minutes ago. Two simultaneous turns now both succeed, in order.
+- **And that guard had never refused anything**, which is a different lesson from the one above: it was given the
+  wrong expected value, so it could not. A turn re-read its site row just before committing and handed git *that*
+  head — equal to the branch by construction — while the tree it was writing had come out of a sandbox seeded
+  minutes earlier. So anything that committed in between was quietly overwritten: upload a photograph mid-turn
+  and the turn's commit put the older tree back, deleting the file, with "Added probe.png" still in the history
+  directly beneath it. Driven in the running app; nothing on screen admitted a version had been undone.
+  `CommitSiteVersion` takes an optional **`treeBaseSha`** and `AgentTurnService` passes the workspace's own
+  commit; every other caller passes nothing and means the head it just read, which is true of all of them — an
+  upload, a delete, a rename, a restore and the owned-file sync each build their tree from the head in the same
+  breath. That distinction is the whole fix, and `SiteVersionConflictTests` pins both halves of it.
+  **The clean failure then needed an answer**: the first real refusal reached the upload endpoint as an unhandled
+  exception with the repository store's stack trace in the body. Every operation that changes a site can lose
+  this race, so the mapping lives in `ExceptionHandlingMiddleware` rather than in six error enums — 409,
+  `site_changed`, and `RepositoryConflictException`'s own sentence, which was written to be read by whoever
+  pressed the button. The upload deliberately does not retry, though it safely could; the window is a
+  millisecond and the sentence names the remedy.
+- **And two turns on a *cold* site never queued at all**, which is the same defect one layer up. Starting a
+  sandbox is seconds of awaiting, so "there is no workspace for this site" and "here is one" were far enough
+  apart for the second turn to read the same absence: both started a sandbox, the second overwrote the first in
+  the dictionary, and neither ever met the semaphore that exists to make them take turns — one paid machine left
+  running with nothing pointing at it, and the loser refused. Invisible until now because the warm path, which is
+  every turn after the first, queues correctly. `SiteWorkspaceRegistry` holds a **per-site start lock** across
+  find-or-start, and `AcquireAsync` resolves the branch **again once the lease is held**: the resolve before the
+  queue is by definition stale for whoever waited, and re-seeding to it would copy the winner's replaced tree
+  back into the sandbox. Driven both ways against a freshly restarted backend — two agents for one site and a
+  failed turn before, one agent and two commits in order after.
 - **Build errors are surfaced, not swallowed.** After a turn the dev server's log is read from an offset
   recorded before the turn started, and a `BuildFailed` event puts the compiler's own words on screen —
   because the person's next message is what fixes it. `CompilerOutput` owns both halves and both were
