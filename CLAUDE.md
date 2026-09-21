@@ -42,7 +42,12 @@ Two harnesses drive it, and they answer different questions:
   mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
   page with no `h1` or several), or **a 404 on anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
-  that was perfect. It skips the published screens for a site nobody has published, and asserts they answer
+  that was perfect. It walks the **signed-out** screens too — login, register, forgotten-password — because
+  they are the product's first five minutes, and it renders the **sign-in-with-Google** branch by stubbing
+  `/api/auth/providers`: that button appears only when a client id is configured, so no development machine
+  ever drew it, and it carried the word "vagy" — Hungarian for "or", from the reference project — on the two
+  screens every new customer sees first. A branch nobody can render is a branch nobody checks. It skips the
+  published screens for a site nobody has published, and asserts they answer
   404 instead, because a harness that is red when the product is right is one nobody reads.
   The sideways-scroll rule reads class names rather than computed style, deliberately: CSS gives `overflow-x`
   the used value `auto` the moment `overflow-y` is not visible, so a column that scrolls vertically and a strip

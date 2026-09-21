@@ -182,6 +182,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     verification mail's footer, so a notice about somebody's own website ended with "if you did not ask for
     it, you can ignore it".
 
+25. **The sign-in-with-Google button said "vagy".** Hungarian for "or", inherited from the reference project,
+    on the two screens every new customer sees first. It survived because that button only renders when
+    `Authentication:Google:ClientId` is configured and a fresh clone deliberately has none — so no
+    development machine had ever drawn it, and neither had the browser sweep. The sweep now stubs the one
+    endpoint that decides and walks the branch; it never presses the button, which is the only thing a real
+    client id would buy. It walks register and forgotten-password now too, which it had never seen at all.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
