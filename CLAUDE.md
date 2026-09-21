@@ -26,14 +26,14 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 152-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 160-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
 Two harnesses drive it, and they answer different questions:
 
 - **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
-  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in eighteen steps from "a
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in seventeen steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
@@ -272,6 +272,17 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   token's `jti` in `IAccessTokenBlacklist` — an `IMemoryCache` whose entries expire exactly when the token
   would have. **Per process**: a restart or a second instance forgets it. One of the three pieces to move
   to shared storage if Webly ever scales out (the others are `RunRegistry` and `AgentBudget`).
+- **And it now ends the hub connection too, which is the longest-lived credential in the product.** A hub
+  reads its caller's `ClaimsPrincipal` once, during the handshake, and never again — so signing out revoked the
+  session everywhere except on the socket the page already had open. Demonstrated rather than reasoned about:
+  connect, log out over HTTP until `/api/sites` answers 401, then invoke `StartChat` on that same connection,
+  and a real turn started as the signed-out user, on their site, spending their budget. Two halves, and both
+  are wanted: `AuthService.logout` calls `RealtimeService.disconnect()` first, which is what fixes the ordinary
+  case; and `RealtimeHub.CallerId()` asks the blacklist on **every** invocation, which is the half that does not
+  depend on the client doing anything. What neither closes is a socket whose access token the cookie middleware
+  had already rotated away before the logout — its `jti` is not the one revoked. Closing that needs a session
+  identity in the token rather than a per-token one, and is written down in `whats_next.md` rather than
+  half-built. The 12-hour `PreviewAccess` cookie has the same shape of gap and the same answer.
 - **Refresh tokens are single-use, with a thirty-second window.** Replaying a spent one is treated as theft
   and revokes the whole chain — but not immediately, and the exception is not a weakening. A browser sends
   requests in parallel, so when the access token dies they all arrive carrying the same live refresh cookie:

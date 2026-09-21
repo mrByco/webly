@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Webly.Api.Extensions;
 using Webly.Data.Repositories.Sites;
 using Webly.Services.DTO.Chat;
 using Webly.Services.DTO.Realtime;
+using Webly.Services.Services.Authentication;
 using Webly.Services.Services.Realtime;
 
 namespace Webly.Api.Hubs;
@@ -35,10 +37,41 @@ public class RealtimeHub(
     IChatRunLauncher launcher,
     AgentBudget budget,
     ISiteRepository siteRepository,
+    IAccessTokenBlacklist blacklist,
     ILogger<RealtimeHub> logger) : Hub<IRealtimeClient>
 {
     /// <summary>A run's group name. The publisher uses the same method, so the two cannot drift.</summary>
     public static string GroupFor(RunKind kind, string runId) => $"{kind.ToString().ToLowerInvariant()}:{runId}";
+
+    /// <summary>
+    /// The caller, checked on **every** invocation rather than at connect time.
+    ///
+    /// A hub's <c>ClaimsPrincipal</c> is captured during the handshake and never looked at again, which is a
+    /// longer-lived credential than anything else in this product: signing out revoked the session everywhere
+    /// except on the socket the page had already opened. Demonstrated rather than reasoned about — connect,
+    /// log out over HTTP until <c>/api/sites</c> answers 401, then invoke <c>StartChat</c> on the connection
+    /// that is still open, and a real turn started as the signed-out user, spending their budget on their site.
+    ///
+    /// So the blacklist that ends an HTTP session immediately is asked here too. It is an <c>IMemoryCache</c>
+    /// lookup, which is why it can be on the path of every invocation rather than only the expensive ones.
+    ///
+    /// The client closes its connection on sign-out as well, and that is the half that fixes the ordinary case.
+    /// This is the half that does not depend on the client doing anything. **Neither closes the window
+    /// completely**: the blacklist holds the <c>jti</c> presented at logout, so a socket that connected with a
+    /// token the cookie middleware has since rotated away carries a different id and is not recognised. Closing
+    /// that needs a session identity in the token rather than a per-token one — see `whats_next.md`.
+    /// </summary>
+    private int CallerId()
+    {
+        var userId = Context.User.GetUserIdVerified();
+        var tokenId = Context.User?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        var verified = Context.User?.IsEmailVerified() ?? false;
+
+        if (tokenId is not null && blacklist.IsRevoked(tokenId, userId, verified))
+            throw new HubException("You are not signed in.");
+
+        return userId;
+    }
 
     /// <summary>
     /// Starts an agent turn and returns its run id. Deliberately two steps — start, then
@@ -47,7 +80,7 @@ public class RealtimeHub(
     /// </summary>
     public async Task<RunStarted> StartChat(SendMessageRequest request)
     {
-        var userId = Context.User.GetUserIdVerified();
+        var userId = CallerId();
 
         if (string.IsNullOrWhiteSpace(request.Message))
             throw new HubException("A message cannot be empty.");
@@ -73,7 +106,7 @@ public class RealtimeHub(
     /// </summary>
     public async Task<RunSubscription> Subscribe(RunKind runKind, string runId, long fromSeq = 0)
     {
-        var userId = Context.User.GetUserIdVerified();
+        var userId = CallerId();
         var handle = registry.Get(runId);
 
         // A run that is not in the registry is either finished and evicted or somebody else's, and both answer the
@@ -104,7 +137,7 @@ public class RealtimeHub(
     }
 
     /// <summary>The only thing that stops a run. A dropped connection deliberately does not.</summary>
-    public bool Cancel(string runId) => registry.TryCancel(runId, Context.User.GetUserIdVerified());
+    public bool Cancel(string runId) => registry.TryCancel(runId, CallerId());
 
     /// <summary>
     /// The live run for a conversation or a deployment, if there is one. What a reloading editor calls to re-attach to
@@ -114,7 +147,7 @@ public class RealtimeHub(
     {
         var handle = registry.FindByCorrelation(runKind, correlationId);
 
-        return handle?.UserId == Context.User.GetUserIdVerified() ? handle.RunId : null;
+        return handle?.UserId == CallerId() ? handle.RunId : null;
     }
 
     /// <summary>

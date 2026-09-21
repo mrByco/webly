@@ -1,6 +1,7 @@
 import { Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
+import { RealtimeService } from './realtime.service';
 import { AppRoutes } from '../app.routes.paths';
 import { Api } from '../api/api';
 import { apiAuthAccountDelete } from '../api/fn/auth/api-auth-account-delete';
@@ -32,6 +33,13 @@ const ANONYMOUS: MeResponse = { isAuthenticated: false };
 export class AuthService {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
+
+  /**
+   * Injected for one call: the sign-out has to take the hub connection with it. The dependency goes this way
+   * round and must stay that way — the realtime service knows nothing about who is signed in, which is what
+   * keeps it usable from the prerender (where there is no session) without a circle.
+   */
+  private readonly realtime = inject(RealtimeService);
 
   /**
    * Every call here is a no-op on the server. The tokens are cookies the render process cannot see
@@ -162,11 +170,24 @@ export class AuthService {
     this.loaded.set(true);
   }
 
+  /**
+   * Ends the session — including the hub connection, which is the part that used to be left behind.
+   *
+   * A hub reads its caller's identity once, during the handshake, so a socket opened while signed in stays that
+   * person's for as long as it is open: after this call `/api/sites` answers 401 and, without the disconnect,
+   * `StartChat` over that same connection still started a turn on their site. The realtime service is asked
+   * first, because the point is that nothing is left connected as somebody who has signed out; the HTTP call
+   * still runs if it fails, since a sign-out must not be blocked by a socket that will not close.
+   */
   async logout(): Promise<void> {
     try {
-      await this.api.invoke(apiAuthLogoutPost);
+      await this.realtime.disconnect();
     } finally {
-      this.me.set(ANONYMOUS);
+      try {
+        await this.api.invoke(apiAuthLogoutPost);
+      } finally {
+        this.me.set(ANONYMOUS);
+      }
     }
   }
 

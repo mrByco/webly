@@ -189,6 +189,36 @@ export class RealtimeService {
   }
 
   /**
+   * Closes the connection and forgets what it was watching. What signing out calls.
+   *
+   * A hub's identity is decided during the handshake and never re-read, so a connection opened while signed in
+   * goes on being that person's until it closes — the session is revoked, `/api/sites` answers 401, and the
+   * socket keeps working. On a shared machine that is somebody else's turn started on your site, with your
+   * budget. Demonstrated by connecting, logging out over HTTP, and invoking `StartChat` on the still-open
+   * connection.
+   *
+   * The runs themselves are untouched, exactly as when a tab is closed: a turn outlives the page watching it,
+   * and the person who signs back in re-attaches through `activeRunId`.
+   *
+   * The server checks the same thing per invocation (see `RealtimeHub.CallerId`), because this half depends on
+   * the client choosing to call it.
+   */
+  async disconnect(): Promise<void> {
+    for (const [, entry] of this.watched) entry.events.complete();
+
+    this.watched.clear();
+
+    const connection = this.connection;
+    this.connection = undefined;
+    this.starting = undefined;
+    this.connected.set(false);
+
+    // Stop rather than abort, so the server sees a clean close and the subscriber counts the orphan reaper
+    // depends on come down now rather than on a timeout.
+    if (connection) await connection.stop().catch(() => undefined);
+  }
+
+  /**
    * A new connection has no group memberships, so every watched run has to be re-subscribed — from its
    * own `lastSeq`, which is what makes the reconnect a resume rather than a restart.
    */

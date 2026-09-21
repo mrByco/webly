@@ -378,6 +378,35 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     deleting a site that is not the open one leaving the pointer alone — and the first is red on the old line,
     which is how the discrimination was checked rather than assumed.
 
+40. **Signing out left the hub connection signed in.** A hub decides who its caller is during the handshake
+    and never looks again, so the socket a page had already opened went on being that person's after their
+    session was revoked. Demonstrated with a script rather than argued: connect with a signed-in jar, log out
+    over HTTP until `/api/sites` answers 401, then invoke `StartChat` on the connection that is still open — and
+    a real turn started, on their site, against their budget. On a shared machine that is the next person's
+    turn.
+
+    Two halves, both wanted. `AuthService.logout` now calls `RealtimeService.disconnect()` before the HTTP call,
+    which fixes the ordinary case and is the honest behaviour: nothing should stay connected as somebody who
+    signed out. And `RealtimeHub.CallerId()` asks `IAccessTokenBlacklist` on **every** invocation — the same
+    mechanism that ends an HTTP session immediately, and an `IMemoryCache` lookup, which is why it can sit on
+    the path of every call. Both watched in the running app: the socket closes on sign-out, and the hub answers
+    "You are not signed in." to an invocation on a connection deliberately kept open.
+
+    Writing that check also produced the session's best argument for driving things: a blanket rename turned
+    `CallerId`'s own first line into a call to itself, the backend died of a stack overflow, and the probe
+    reported a socket closing with 1006 instead of a refusal. A compile-clean infinite recursion, caught in
+    seconds because something actually pressed the button.
+
+    **What is still open**, and is a real gap rather than a rough edge: the blacklist holds the `jti` presented
+    at logout, so a socket that connected with a token the cookie middleware has since rotated away carries a
+    different id and is not recognised. The same is true of the 12-hour `PreviewAccess` cookie, which survives a
+    sign-out and lets whoever has the browser read that one site's preview — a site nobody has published yet is
+    not otherwise readable. Both want the same thing: a **session** identity in the token rather than a
+    per-token one, so revoking a session revokes everything minted under it. That is a change to the auth model
+    — one more claim, a table or a cache keyed on it, and a check in three places — and it is written here
+    rather than half-built, because a partial version of it (a timestamp cutoff) is the defect the reference
+    project already hit with `email_verified`.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
