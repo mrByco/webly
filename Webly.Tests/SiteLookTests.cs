@@ -5,8 +5,8 @@ using Webly.Services.Services.Sites;
 namespace Webly.Tests;
 
 /// <summary>
-/// The look a new site starts with: three numbers in one stylesheet, rewritten in the template's tree on the
-/// way to the first commit.
+/// The look a new site starts with: three numbers in one stylesheet and the same colour in the tab icon,
+/// rewritten in the template's tree on the way to the first commit.
 ///
 /// What is worth testing is not which colours were chosen but that the rewrite cannot damage a site. It runs
 /// on every site anybody ever creates, before anything has looked at the result, and the file it edits is the
@@ -23,6 +23,16 @@ public class SiteLookTests
           --brand-chroma: 0.19;
           --card-radius: 0.875rem;
         }
+        """;
+
+    /// <summary>The template's icon, which carries the colour as a literal because a file cannot read a variable.</summary>
+    private const string IconSvg =
+        """
+        <!-- This site's icon. -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+          <rect width="64" height="64" rx="14" fill="oklch(52% 0.19 268)" />
+          <path d="M20 40c0-9 5.5-16 12-16s12 7 12 16" fill="none" stroke="#ffffff" stroke-width="6" />
+        </svg>
         """;
 
     private static WorkspaceTree Template(params (string Path, string Content)[] extra) =>
@@ -54,6 +64,44 @@ public class SiteLookTests
                 Assert.That(css, Does.StartWith("/* This site's look. */"), look.Name);
             }
         });
+    }
+
+    /// <summary>
+    /// The icon follows the stylesheet. It has to be rewritten separately — an SVG the browser fetches as a file
+    /// cannot read the page's CSS variables — and the failure it prevents is a terracotta site whose tab shows an
+    /// indigo tile, which is the kind of wrong that only a person looking at a browser ever notices.
+    /// </summary>
+    [Test]
+    public void The_icon_is_the_same_colour_as_the_rest_of_the_site()
+    {
+        Assert.Multiple(() =>
+        {
+            foreach (var look in SiteLooks.All)
+            {
+                var applied = SiteLooks.Applied(Template((SiteLooks.IconPath, IconSvg)), look);
+                var svg = applied.Find(SiteLooks.IconPath)!.AsText();
+
+                var chroma = look.Chroma.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                Assert.That(svg, Does.Contain($"oklch(52% {chroma} {look.Hue})"), look.Name);
+
+                // The lightness is the template's, not the look's: it is what keeps the mark legible at sixteen
+                // pixels, and a rewrite that dropped it would produce colours nobody chose.
+                Assert.That(svg, Does.Contain("rx=\"14\""), look.Name);
+                Assert.That(svg, Does.Contain("stroke=\"#ffffff\""), look.Name);
+                Assert.That(svg, Does.StartWith("<!-- This site's icon. -->"), look.Name);
+            }
+        });
+    }
+
+    [Test]
+    public void A_template_with_no_icon_still_gets_its_stylesheet()
+    {
+        // Two files, two independent rewrites: an older template that has no icon must not lose its look
+        // because of a file it never had.
+        var css = SiteLooks.Applied(Template(), SiteLooks.All[1]).Find(SiteLooks.Path)!.AsText();
+
+        Assert.That(css, Does.Contain($"--brand-hue: {SiteLooks.All[1].Hue};"));
     }
 
     [Test]

@@ -68,6 +68,10 @@ shows up.
   warmer", "softer corners" are edits to **this file and nothing else**: the whole palette, neutrals included,
   is derived from the hue and chroma. Webly picks them when the site is created so that two new sites are not
   identical, and they are yours to change from the first message onwards.
+- `src/app/icon.svg` — the tab icon. A coloured tile in the same brand colour, because nobody has given us a
+  logo; it is a file rather than a variable, so its colour is the one place `look.css` cannot reach and has to
+  be edited alongside it. Replace the whole file when the business has a mark of its own, and keep it square
+  and legible at 16px.
 - `src/app/globals.css` — Tailwind plus the tokens derived from `look.css`. Change *how* a token is derived
   here, once, rather than putting class names for one brand colour on forty elements.
 - `content/brand.md` — the confirmed facts. Your source of truth for copy.

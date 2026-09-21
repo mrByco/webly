@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 121-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 123-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -314,7 +314,10 @@ structured-document model it replaced was better at.
   — reaches the chat as a failed turn nobody can act on. A *leading dot* is deliberately fine: `.gitignore` and
   `.env.example` are ordinary files in a Next.js project.
 - **One template, five looks.** `SiteLooks` rewrites three numbers in `src/app/look.css` — an OKLCH hue, a
-  chroma and a card radius — in the template's tree on the way to a site's first commit, at random. The whole
+  chroma and a card radius — in the template's tree on the way to a site's first commit, at random. **And the
+  same colour in `src/app/icon.svg`**, which is the one place the stylesheet cannot reach: an SVG the browser
+  fetches as a file has no access to the page's CSS variables, so the hue is a literal there and a rewrite that
+  skipped it would put an indigo tile on a terracotta site. The whole
   palette including the neutrals is derived from those, so a site's character changes without a line of its
   markup changing, and "make it green" stays an edit to one small file. Random rather than asked for: the
   first screen of this product asks for a name and nothing else, and a palette picker before anybody has
@@ -324,8 +327,10 @@ structured-document model it replaced was better at.
   would be four copies of every convention to keep in step the next time a rule changes.
 - **`templates/next-site` is what a new site starts as**, and it is a normal project somebody can open and
   `npm run build`. It carries what a published business site owes a search engine: `robots.ts`, `sitemap.ts`, a
-  `not-found.tsx` that is a page of the site rather than the host's default, and canonical and Open Graph
-  metadata. All of those need an absolute URL, and a static export has no server to ask for one later — so the
+  `not-found.tsx` that is a page of the site rather than the host's default, canonical and Open Graph
+  metadata, and an `icon.svg` — Next's file convention works under `output: 'export'`, and without one every
+  published Webly site showed the browser's blank-page icon in the tab, which is the first thing a visitor sees
+  of a business and the last thing anybody thinks to check. All of those need an absolute URL, and a static export has no server to ask for one later — so the
   publish passes the site's **address** as `NEXT_PUBLIC_SITE_URL` (`src/site.ts` reads it) and the build is the
   moment it is known. The address rather than the deployment's own URL, because a canonical that changed with
   every publish is not a canonical. Two of its files are product rather than scaffolding: **`AGENTS.md`** carries the

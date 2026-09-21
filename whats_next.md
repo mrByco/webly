@@ -140,6 +140,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     say "if it is published, it stops being reachable", and it did not. Found the way the others were: by
     doing it in the running app and then asking for the page again.
 
+20. **Every published site had the browser's blank-page icon in its tab.** A small thing that is the first
+    thing a visitor sees of a business, and it had been true of every site since the first one — the template
+    simply had no `icon.svg`. It is a file rather than a token, so it is also the one place `look.css` cannot
+    reach: `SiteLooks` rewrites the colour into it alongside the stylesheet's three numbers, or a terracotta
+    site would have carried an indigo tile.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

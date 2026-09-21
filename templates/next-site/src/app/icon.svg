@@ -1,0 +1,15 @@
+<!--
+  This site's icon, in the browser tab and on a phone's home screen.
+
+  A plain mark in the site's own colour rather than a logo, because nobody has given us one: a business that
+  has a logo will say so, and until then a coloured tile is honest where a stock swoosh or a stolen glyph is
+  not. The fill is the same brand colour `look.css` sets — Webly rewrites both when the site is created, and
+  they are kept in step by hand afterwards, because an external SVG cannot read the page's CSS variables.
+
+  Replace the whole file when the business has its own mark. Keep it square and keep it legible at 16px: an
+  icon is read at the size of a word's first letter.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="oklch(52% 0.19 268)" />
+  <path d="M20 40c0-9 5.5-16 12-16s12 7 12 16" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+</svg>
