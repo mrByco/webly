@@ -10,6 +10,29 @@ node tools/e2e/run.mjs --agent mock --out ./site # keep the published site, to o
 Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a hosting account — except
 `--agent claude`, which needs the `claude` CLI on PATH and credentials for it.
 
+## screens.mjs — every screen, in a browser
+
+```
+node tools/e2e/screens.mjs --email you@example.com --password ... [--site nanoid] [--out .run/screens]
+```
+
+The third harness, and the one that answers a question the other two cannot: *is the page wrong to look at?*
+It signs in, walks every screen of the app and the published site at 1400 px and 390 px, and fails on a page
+error, a 5xx or a screen that comes back blank — leaving the screenshots behind either way.
+
+It exists because five defects in one afternoon came from opening pages by hand: a published site that had
+rendered without its stylesheet since the very first publish, a mistyped address that served Webly's own
+dashboard instead of the site's 404 page, a shared contact link whose title said only "Contact", form fields
+shaped like lozenges, and a deleted site that carried on serving. Every one of them had been "checked" before
+— by reading the HTML, which was perfect.
+
+It needs Chromium and `playwright-core`, neither of which is a dependency of this repository:
+
+```
+npm i -g playwright-core && npx playwright-core install chromium
+PLAYWRIGHT_BROWSER=/path/to/chromium node tools/e2e/screens.mjs --email … --password …   # or an existing one
+```
+
 ## Why this exists
 
 Webly's orchestration is C#, and for the repository's first several commits there was no .NET SDK to compile

@@ -36,6 +36,11 @@ Two harnesses drive it, and they answer different questions:
   real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in eighteen steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
+- **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
+  It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
+  error, a 5xx or a blank screen. It exists because five defects in one afternoon — an unstyled published
+  site, a 404 that served Webly's dashboard, a title that named no site, pill-shaped form fields, a deleted
+  site still serving — had all been "checked" by reading HTML that was perfect.
 - **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it
   exercises is the C# — `ChatRunLauncher`, `AgentTurnService`, `SiteWorkspaceRegistry`, the sandbox provider,
   `CommitSiteVersion`. It exists because a turn cannot be started over HTTP; `StartChat` is a hub method, so a
@@ -110,6 +115,7 @@ more than one restating what the line does.
 | Look at a site's repository | — | `git --git-dir .run/repositories/<nanoid>.git log --stat` |
 | **Drive the whole product loop without the backend** | — | `node tools/e2e/run.mjs --agent mock` (or `--agent claude`) |
 | **Drive one turn through the running backend** | — | `node tools/e2e/turn.mjs --site <nanoid> --cookies <curl jar> "<message>"` |
+| **Look at every screen, in a browser** | — | `node tools/e2e/screens.mjs --email … --password …` (needs `playwright-core` and a Chromium; neither is a dependency) |
 
 ### Running-the-stack facts that cost time if unknown
 
