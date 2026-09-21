@@ -54,8 +54,23 @@ export class VerifyEmailPage {
 
   /** Digits only, capped at six — a pasted code often arrives with spaces around it. */
   protected onCodeInput(value: string): void {
-    this.code.set(value.replace(/\D/g, '').slice(0, 6));
+    const code = value.replace(/\D/g, '').slice(0, 6);
+
+    this.code.set(code);
     this.error.set(null);
+
+    // The sixth digit is the whole of the decision, so it is what submits.
+    //
+    // A one-time code has a known length and exactly one thing that can happen next; every OTP field anybody
+    // has used advances by itself, and this one made somebody type six digits and then go looking for a
+    // button. It is the worst screen in the product to add a step to: the code is on a phone, the box is on a
+    // laptop, and the moment they look up from one to the other is the moment they have to find the other.
+    // The page's own last line already promises "this page moves on by itself" — of the link, which made the
+    // code path inconsistent with the copy printed underneath it.
+    //
+    // Nothing else changes: `submitCode` returns early unless `canSubmit()`, so a sixth digit typed while a
+    // request is in flight is a no-op, and a wrong code clears the box and says so exactly as it did.
+    if (code.length === 6) void this.submitCode();
   }
 
   private async verifyLink(token: string): Promise<void> {

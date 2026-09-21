@@ -506,6 +506,29 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     can date, at 503 kB against 500 — is 600 kB, so a clean build is once again how a new warning gets noticed.
 
 
+46. **Typing the sixth digit of the confirmation code did nothing.** The code field held all six, the Confirm
+    button lit up, and the page waited. Every one-time-code field anybody has used advances by itself — the
+    length is known and there is exactly one thing that can happen next — and this is the worst screen in the
+    product to make somebody look for a button on: the code is on a phone, the box is on a laptop, and the
+    moment they look up from one to the other is the moment they have to find the other. The page's own last
+    line already promised "this page moves on by itself", of the link, which left the code path contradicting
+    the sentence printed under it. One `if` in `onCodeInput`; `submitCode` already refused to re-enter while a
+    request was in flight, and a wrong code still clears the box and says so. Walked both: right code advances
+    on the sixth keystroke, wrong code errors and stays.
+
+47. **Every Webly email carried three paragraphs of our own notes to the customer.** Comments explaining a
+    header colour, a dark-mode meta tag and a footer decision were written inside the layout's HTML rather than
+    beside it, so they went out in the message — including the one about a bowl of stew being the reference
+    project's. No client renders a comment, which is exactly why nobody saw them and why it took reading a sent
+    email as *text* to notice. They are in the method's `<remarks>` now, and `EmailTemplateTests` fails on
+    `<!--` in any of the seven messages, in either body. Red on a one-line canary before it was green.
+
+    Both of these came out of the same walk: registering as somebody who had never seen the product and going
+    through to a live site, reading every screen and every email on the way. Nothing was broken; what it found
+    is the two places the product asks for one step more than it needs to, which is not something a harness that
+    checks for errors can see.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

@@ -40,6 +40,22 @@ public static class EmailLayout
     /// The small line under the rule. It belongs to the message: a confirmation code can honestly say "if you
     /// did not ask for this, ignore it", and a notice about somebody's own website cannot.
     /// </param>
+    /// <remarks>
+    /// Three things in the markup below are decisions rather than boilerplate, and they are explained here
+    /// rather than in the HTML because <b>an HTML comment in a template is an HTML comment in the message</b>.
+    /// It renders as nothing, so nobody sees it — and it travels to every customer's inbox all the same, where
+    /// "view source" shows them our notes about another project. Which is exactly how three paragraphs of
+    /// engineering commentary shipped in every Webly email until somebody read one as text.
+    ///
+    /// <list type="bullet">
+    /// <item><c>color-scheme</c>: clients that honour it stop inverting the card into something nobody
+    /// chose.</item>
+    /// <item>The header is the name in the app's own colour and <b>no emoji</b>. A picture of food was the
+    /// reference project's, and a glyph in a header renders differently in every client anyway.</item>
+    /// <item>The footer belongs to the message, which is what the <paramref name="footer"/> parameter is
+    /// for — see its own note.</item>
+    /// </list>
+    /// </remarks>
     public static string Wrap(string heading, string preheader, string bodyHtml, string footer = DefaultFooter) =>
         $"""
         <!doctype html>
@@ -48,7 +64,6 @@ public static class EmailLayout
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>{heading}</title>
-          <!-- Dark mode: clients that honour this stop inverting the card into something nobody chose. -->
           <meta name="color-scheme" content="light">
           <meta name="supported-color-schemes" content="light">
         </head>
@@ -59,9 +74,6 @@ public static class EmailLayout
               <td align="center">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid {Edge};">
                   <tr>
-                    <!-- The name, set in the app's own colour. No emoji: a picture of food was the
-                         reference project's, and a glyph in a header is a decoration that renders
-                         differently in every client anyway. -->
                     <td style="background:{Brand};padding:20px 28px;">
                       <span style="font:600 20px/1.2 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;letter-spacing:-0.01em;">
                         Webly
@@ -75,9 +87,6 @@ public static class EmailLayout
                     </td>
                   </tr>
                   <tr>
-                    <!-- The footer says what this message is, not what every message is. "If you did not
-                         ask for it, you can ignore it" is true of a sign-up code and a lie under a
-                         notification about somebody's own site, which is where it used to sit. -->
                     <td style="padding:0 28px 28px;font:400 13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Muted};border-top:1px solid {Edge};padding-top:20px;">
                       {footer}
                     </td>

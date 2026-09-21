@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 170-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 171-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -328,6 +328,15 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
 - **Verification is a blocking onboarding step.** Registering lands on `/verify-email` and nothing else is
   reachable until the address is proven: a site publishes to the public internet under our infrastructure.
   Google-created accounts arrive verified and skip it.
+- **The sixth digit of the confirmation code is what submits it.** It used to fill the box and light a button,
+  which is one step more than a one-time code needs: the length is known, there is exactly one thing that can
+  happen next, and the code is on a phone while the box is on a laptop. `onCodeInput` calls `submitCode`, which
+  already refused to re-enter while a request was in flight. The screen's own closing line had promised "this
+  page moves on by itself" about the *link* the whole time.
+- **An HTML comment in an email template is an HTML comment in the message.** No client draws one, so three
+  paragraphs about a header colour and a bowl of stew travelled to every customer's inbox unseen until somebody
+  read a sent email as text. `EmailLayout`'s reasoning lives in `<remarks>` now and `EmailTemplateTests` fails
+  on `<!--` in any of the seven messages.
 - **The onboarding chain is written down once, in `AuthService.nextStop()`** — prove the address, then have
   a site, unless a `redirect` says the visitor was already on their way somewhere. Sign-in, registration,
   verification and `verifiedGuard` all ask it, so no path can disagree.

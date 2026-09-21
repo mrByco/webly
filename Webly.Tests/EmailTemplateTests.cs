@@ -117,4 +117,41 @@ public class EmailTemplateTests
             Assert.That(message.ReplyTo, Is.Null);
         });
     }
+
+    /// <summary>
+    /// No message carries our own notes to the customer.
+    ///
+    /// An HTML comment renders as nothing, which is exactly why this needed a test rather than a reading: three
+    /// paragraphs explaining a header colour, a dark-mode meta tag and a footer decision went out in every Webly
+    /// email for as long as they existed, and nobody saw them because no client draws a comment. They are
+    /// engineering commentary about another project, sitting in a stranger's inbox behind "view source".
+    ///
+    /// Every template rather than the layout, because the layout is only where they were this time.
+    /// </summary>
+    [Test]
+    public void No_message_carries_an_html_comment()
+    {
+        var messages = new[]
+        {
+            WeblyEmails.VerifyEmail("a@example.com", "Ada", "https://webly.test/verify", "123456"),
+            WeblyEmails.ResetPassword("a@example.com", "Ada", "https://webly.test/reset"),
+            WeblyEmails.PasswordChanged("a@example.com", "Ada"),
+            WeblyEmails.PasswordRemoved("a@example.com", "Ada"),
+            WeblyEmails.SitePublished("a@example.com", "Ada", "Ridgeway Cycles", "https://ridgeway.example"),
+            WeblyEmails.DeploymentFailed("a@example.com", "Ada", "Ridgeway Cycles", "It did not compile."),
+            WeblyEmails.FormSubmitted(
+                "a@example.com", "Ada", "Ridgeway Cycles", [("Message", "Hello")],
+                replyTo: null, link: "https://webly.test/messages"),
+        };
+
+        Assert.Multiple(() =>
+        {
+            foreach (var message in messages)
+            {
+                // `<!doctype` is the one thing that legitimately opens with those characters.
+                Assert.That(message.HtmlBody, Does.Not.Contain("<!--"), message.Subject);
+                Assert.That(message.TextBody, Does.Not.Contain("<!--"), message.Subject);
+            }
+        });
+    }
 }
