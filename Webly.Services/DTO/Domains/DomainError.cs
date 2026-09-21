@@ -16,8 +16,5 @@ public enum DomainError
     ProviderRefused,
 
     /// <summary>Only a verified domain may be made primary — an unverified one does not resolve here.</summary>
-    NotVerified,
-
-    /// <summary>The primary domain cannot simply be removed; promote another one first.</summary>
-    IsPrimary
+    NotVerified
 }

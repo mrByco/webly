@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 144-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 145-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -672,6 +672,16 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   flag it disagrees with is a site that is live according to us and 404 according to the internet. Checking
   is a button, never a timer. Exactly one primary hostname per site, by partial unique index; only a
   verified domain may be promoted.
+- **And the main address can be disconnected**, which reverses an earlier rule. Removing it used to be
+  refused with "make another domain the main one first" — impossible advice for somebody with one domain,
+  which is everybody who has ever connected one, and unreachable advice as well, because the client hid the
+  button on that row. A domain somebody added could never be taken away. Nothing is left pointing at
+  nothing: a site always has its Webly subdomain, and `SiteMapper.UrlFor` falls back to it the moment there
+  is no verified primary. The client asks first and names the address it goes back to.
+- **The DNS record is shown in full, and each half has its own copy button.** It used to truncate both the
+  name and the value, and only the value could be copied — on the one screen whose own class comment says
+  its whole job is the copying, into a registrar in another tab. Pressing copy also does something visible
+  now; before, the clipboard changed and the screen did not.
 - **`VercelDeploymentTarget` has never run**, in either half — the REST calls or the CLI in the sandbox.
   Treat its endpoints, payloads and output parsing as the plan; `docs/deploy-plan.md` §6 says what to
   reconcile first.

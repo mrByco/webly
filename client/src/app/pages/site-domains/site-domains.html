@@ -83,29 +83,48 @@
             }
           </div>
 
-          <!-- What goes in the registrar's panel, as three copyable values. -->
+          <!--
+            What goes in the registrar's panel. Shown **in full**, wrapped rather than truncated, and each of
+            the two long ones has its own copy button.
+
+            It used to truncate both: a DNS record is the one thing on this screen somebody has to reproduce
+            exactly, in another tab, and two of its three fields ended in an ellipsis — the name with no way
+            to see or copy it at all. The class comment above this screen has always said its whole job is
+            the copying.
+          -->
           @if (domain.verificationState !== 'Verified' && domain.dnsRecordType) {
-            <div class="grid gap-2 rounded-field bg-base-200 p-3 sm:grid-cols-3">
+            <div class="grid gap-3 rounded-field bg-base-200 p-3 sm:grid-cols-[auto_1fr_1fr]">
               <div>
                 <p class="section-label">Type</p>
                 <p class="font-mono text-sm">{{ domain.dnsRecordType }}</p>
               </div>
+
               <div class="min-w-0">
                 <p class="section-label">Name</p>
-                <p class="truncate font-mono text-sm">{{ domain.dnsRecordName }}</p>
-              </div>
-              <div class="flex min-w-0 items-end gap-1">
-                <div class="min-w-0">
-                  <p class="section-label">Value</p>
-                  <p class="truncate font-mono text-sm">{{ domain.dnsRecordValue }}</p>
+                <div class="flex items-start gap-1">
+                  <p class="min-w-0 flex-1 font-mono text-sm break-all">{{ domain.dnsRecordName }}</p>
+                  <button
+                    class="btn btn-ghost btn-xs shrink-0"
+                    type="button"
+                    aria-label="Copy the name"
+                    (click)="copy(domain.dnsRecordName)">
+                    <app-icon class="size-3.5" [name]="copied() === domain.dnsRecordName ? 'check' : 'copy'" />
+                  </button>
                 </div>
-                <button
-                  class="btn btn-ghost btn-xs"
-                  type="button"
-                  aria-label="Copy the value"
-                  (click)="copy(domain.dnsRecordValue)">
-                  <app-icon class="size-3.5" name="copy" />
-                </button>
+              </div>
+
+              <div class="min-w-0">
+                <p class="section-label">Value</p>
+                <div class="flex items-start gap-1">
+                  <p class="min-w-0 flex-1 font-mono text-sm break-all">{{ domain.dnsRecordValue }}</p>
+                  <button
+                    class="btn btn-ghost btn-xs shrink-0"
+                    type="button"
+                    aria-label="Copy the value"
+                    (click)="copy(domain.dnsRecordValue)">
+                    <app-icon class="size-3.5" [name]="copied() === domain.dnsRecordValue ? 'check' : 'copy'" />
+                  </button>
+                </div>
               </div>
             </div>
           }
@@ -127,12 +146,15 @@
               </button>
             }
 
-            @if (!domain.isPrimary) {
-              <button class="btn btn-ghost btn-sm text-error" type="button" [disabled]="busy()" (click)="remove(domain)">
-                <app-icon class="size-4" name="trash" />
-                Remove
-              </button>
-            }
+            <!--
+              On every row, including the main address. It used to be hidden there, and the server refused it
+              with "make another domain the main one first" — advice nobody with one domain can take, which is
+              everybody who has ever connected one. A domain somebody added could never be taken away.
+            -->
+            <button class="btn btn-ghost btn-sm text-error" type="button" [disabled]="busy()" (click)="confirmRemove(domain)">
+              <app-icon class="size-4" name="trash" />
+              Remove
+            </button>
           </div>
         </div>
       } @empty {
@@ -141,3 +163,22 @@
     }
   </div>
 </div>
+
+<!--
+  Only the main address gets a confirmation, because only that one changes what the site's address *is*. A
+  domain waiting for DNS is a row somebody added by mistake, and a dialog in front of removing it is a
+  dialog about nothing.
+-->
+<app-modal [open]="confirming() !== undefined" (close)="confirming.set(undefined)">
+  <h3 class="text-lg font-bold">Stop using {{ confirming()?.hostname }}?</h3>
+  <p class="py-3 text-sm text-base-content/70">
+    It is this site's main address. Removing it puts the address back to
+    <span class="font-mono">{{ weblyUrl() }}</span>, which has been working all along — anyone who has the
+    old address will stop finding the site there.
+  </p>
+
+  <div class="flex justify-end gap-2">
+    <button class="btn btn-ghost" type="button" (click)="confirming.set(undefined)">Keep it</button>
+    <button class="btn btn-error" type="button" [disabled]="busy()" (click)="remove()">Remove</button>
+  </div>
+</app-modal>

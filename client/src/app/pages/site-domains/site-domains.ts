@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Icon } from '../../shared/icon';
+import { Modal } from '../../components/modal/modal';
 import { DomainService } from '../../services/domain.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf } from '../../models/problem-details';
@@ -20,7 +21,7 @@ import { DomainResponse } from '../../api/models/domain-response';
  */
 @Component({
   selector: 'app-site-domains',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, Modal],
   templateUrl: './site-domains.html',
 })
 export class SiteDomainsPage {
@@ -78,23 +79,59 @@ export class SiteDomainsPage {
   }
 
   protected setPrimary(domain: DomainResponse): Promise<void> {
-    return this.run(async () => {
-      await this.domains.setPrimary(this.siteNanoid, domain.nanoid);
-      await this.sites.reload();
-    });
+    return this.run(() => this.domains.setPrimary(this.siteNanoid, domain.nanoid));
   }
 
-  protected remove(domain: DomainResponse): Promise<void> {
-    return this.run(() => this.domains.remove(this.siteNanoid, domain.nanoid));
+  /** Which main address the dialog is about, or nothing. Any other row goes straight through. */
+  protected readonly confirming = signal<DomainResponse | undefined>(undefined);
+
+  /** What the address falls back to, which is what the dialog has to name. */
+  protected readonly weblyUrl = computed(() => this.sites.current()?.summary.weblyUrl ?? '');
+
+  protected confirmRemove(domain: DomainResponse): Promise<void> | void {
+    if (!domain.isPrimary) return this.run(() => this.domains.remove(this.siteNanoid, domain.nanoid));
+
+    this.confirming.set(domain);
   }
+
+  protected async remove(): Promise<void> {
+    const domain = this.confirming();
+
+    if (!domain) return;
+
+    await this.run(() => this.domains.remove(this.siteNanoid, domain.nanoid));
+
+    this.confirming.set(undefined);
+  }
+
+  /**
+   * The last thing copied, so the button can say so for a moment.
+   *
+   * Pressing a copy button used to do nothing anybody could see: the clipboard changed and the screen did
+   * not, which on the one screen whose whole job is copying reads as a button that does not work. Keyed on
+   * the value rather than a boolean per row, because a row has two of these.
+   */
+  protected readonly copied = signal<string | undefined>(undefined);
 
   protected copy(value: string | null | undefined): void {
-    if (value) {
-      void navigator.clipboard?.writeText(value);
-    }
+    if (!value) return;
+
+    void navigator.clipboard?.writeText(value);
+
+    this.copied.set(value);
+
+    // Long enough to be seen, short enough that it is gone before they come back from the registrar.
+    setTimeout(() => this.copied.update(current => (current === value ? undefined : current)), 1500);
   }
 
-  /** Every mutation ends with a reload, because the provider's answer is what the row says next. */
+  /**
+   * Every mutation ends with a reload of both the list and the site, because the provider's answer is what
+   * the row says next — and because half of what happens on this screen changes the site's **address**.
+   *
+   * The site reload used to be on `setPrimary` alone, and then removing the main address left the header and
+   * the line above the list still naming a domain that had just been disconnected. Two callers, one of which
+   * remembered: that is a rule that belongs in the one place both go through.
+   */
   private async run(action: () => Promise<unknown>): Promise<void> {
     this.busy.set(true);
     this.error.set(undefined);
@@ -102,6 +139,7 @@ export class SiteDomainsPage {
     try {
       await action();
       await this.load();
+      await this.sites.reload();
     } catch (failure) {
       this.error.set(messageOf(failure));
     } finally {

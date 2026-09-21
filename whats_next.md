@@ -189,6 +189,16 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     endpoint that decides and walks the branch; it never presses the button, which is the only thing a real
     client id would buy. It walks register and forgotten-password now too, which it had never seen at all.
 
+26. **A connected domain could never be disconnected.** Removing the site's main address was refused with
+    "make another domain the main one first" — advice nobody with a single domain can take — and the client
+    hid the button on that row anyway, so the message was unreachable as well as impossible. Found by
+    driving the domains screen end to end in a browser, which nothing had ever done: the whole lifecycle is
+    simulated by the development deployment target, so it was always there to look at.
+
+    The same look found that the DNS record — the one thing on that screen somebody has to reproduce exactly,
+    in their registrar, in another tab — was truncated in two of its three fields, with a copy button on only
+    one of them, and that pressing copy did nothing anybody could see.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

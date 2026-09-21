@@ -93,11 +93,6 @@ public class DomainController(
             Title = "A domain has to be verified before it can be your main address.",
             Detail = "Add the DNS record shown, then check again."
         }),
-        DomainError.IsPrimary => Conflict(new ProblemDetails
-        {
-            Title = "This is the site's main address.",
-            Detail = "Make another domain the main one first, then remove this."
-        }),
         DomainError.ProviderRefused => StatusCode(StatusCodes.Status502BadGateway, new ProblemDetails
         {
             Title = "Our hosting provider refused that domain.",
