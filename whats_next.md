@@ -542,6 +542,25 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     somebody's own work do not offer to be ignored, which under a customer's enquiry would read as an insult.
 
 
+49. **Reloading the editor during a publish showed a Publish button over a publish already running.** A
+    deployment's run id *is* its nanoid, deliberately, which is the whole reason a publish is the one run in
+    this product that can outlive the process that started it — and nothing used that, because nothing on load
+    knew one was in flight. The comment beside the publish handler described the capability; the code it
+    described did not exist.
+
+    Pressing again was harmless: the partial unique index refuses a second and `PublishSite` answers the loser
+    with the one that is running, so the second press would have quietly joined it. But until somebody pressed,
+    the screen said nothing was happening — on a tab reopened, a second device, or a laptop woken up.
+    `SiteDetailResponse.ActiveDeploymentNanoid` is one index seek over the partial unique index that already
+    exists, the editor watches it on load, and the starting label is the caller's to name — "Queued" when the
+    call is what created the row, "Publishing" when it is a reload joining something already building, rather
+    than claiming a stage it cannot know.
+
+    Driven: press Publish, reload, watch the button go Publishing → Building → Published on the re-attached
+    subscription. The backend half is pinned by `SitePublishStateTests`, including that a *finished* deployment
+    is not offered — which would leave the button on "Publishing" for ever.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

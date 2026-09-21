@@ -5,6 +5,7 @@ import { DomainResponse } from '../models/domain-response';
 import { SiteSummaryResponse } from '../models/site-summary-response';
 import { SiteVersionResponse } from '../models/site-version-response';
 export interface SiteDetailResponse {
+  activeDeploymentNanoid?: string | null;
   domains?: Array<DomainResponse>;
   headVersion: SiteVersionResponse;
   publishedVersion?: SiteVersionResponse;

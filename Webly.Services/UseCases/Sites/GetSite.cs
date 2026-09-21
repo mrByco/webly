@@ -44,8 +44,13 @@ public class GetSite(
             ? null
             : await deploymentRepository.FindLiveAsync(site.Id, site.PublishedVersionId.Value, cancellationToken);
 
+        // And the publish that is running, if one is: the editor re-attaches to it rather than drawing a
+        // Publish button over a publish already in flight.
+        var inFlight = await deploymentRepository.FindInFlightAsync(site.Id, cancellationToken);
+
         return Result<SiteError, SiteDetailResponse>.Ok(new SiteDetailResponse
         {
+            ActiveDeploymentNanoid = inFlight?.Nanoid,
             Summary = mapper.ToSummary(site, primary, published?.CreatedAt, live),
             HeadVersion = SiteMapper.ToVersion(head, site),
             PublishedVersion = published is null ? null : SiteMapper.ToVersion(published, site),

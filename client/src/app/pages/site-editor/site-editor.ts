@@ -205,9 +205,36 @@ export class SiteEditorPage {
       // Again here, because on a cold load the header does not exist yet when the navigation ends: the template
       // is still showing "loading your site", so there is no tab row to scroll.
       this.centreOpenTab();
+
+      if (site.activeDeploymentNanoid) await this.watchDeployment(site.activeDeploymentNanoid, 'Publishing');
     } catch (failure) {
       this.error.set(messageOf(failure));
     }
+  }
+
+  /**
+   * Re-attaches to a publish that is already running.
+   *
+   * A deployment's run id *is* its nanoid, which is what makes a publish the one run here that outlives the
+   * process that started it — and nothing used that, because nothing on load knew one was in flight. Reload the
+   * editor mid-publish and the button read "Publish" again, over a publish that was already going. Pressing it
+   * was safe, since the partial unique index refuses a second and `PublishSite` hands back the one that is
+   * running, but the screen was lying until somebody pressed. Found by reloading during a publish.
+   *
+   * The same two steps the chat takes for the same reason — start, then watch — which is why a reload can join
+   * either one.
+   */
+  private async watchDeployment(nanoid: string, status: string): Promise<void> {
+    this.publishing.set(true);
+
+    // "Queued" is the truth when this call is what just created the row, and a guess when it is a reload
+    // joining something already building — so the caller says which, rather than this one claiming a stage it
+    // cannot know. The first `DeploymentProgress` replaces it either way.
+    this.publishStatus.set(status);
+
+    const events = await this.realtime.watch('Deploy', nanoid);
+
+    events.subscribe({ next: event => this.applyDeployEvent(event) });
   }
 
   /**
@@ -222,15 +249,16 @@ export class SiteEditorPage {
       return;
     }
 
+    // Set before the request, not after it: the round trip is long enough for a second click, and `canPublish`
+    // reads this. Two publishes are refused by the index anyway, but a button that stays pressable is how
+    // somebody finds that out.
     this.publishing.set(true);
-    this.publishStatus.set('Queued');
     this.error.set(undefined);
 
     try {
       const deployment = await this.deployments.publish(nanoid);
-      const events = await this.realtime.watch('Deploy', deployment.nanoid);
 
-      events.subscribe({ next: event => this.applyDeployEvent(event) });
+      await this.watchDeployment(deployment.nanoid, 'Queued');
     } catch (failure) {
       this.error.set(messageOf(failure));
       this.publishing.set(false);

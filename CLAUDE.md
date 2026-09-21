@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 172-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 173-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -746,7 +746,11 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   yet. It answered "that run could not be found" and the editor showed an error over a publish that went on to
   succeed: **every publish through the UI looked like a failure.** `RunRegistry.Register` hands back an existing
   unfinished handle rather than replacing it, so the runner asking for the same id joins the one the client is
-  already watching.
+  already watching. **And the editor re-attaches on load**, which it did not: reloading mid-publish drew a
+  Publish button over a publish that was already going, because nothing on load knew one was in flight — the
+  durability that `RunKind.Deploy` exists for was described in a comment and used by nobody.
+  `SiteDetailResponse.ActiveDeploymentNanoid` is one seek over the partial unique index that already enforces
+  one live publish per site.
 - **`AgentBudget`, not `[EnableRateLimiting]`.** The rate-limiting middleware only sees HTTP endpoints, so
   an attribute on a hub would look like a fence and be none. It matters more here than in the reference
   project: a turn costs a model call *and* a machine.
