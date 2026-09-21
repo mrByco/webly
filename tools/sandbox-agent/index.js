@@ -39,6 +39,14 @@ mkdirSync(WORKSPACE, { recursive: true });
 let devServer = null;
 let devReady = false;
 
+/**
+ * The path the dev server believes it is served at, which the caller of /dev/start supplies because only
+ * Webly knows it — it names the site. Everything under /preview/ is rewritten onto it, and the dev server is
+ * started with WEBLY_PREVIEW_BASE set to the same value so that the URLs it writes into its HTML agree.
+ * Empty when nobody said, which is the harness and any other caller that reaches the dev server directly.
+ */
+let devBasePath = '';
+
 /** Bearer check on everything. The sandbox's URL is guessable; the token is not. */
 function authorized(request) {
   if (!TOKEN) return true;
@@ -168,12 +176,15 @@ function streamTar(response) {
   tar.stdout.pipe(response);
 }
 
-function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env = {} }) {
+function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env = {}, basePath = '' }) {
   if (devServer) return json(response, 200, { ok: true, alreadyRunning: true });
+
+  // No trailing slash, because it is concatenated with paths that start with one.
+  devBasePath = basePath.replace(/\/+$/, '');
 
   devServer = spawn(command, args, {
     cwd: WORKSPACE,
-    env: { ...process.env, ...env, PORT: String(DEV_PORT) },
+    env: { ...process.env, ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
     // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the
@@ -213,6 +224,18 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
 }
 
 /**
+ * What to ask the dev server for, given what /preview was asked for.
+ *
+ * `/preview/x` becomes `${devBasePath}/x`, because the dev server was started believing it is served at that
+ * base — see `startDevServer`. With no base it is the plain `/x` this always used to send.
+ */
+function devPath(url) {
+  const rest = url.slice('/preview'.length);
+
+  return `${devBasePath}${rest || '/'}`;
+}
+
+/**
  * Proxies /preview/* to the dev server.
  *
  * Through node's own HTTP client rather than a raw TCP relay, which is what this was first written as. The
@@ -226,7 +249,7 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
  * `server.on('upgrade')` below.
  */
 function proxy(request, response) {
-  const path = request.url.slice('/preview'.length) || '/';
+  const path = devPath(request.url);
   const headers = { ...request.headers, host: `127.0.0.1:${DEV_PORT}` };
   delete headers.authorization;
 
@@ -300,7 +323,7 @@ const server = createServer(async (request, response) => {
 server.on('upgrade', (request, socket, head) => {
   if (!authorized(request) || !request.url?.startsWith('/preview')) return socket.destroy();
 
-  const path = request.url.slice('/preview'.length) || '/';
+  const path = devPath(request.url);
   const upstream = connect(DEV_PORT, '127.0.0.1', () => {
     const headers = { ...request.headers, host: `127.0.0.1:${DEV_PORT}` };
     delete headers.authorization;

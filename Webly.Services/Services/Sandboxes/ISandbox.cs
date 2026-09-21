@@ -89,7 +89,12 @@ public interface ISandbox : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>Starts the Next.js dev server, once. Idempotent.</summary>
-    Task StartDevServerAsync(CancellationToken cancellationToken = default);
+    /// <param name="basePath">
+    /// The path the dev server is reached at from a browser — <c>/api/sites/{nanoid}/preview</c>. It has to be
+    /// told, because Next.js writes absolute URLs for its stylesheets, its chunks and its hot-reload socket, and
+    /// a preview whose assets resolve to the root of Webly's own origin renders as unstyled HTML.
+    /// </param>
+    Task StartDevServerAsync(string basePath, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Asks the dev server for the home page, and waits for it.

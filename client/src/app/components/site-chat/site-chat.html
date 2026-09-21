@@ -85,7 +85,10 @@
         <p class="mb-2 text-xs font-semibold text-error">{{ error() }}</p>
       }
 
-      @if (!connected()) {
+      <!-- Only while a turn is in flight. The connection is deliberately lazy — an editor nobody is talking to
+           holds no socket — so `connected()` is false on every freshly opened site, and the banner sat there
+           permanently telling people about changes that were not running. -->
+      @if (running() && !connected()) {
         <p class="mb-2 text-xs font-semibold text-warning">Reconnecting… your changes are still running.</p>
       }
 

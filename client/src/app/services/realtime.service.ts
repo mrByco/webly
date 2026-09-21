@@ -74,7 +74,13 @@ export class RealtimeService {
   private starting?: Promise<void>;
   private readonly watched = new Map<string, Watched>();
 
-  /** For the "reconnecting…" line in the editor. Not an error state: a run keeps going regardless. */
+  /**
+   * Whether the hub connection is up. For the "reconnecting…" line in the editor — which is shown only while a
+   * turn is in flight, because this is false on every editor nobody has spoken to yet: the connection is made
+   * on the first `startChat` or `watch`, not on load, so that reading a site holds no socket.
+   *
+   * Not an error state either way. A run outlives the connection by design and keeps going regardless.
+   */
   readonly connected = signal(false);
 
   /**

@@ -343,8 +343,11 @@ try {
   });
 
   // -- 5. The dev server, and the preview through the agent --------------------------------------
-  await step('next dev starts and the preview serves the starter page', async () => {
-    await box.startDevServer(sandbox);
+  await step('next dev starts and the preview serves the starter page, stylesheet and all', async () => {
+    // The base path the product uses, in miniature. Webly passes `/api/sites/{nanoid}/preview`, because that
+    // is where a browser reaches the dev server; here it is `/preview`, because that is where this harness
+    // does. Either way the point is the same one, and it is the reason this step now reads an asset.
+    await box.startDevServer(sandbox, { basePath: '/preview' });
 
     const response = await box.waitFor(async () => {
       const attempt = await box.preview(sandbox);
@@ -354,6 +357,24 @@ try {
     const html = await response.text();
     check(response.status === 200, 'the preview answered 200 through /preview/');
     check(html.includes('<!DOCTYPE html>') || html.includes('<!doctype html>'), 'it is a rendered HTML document');
+
+    // The assertion this step was missing, and the bug it was missing: Next.js writes **absolute** URLs for
+    // its stylesheets and chunks, so without a base path the page asks for `/_next/...` at the root of
+    // whatever origin is serving the proxy — which is Webly's own app. The HTML looked perfect and the
+    // preview rendered as unstyled text with no JavaScript. Reading the document is not enough; the page is
+    // what somebody looks at.
+    const assets = [...html.matchAll(/(?:href|src)="(\/[^"]*_next[^"]*)"/g)].map(match => match[1]);
+
+    check(assets.length > 0, `the page references ${assets.length} of its own assets`);
+    check(
+      assets.every(asset => asset.startsWith('/preview/_next/')),
+      'every one of them is under the base path it was started with');
+
+    const stylesheet = assets.find(asset => asset.includes('.css')) ?? assets[0];
+    const asset = await box.preview(sandbox, stylesheet.replace('/preview/', ''), { timeoutMs: 60_000 });
+
+    check(asset.ok, `fetching ${stylesheet} through the proxy answered ${asset.status}`);
+    check((await asset.text()).length > 0, 'and it has a body');
 
     const state = await box.health(sandbox);
     check(state.devServer === 'ready' || state.devServer === 'starting', `health reports the dev server ${state.devServer}`);
@@ -702,14 +723,19 @@ try {
     const markers = /Failed to compile|Module not found|Type error:/i;
 
     try {
-      // Break it with a missing import, and wait for the dev server to say so — this is "the previous turn".
+      // Break it with a syntax error, and wait for the dev server to say so — this is "the previous turn".
       //
-      // A missing module rather than a type error, and the difference is worth knowing: `next dev` compiles
-      // with SWC, which strips types without checking them, so a type error never reaches the dev server's
-      // output at all. What it does report is syntax errors and unresolvable imports. So the BuildFailed event
-      // catches those, `npm run typecheck` (which AGENTS.md tells the agent to run) catches types, and
-      // `next build` at publish time is the backstop for both.
-      writeFileSync(page, `import { nothing } from './does-not-exist';\n${good}\n`);
+      // A syntax error specifically, because the two more obvious ways to break a file do not work and the
+      // reason is the same one. `next dev` compiles with SWC, which strips types rather than checking them,
+      // so a type error never reaches the log at all — and an unused broken import does not either, because
+      // stripping types means eliding `import { nothing } from './does-not-exist'` as possibly-a-type before
+      // anything tries to resolve it. That was this step's first attempt and the dev server cheerfully
+      // recompiled, 604 modules, no complaint.
+      //
+      // So what the BuildFailed event actually covers is syntax and imports that are used; `npm run typecheck`
+      // (which AGENTS.md tells the agent to run) covers types; and `next build` at publish time is the backstop
+      // for both. Worth knowing before trusting the compile check to catch a given kind of mistake.
+      writeFileSync(page, `${good}\n\nexport const broken = (\n`);
 
       // Requested, not waited for. `next dev` compiles on demand: without a request it never looks at the file
       // and the log stays silent — which is the second half of the bug, because AgentTurnService's check ran at

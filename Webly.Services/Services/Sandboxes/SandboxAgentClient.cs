@@ -181,12 +181,17 @@ public sealed class SandboxAgentClient(
         return new SandboxCommandResult(exitCode, output.ToString());
     }
 
-    public async Task StartDevServerAsync(CancellationToken cancellationToken = default)
+    public async Task StartDevServerAsync(string basePath, CancellationToken cancellationToken = default)
     {
         using var content = JsonContent.Create(new JsonObject
         {
             ["command"] = "npm",
-            ["args"] = new JsonArray("run", "dev")
+            ["args"] = new JsonArray("run", "dev"),
+
+            // The agent passes this to the dev server as WEBLY_PREVIEW_BASE and rewrites everything under
+            // /preview onto it, so that the URLs in the served HTML and the URLs the browser asks Webly for are
+            // the same path. See `templates/next-site/next.config.ts`.
+            ["basePath"] = basePath
         });
 
         using var response = await SendAsync(HttpMethod.Post, "dev/start", content, cancellationToken);

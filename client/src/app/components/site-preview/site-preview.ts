@@ -25,6 +25,11 @@ import { SiteService } from '../../services/site.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [Icon],
   templateUrl: './site-preview.html',
+  // The host element is a flex item of the editor's pane and has to fill it. Without this it is a plain
+  // block that sizes to its content, and the `h-full` inside resolves against that — so the pane was
+  // whatever height its contents happened to be and the rest was empty grey. Declared here rather than on
+  // each usage, because every usage needs it and the template already assumes it.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SitePreview {
   readonly siteNanoid = input.required<string>();

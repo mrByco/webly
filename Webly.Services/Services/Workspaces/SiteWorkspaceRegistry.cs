@@ -103,7 +103,9 @@ public class SiteWorkspaceRegistry(
 
             if (onProgress is not null) await onProgress("Starting the preview");
 
-            await sandbox.StartDevServerAsync(cancellationToken);
+            // The path a browser reaches this dev server at. Built here rather than in the sandbox because the
+            // sandbox has no idea what Webly's routes look like, and it is one string away from PreviewController's.
+            await sandbox.StartDevServerAsync($"/api/sites/{site.Nanoid}/preview", cancellationToken);
 
             return new SiteWorkspace(site.Nanoid, sandbox, headSha) { DevServerStarted = true };
         }
