@@ -207,6 +207,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     Beside it, on the settings screen, a failed publish showed "Broke…" where the version's summary should be:
     the error message shared the row and took all of it, so the *why* pushed out the *what*.
 
+28. **On a phone, picking a file or a version did nothing you could see.** History and Code stack their two
+    panes below `lg`, and the list grew to its own height — about 1200px for twenty files — so the diff or
+    the file was a thousand pixels below the fold. Both are master/detail on a phone now, and they no longer
+    open on a detail there: opening on the newest version is right beside a list and wrong instead of one.
+
+    The browser sweep had walked both screens clean many times, because opening a screen is not using it. It
+    presses one thing per screen now — the thing the default selection does not reach.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

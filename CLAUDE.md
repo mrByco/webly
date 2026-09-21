@@ -42,7 +42,11 @@ Two harnesses drive it, and they answer different questions:
   mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
   page with no `h1` or several), or **a 404 on anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
-  that was perfect. It walks the **signed-out** screens too — login, register, forgotten-password — because
+  that was perfect. It **presses one thing** on the screens that have something the default selection does not
+  reach — the oldest version, a photograph — because three defects in a row were found by clicking once on
+  screens this sweep had walked clean a dozen times. Deliberately one click and never a sequence: a harness
+  that drives a flow is a test that breaks when the flow changes, and this one's job is to look.
+  It walks the **signed-out** screens too — login, register, forgotten-password — because
   they are the product's first five minutes, and it renders the **sign-in-with-Google** branch by stubbing
   `/api/auth/providers`: that button appears only when a client id is configured, so no development machine
   ever drew it, and it carried the word "vagy" — Hungarian for "or", from the reference project — on the two
@@ -810,6 +814,14 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
 - **The editor shell owns the site.** One load, one signal (`SiteService.current`), so the header, the chat,
   the preview and whichever child route is showing cannot disagree about what is open. History, domains and
   settings render **in place of the preview**, not over the whole page, so the chat stays available.
+- **History and Code are two panes from `lg` up and one at a time below it.** Stacked, the list grew to its
+  own height — twenty files is about 1200px — and pushed the thing somebody had just picked off the bottom of
+  a phone screen, so choosing a file or a version appeared to do nothing at all. They are master/detail
+  below `lg`, with a way back. The pair that goes with that: those screens **open on something** — the home
+  page's source, the newest version — because an empty pane beside a list asks a question instead of
+  answering one, and that is now conditional on there *being* a pane beside the list (`shared/wide-screen.ts`,
+  which is the one place the `1024px` those templates switch on is written in TypeScript). A `?version=` deep
+  link from the chat still opens its diff at any width: somebody following that link asked for it.
 - **The preview updates itself.** It is an iframe over `/api/sites/{nanoid}/preview/`, which is the site's
   own dev server, so hot reload puts the agent's edits on screen with nothing on this side asking. Bumping
   `previewKey` reloads the frame and is for the case where the whole tree moved — a commit or a restore;
