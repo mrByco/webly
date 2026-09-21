@@ -276,13 +276,23 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   reads its caller's `ClaimsPrincipal` once, during the handshake, and never again — so signing out revoked the
   session everywhere except on the socket the page already had open. Demonstrated rather than reasoned about:
   connect, log out over HTTP until `/api/sites` answers 401, then invoke `StartChat` on that same connection,
-  and a real turn started as the signed-out user, on their site, spending their budget. Two halves, and both
-  are wanted: `AuthService.logout` calls `RealtimeService.disconnect()` first, which is what fixes the ordinary
-  case; and `RealtimeHub.CallerId()` asks the blacklist on **every** invocation, which is the half that does not
-  depend on the client doing anything. What neither closes is a socket whose access token the cookie middleware
-  had already rotated away before the logout — its `jti` is not the one revoked. Closing that needs a session
-  identity in the token rather than a per-token one, and is written down in `whats_next.md` rather than
-  half-built. The 12-hour `PreviewAccess` cookie has the same shape of gap and the same answer.
+  and a real turn started as the signed-out user, on their site, spending their budget. Three things close it,
+  and each covers what the others cannot: `AuthService.logout` calls `RealtimeService.disconnect()` first, which
+  is the ordinary case; `RealtimeHub.CallerId()` asks the blacklist on **every** invocation, which does not
+  depend on the client doing anything; and `SignOut` ends the **session's** live connections through
+  `IRealtimeSessions`, which is what reaches a socket the client will not close.
+- **`RefreshToken.SessionId` is what made the third one possible**, and it is the only thing about a session
+  that does not change while it lasts: the access token's `jti` is replaced every fifteen minutes and the
+  refresh hash every use, so neither could name the session a five-hour-old socket belongs to. It is minted at
+  sign-in, **carried across every rotation** (`IssueAsync(user, continuingSessionId)`), and rides in the access
+  token as `sid`. Per session and not per user, which is a distinction that cost a run to learn: ending a
+  *user's* connections also killed the socket on their other devices, and `Context.Abort` closes cleanly enough
+  that the SignalR client never reconnects — the other device sat there with a dead connection, which is worse
+  than the gap being closed. Watched both ways afterwards: the signed-out session's socket dies, the other
+  session stays `Connected` and still answers. A connection whose token predates the claim carries no `sid` and
+  is ended whenever its user signs out anywhere, because being unable to name something is not a reason to
+  leave it running. The 12-hour `PreviewAccess` cookie is the next thing that should read `sid`; it still
+  survives a sign-out.
 - **Refresh tokens are single-use, with a thirty-second window.** Replaying a spent one is treated as theft
   and revokes the whole chain — but not immediately, and the exception is not a weakening. A browser sends
   requests in parallel, so when the access token dies they all arrive carrying the same live refresh cookie:

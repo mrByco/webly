@@ -397,15 +397,30 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     reported a socket closing with 1006 instead of a refusal. A compile-clean infinite recursion, caught in
     seconds because something actually pressed the button.
 
-    **What is still open**, and is a real gap rather than a rough edge: the blacklist holds the `jti` presented
-    at logout, so a socket that connected with a token the cookie middleware has since rotated away carries a
-    different id and is not recognised. The same is true of the 12-hour `PreviewAccess` cookie, which survives a
-    sign-out and lets whoever has the browser read that one site's preview — a site nobody has published yet is
-    not otherwise readable. Both want the same thing: a **session** identity in the token rather than a
-    per-token one, so revoking a session revokes everything minted under it. That is a change to the auth model
-    — one more claim, a table or a cache keyed on it, and a check in three places — and it is written here
-    rather than half-built, because a partial version of it (a timestamp cutoff) is the defect the reference
-    project already hit with `email_verified`.
+    **The gap that left** — a socket whose access token had been rotated away before the logout, so its `jti`
+    was not the one revoked — is finding 41.
+
+41. **Sessions have an identity now, because nothing else could name one.** The access token's `jti` is replaced
+    every fifteen minutes and the refresh token's hash every use, so a socket opened five hours ago could not be
+    matched to the session that opened it. `RefreshToken.SessionId` is minted at sign-in, carried across every
+    rotation, and rides in the access token as `sid`; signing out ends that session's live connections through
+    `IRealtimeSessions`. Proven with the adversarial case rather than the easy one: connect, force a rotation so
+    the socket's token is stale, log out with the *new* token, and the socket dies.
+
+    **Per session and not per user, and that distinction cost a run to learn.** The first version ended a
+    *user's* connections, on the argument that their other devices would simply reconnect. They do not:
+    `Context.Abort` closes cleanly enough that the SignalR client treats it as a deliberate close and never
+    reconnects at all. Watched with two clients — logging out of one left the other's socket dead and silent,
+    which is a worse thing than the gap it was closing. With the session named, the other device is not touched:
+    still `Connected`, still answering.
+
+    A connection whose token predates the claim carries no `sid`, and is ended whenever its user signs out
+    anywhere. Being unable to name something is not a reason to leave it running as somebody who has signed out.
+
+    Still open, and now the only piece: the 12-hour `PreviewAccess` cookie survives a sign-out, so whoever has
+    the browser can read that one site's preview — which matters for a site nobody has published. It should
+    carry the `sid` it was minted under and refuse when that session is gone, which is the same shape of check
+    the hub does and is now possible.
 
 ## What is still intent
 

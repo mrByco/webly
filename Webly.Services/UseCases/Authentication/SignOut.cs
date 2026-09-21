@@ -1,5 +1,6 @@
 using Webly.Data.Repositories.RefreshTokens;
 using Webly.Services.Services.Authentication;
+using Webly.Services.Services.Realtime;
 
 namespace Webly.Services.UseCases.Authentication;
 
@@ -14,11 +15,18 @@ namespace Webly.Services.UseCases.Authentication;
 ///
 /// This ends <i>this</i> session, not every session the user has. Logging out on one device should
 /// not sign you out on the others.
+///
+/// <b>The third half is the realtime connection</b>, which is not a cookie and not a token and was therefore
+/// missed entirely: a hub reads its caller's identity once, during the handshake, so a socket the browser had
+/// already opened went on being that person's after this ran — a turn could still be started over it. The
+/// session the presented refresh token belongs to is what names the sockets to end, which is why
+/// <see cref="Webly.Data.Models.Authentication.RefreshToken.SessionId"/> exists at all.
 /// </summary>
 public class SignOut(
     ITokenService tokenService,
     IRefreshTokenRepository refreshTokenRepository,
-    IAccessTokenBlacklist accessTokenBlacklist)
+    IAccessTokenBlacklist accessTokenBlacklist,
+    IRealtimeSessions realtimeSessions)
 {
     public async Task Execute(
         int userId,
@@ -33,8 +41,10 @@ public class SignOut(
         if (string.IsNullOrEmpty(rawRefreshToken))
         {
             // No refresh cookie to identify which session this is, so end all of them rather than
-            // leaving the user unable to log out at all.
+            // leaving the user unable to log out at all. The sockets follow the same rule, for the same reason.
             await refreshTokenRepository.RevokeAllForUserAsync(userId, DateTime.UtcNow, cancellationToken);
+            realtimeSessions.End(userId, sessionId: null);
+
             return;
         }
 
@@ -47,5 +57,9 @@ public class SignOut(
             return;
 
         await refreshTokenRepository.RevokeAsync(token, DateTime.UtcNow, cancellationToken);
+
+        // Last, and after the row is really revoked: a socket that outlives this call by a moment is harmless,
+        // and one ended before the session was would be ended for a sign-out that then failed.
+        realtimeSessions.End(userId, token.SessionId);
     }
 }

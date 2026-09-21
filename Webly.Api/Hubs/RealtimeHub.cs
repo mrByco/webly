@@ -38,6 +38,7 @@ public class RealtimeHub(
     AgentBudget budget,
     ISiteRepository siteRepository,
     IAccessTokenBlacklist blacklist,
+    IRealtimeSessions sessions,
     ILogger<RealtimeHub> logger) : Hub<IRealtimeClient>
 {
     /// <summary>A run's group name. The publisher uses the same method, so the two cannot drift.</summary>
@@ -151,6 +152,26 @@ public class RealtimeHub(
     }
 
     /// <summary>
+    /// Records the connection so that signing out can end it.
+    ///
+    /// The unverified accessor on purpose: this runs for every connection the <c>[Authorize]</c> attribute let
+    /// through, and an unverified caller is one whose invocations are refused one layer down. Refusing the
+    /// handshake here instead would be the same rule stated twice, in the one place that cannot explain itself
+    /// to the client.
+    /// </summary>
+    public override async Task OnConnectedAsync()
+    {
+        if (Context.User.GetUserIdUnverified() is { } userId)
+        {
+            var sessionId = Context.User?.FindFirst(JwtTokenService.SessionIdClaim)?.Value;
+
+            Context.Items[SessionKey] = sessions.Register(userId, sessionId, Context.Abort);
+        }
+
+        await base.OnConnectedAsync();
+    }
+
+    /// <summary>
     /// Subscriber counts have to come back down when a connection drops, not just when a client politely unsubscribes —
     /// the orphan reaper's whole job depends on the count being true, and a browser that was closed sends nothing.
     /// </summary>
@@ -158,6 +179,11 @@ public class RealtimeHub(
     {
         foreach (var (_, runId) in Subscriptions())
             registry.Get(runId)?.RemoveSubscriber();
+
+        // Forgotten here rather than left to a sweep: a hub always gets this callback, including for a browser
+        // that was closed, so a registry of dead sockets cannot accumulate.
+        if (Context.Items.TryGetValue(SessionKey, out var registration) && registration is IDisposable disposable)
+            disposable.Dispose();
 
         return base.OnDisconnectedAsync(exception);
     }
@@ -177,4 +203,8 @@ public class RealtimeHub(
     }
 
     private const string SubscriptionsKey = "webly:subscriptions";
+
+    /// <summary>Where this connection's entry in <see cref="IRealtimeSessions"/> is kept, so the disconnect can
+    /// forget it. On the connection rather than in a dictionary here, because the connection is what owns it.</summary>
+    private const string SessionKey = "webly:session";
 }

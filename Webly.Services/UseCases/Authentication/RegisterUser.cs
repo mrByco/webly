@@ -40,6 +40,6 @@ public class RegisterUser(
 
         // Signed in immediately: verification gates reaching the app, not getting through the
         // door. Making people wait for an email before they can see anything is how sign-ups are lost.
-        return await authSessionService.IssueAsync(user, cancellationToken);
+        return await authSessionService.IssueAsync(user, cancellationToken: cancellationToken);
     }
 }

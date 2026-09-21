@@ -32,7 +32,7 @@ public class SignInWithExternalLogin(
         var linked = await userRepository.FindByExternalLoginAsync(info.Provider, info.ProviderKey, cancellationToken);
 
         if (linked is not null)
-            return await authSessionService.IssueAsync(linked, cancellationToken);
+            return await authSessionService.IssueAsync(linked, cancellationToken: cancellationToken);
 
         // Past this point the email is what decides which account this identity joins or becomes,
         // so an address the provider has not verified is worthless: anyone can put someone else's
@@ -96,6 +96,6 @@ public class SignInWithExternalLogin(
                 cancellationToken);
         }
 
-        return await authSessionService.IssueAsync(user, cancellationToken);
+        return await authSessionService.IssueAsync(user, cancellationToken: cancellationToken);
     }
 }

@@ -10,7 +10,15 @@ public interface IAuthSessionService
     /// returns both alongside the profile. Every sign-in path ends here, so a session created by
     /// registration, by password, by Google or by rotation is the same session in every respect.
     /// </summary>
-    Task<AuthResult> IssueAsync(User user, CancellationToken cancellationToken = default);
+    /// <param name="continuingSessionId">
+    /// The session these new tokens continue, or null to begin one. A rotation continues — the tokens change and
+    /// the session does not, which is the whole point of <see cref="RefreshToken.SessionId"/> — and everything
+    /// else here is somebody signing in.
+    /// </param>
+    Task<AuthResult> IssueAsync(
+        User user,
+        string? continuingSessionId = null,
+        CancellationToken cancellationToken = default);
 
     MeResponse Describe(User user);
 }

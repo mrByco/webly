@@ -1,3 +1,4 @@
+using NanoidDotNet;
 using Webly.Data.Models.Authentication;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -21,7 +22,10 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
 
     private readonly JwtOptions _options = options.Value;
 
-    public string CreateAccessToken(User user)
+    /// <summary>The session claim, named as OpenID Connect names it so nobody has to guess what <c>sid</c> is.</summary>
+    public const string SessionIdClaim = "sid";
+
+    public string CreateAccessToken(User user, string sessionId)
     {
         var descriptor = new SecurityTokenDescriptor
         {
@@ -31,6 +35,10 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
                 new Claim(JwtRegisteredClaimNames.Sub, user.Nanoid),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+
+                // The session this token belongs to, which survives every rotation of the token itself. It is
+                // what lets something long-lived — a hub connection — be told that its session has ended.
+                new Claim(SessionIdClaim, sessionId),
 
                 // Carried in the token so the verified-only accessors cost nothing per request. It
                 // goes stale when someone verifies elsewhere, which is what the blacklist's
@@ -46,7 +54,7 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
         return new JsonWebTokenHandler().CreateToken(descriptor);
     }
 
-    public (string RawToken, RefreshToken Row) CreateRefreshToken(User user)
+    public (string RawToken, RefreshToken Row) CreateRefreshToken(User user, string? sessionId = null)
     {
         var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 
@@ -54,6 +62,10 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
         {
             User = user,
             TokenHash = HashRefreshToken(rawToken),
+
+            // A rotation carries the session across; a sign-in starts one. Nanoid rather than a Guid because
+            // every other public id in this product is one, and this one reaches a JWT that gets logged.
+            SessionId = sessionId ?? Nanoid.Generate(size: 16),
             ExpiresAt = DateTime.UtcNow.Add(_options.RefreshTokenLifetime)
         };
 

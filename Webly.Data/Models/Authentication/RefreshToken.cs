@@ -25,6 +25,21 @@ public class RefreshToken : IHasTimestamps
     /// <summary>HMAC-SHA256 of the raw token, keyed with a secret separate from the JWT signing key.</summary>
     public required string TokenHash { get; set; }
 
+    /// <summary>
+    /// Which sign-in this token belongs to. Minted when a session begins and **carried across every rotation**,
+    /// so it is the one thing about a session that does not change while it lasts.
+    ///
+    /// It exists because everything else identifies a *token*: the access token's <c>jti</c> is replaced every
+    /// fifteen minutes, and the refresh token's hash every time it is used. So there was nothing to name when
+    /// something long-lived had to be told that a session had ended — and the long-lived thing is a realtime
+    /// connection, whose caller's identity is fixed at the handshake. Signing out revoked the session everywhere
+    /// except on a socket the browser had already opened, and a turn could still be started over it.
+    ///
+    /// It rides in the access token as <c>sid</c>, which is what lets a hub connection be matched to the session
+    /// that opened it. Nothing else reads it yet; the 12-hour preview cookie is the next thing that should.
+    /// </summary>
+    public required string SessionId { get; set; }
+
     public DateTime ExpiresAt { get; set; }
 
     /// <summary>

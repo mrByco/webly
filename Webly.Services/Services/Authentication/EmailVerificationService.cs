@@ -29,6 +29,6 @@ public class EmailVerificationService(
             token.UserId,
             DateTimeOffset.UtcNow.Add(jwtOptions.Value.AccessTokenLifetime));
 
-        return await authSessionService.IssueAsync(token.User, cancellationToken);
+        return await authSessionService.IssueAsync(token.User, cancellationToken: cancellationToken);
     }
 }

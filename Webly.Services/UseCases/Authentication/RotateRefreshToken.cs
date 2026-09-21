@@ -63,7 +63,8 @@ public class RotateRefreshToken(
             // whichever response reaches the browser last, it is holding a live one. Minting another here
             // instead would leave a spare live token per parallel request, for ever.
             return AuthResult.SuccessWithoutRotation(
-                tokenService.CreateAccessToken(existing.User), authSessionService.Describe(existing.User));
+                tokenService.CreateAccessToken(existing.User, existing.SessionId),
+                authSessionService.Describe(existing.User));
         }
 
         if (existing.ExpiresAt <= now)
@@ -73,6 +74,9 @@ public class RotateRefreshToken(
         existing.ReplacedAt = now;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return await authSessionService.IssueAsync(existing.User, cancellationToken);
+        // The same session, with new tokens: rotation is what a session does to stay alive, not a new one
+        // beginning. Passing null here would mint a fresh session id every fifteen minutes and make the id
+        // exactly as short-lived as the `jti` it exists to outlive.
+        return await authSessionService.IssueAsync(existing.User, existing.SessionId, cancellationToken);
     }
 }

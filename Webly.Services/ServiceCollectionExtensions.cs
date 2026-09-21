@@ -122,6 +122,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<RunRegistry>();
         services.AddSingleton<AgentBudget>();
+        services.AddSingleton<IRealtimeSessions, RealtimeSessions>();
         services.AddSingleton<IChatRunLauncher, ChatRunLauncher>();
         services.AddSingleton<ISiteWorkspaceRegistry, SiteWorkspaceRegistry>();
         services.AddScoped<IRunEventSink, RunEventSink>();

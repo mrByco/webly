@@ -11,15 +11,18 @@ public class AuthSessionService(
     IAdminPolicy adminPolicy,
     WeblyDbContext dbContext) : IAuthSessionService
 {
-    public async Task<AuthResult> IssueAsync(User user, CancellationToken cancellationToken = default)
+    public async Task<AuthResult> IssueAsync(
+        User user,
+        string? continuingSessionId = null,
+        CancellationToken cancellationToken = default)
     {
-        var (rawRefreshToken, row) = tokenService.CreateRefreshToken(user);
+        var (rawRefreshToken, row) = tokenService.CreateRefreshToken(user, continuingSessionId);
         refreshTokenRepository.Add(row);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Minted after the save: a brand-new user has no Id or Nanoid until then, and both go into
         // the token.
-        var accessToken = tokenService.CreateAccessToken(user);
+        var accessToken = tokenService.CreateAccessToken(user, row.SessionId);
 
         return AuthResult.Success(accessToken, rawRefreshToken, Describe(user));
     }

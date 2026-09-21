@@ -56,6 +56,6 @@ public class ChangePassword(
             WeblyEmails.PasswordChanged(user.Email, user.DisplayName),
             cancellationToken);
 
-        return await authSessionService.IssueAsync(user, cancellationToken);
+        return await authSessionService.IssueAsync(user, cancellationToken: cancellationToken);
     }
 }

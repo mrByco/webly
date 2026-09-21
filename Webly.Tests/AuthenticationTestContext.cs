@@ -5,8 +5,10 @@ using Webly.Data.Repositories.Users;
 using Webly.Services.Services.Authentication;
 using Webly.Services.Services;
 using Webly.Services.Services.Email;
+using Webly.Services.Services.Realtime;
 using Webly.Services.UseCases.Authentication;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Webly.Tests;
@@ -54,6 +56,14 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
 
     public IAccessTokenBlacklist AccessTokenBlacklist { get; } =
         new MemoryCacheAccessTokenBlacklist(new MemoryCache(new MemoryCacheOptions()));
+
+    /// <summary>
+    /// The real registry, with no connections in it. Signing out asks it to end the caller's sockets, and in a
+    /// test there are none — which is the honest shape: a fake here would assert that the call happened rather
+    /// than that anything came of it, and what actually matters was watched against a running hub.
+    /// </summary>
+    public IRealtimeSessions RealtimeSessions { get; } =
+        new RealtimeSessions(NullLogger<RealtimeSessions>.Instance);
 
     /// <summary>
     /// Addresses that maintain the global catalog. Empty by default, so these tests describe a
@@ -109,7 +119,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
     public ChangePassword ChangePassword =>
         new(Users, RefreshTokens, PasswordHasher, Sessions, Emails, Db);
     public RotateRefreshToken RotateRefreshToken => new(TokenService, RefreshTokens, Sessions, Db);
-    public SignOut SignOut => new(TokenService, RefreshTokens, AccessTokenBlacklist);
+    public SignOut SignOut => new(TokenService, RefreshTokens, AccessTokenBlacklist, RealtimeSessions);
     public GetCurrentUser GetCurrentUser => new(Users, Sessions);
 
     /// <summary>

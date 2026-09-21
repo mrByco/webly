@@ -48,6 +48,6 @@ public class ResetPassword(
             WeblyEmails.PasswordChanged(token.User.Email, token.User.DisplayName),
             cancellationToken);
 
-        return await authSessionService.IssueAsync(token.User, cancellationToken);
+        return await authSessionService.IssueAsync(token.User, cancellationToken: cancellationToken);
     }
 }

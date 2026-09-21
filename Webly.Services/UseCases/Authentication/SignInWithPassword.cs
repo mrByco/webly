@@ -19,6 +19,6 @@ public class SignInWithPassword(
         if (user?.PasswordHash is null || !passwordHasher.Verify(request.Password, user.PasswordHash))
             return AuthResult.Fail(AuthError.InvalidCredentials);
 
-        return await authSessionService.IssueAsync(user, cancellationToken);
+        return await authSessionService.IssueAsync(user, cancellationToken: cancellationToken);
     }
 }
