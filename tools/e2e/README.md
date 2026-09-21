@@ -12,10 +12,13 @@ Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a h
 
 ## Why this exists
 
-Webly's orchestration is C#, and the repository was written in an environment with no .NET SDK, so none of it
-can be compiled or run (`whats_next.md` §1). That leaves a real question unanswered: *does the thing actually
-work?* Not "does the code look right" — does a site get created, edited, committed, previewed, restored and
-published.
+Webly's orchestration is C#, and for the repository's first several commits there was no .NET SDK to compile
+it with. That left a real question unanswered: *does the thing actually work?* Not "does the code look right"
+— does a site get created, edited, committed, previewed, restored and published.
+
+The C# runs now, and `turn.mjs` next door drives a turn through it. This harness is still the cheaper of the
+two and still the only one that needs nothing at all: no .NET, no database, no credentials. It is also where
+most of the expensive bugs have been found, which is the argument for keeping it.
 
 This script answers it by standing in for the one layer that cannot run, and using the real thing everywhere
 else:

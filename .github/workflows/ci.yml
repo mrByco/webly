@@ -46,30 +46,16 @@ jobs:
       - name: Install
         run: yarn install --frozen-lockfile
 
-      # The generated API client is committed, so no backend is needed here to regenerate it — except
-      # that it does not exist yet (see CLAUDE.md "Status"). Rather than a red job on every commit until
-      # then, the steps below are skipped while it is missing, and this check is what deletes itself:
-      # the first `regen_api` makes them run, and nobody has to remember to re-enable anything.
-      - name: Is the generated client committed?
-        id: generated
-        run: |
-          if [ -d src/app/api ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::client/src/app/api is not committed yet, so the client is not type-checked. See MASTER_PLAN.md P1."
-          fi
-
+      # No backend needed: the generated API client is committed. There used to be a guard here skipping
+      # everything below while it was missing, written to delete itself on the first `regen_api` — which has
+      # now happened, so it has.
       - name: Typecheck
-        if: steps.generated.outputs.present == 'true'
         run: yarn typecheck
 
       - name: Build (browser + SSR)
-        if: steps.generated.outputs.present == 'true'
         run: yarn build
 
       - name: Test
-        if: steps.generated.outputs.present == 'true'
         run: yarn test --watch=false
 
   # The product loop, end to end, without the backend.

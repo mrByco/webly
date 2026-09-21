@@ -14,7 +14,7 @@ this tree half-supports it.
 
 ---
 
-## P0 — Skeleton, auth, source-backed sites, the agent, publishing *(written, not run)*
+## P0 — Skeleton, auth, source-backed sites, the agent, publishing *(shipped and running)*
 
 Everything in this phase exists in the repository:
 
@@ -48,50 +48,59 @@ Plus the substitutes that make it runnable with nothing installed — a local sa
 a filesystem deployment target, each refused outside Development. `CLAUDE.md` "Running it with nothing
 installed" is the table.
 
-**The loop has been driven end to end**, by `tools/e2e/run.mjs`: real git plumbing, the real sandbox agent, the
-real `claude` CLI, the real Next.js dev server and build, fourteen asserted steps ending at a published page
-that says what the person typed. So the parts owned by somebody else — git, the CLI's stream format, the
-framework — are evidence. What remains is what needs a compiler.
+**The loop has been driven end to end twice over**, and the two runs answer different questions.
+`tools/e2e/run.mjs` drives everything under the C# for real — git plumbing, the sandbox agent, the `claude`
+CLI, `next dev`, the build — in sixteen asserted steps. `tools/e2e/turn.mjs` drives the C# itself, through the
+running backend's own hub. Between them: a verified account, a site that is a bare repository, turns that
+commit one version each, a preview through Webly's origin, and a published page that says what the person
+typed. The backend compiles, `InitialSchema` is applied to a real Postgres with its ten deferrable
+constraints, 68 tests pass, and `client/src/app/api/` is generated and committed.
 
 **Known gaps inside P0**, each with a note in the code:
 
 | Gap | Where |
 |---|---|
-| No C# has been compiled, so every file is unverified *as C#*; no EF migration has been generated | `whats_next.md` |
-| `client/src/app/api/` (the generated client) does not exist yet, so the client does not type-check against real DTOs | `CLAUDE.md`, `whats_next.md` |
 | `OpenCodeAgent` has never run, and its output is prose rather than a typed stream | `OpenCodeAgent` class comment |
-| `E2bSandboxProvider` has never called E2B | `E2bSandboxProvider` class comment |
+| `DockerSandboxProvider` and `E2bSandboxProvider` have never run; only `local` has | their class comments |
 | `VercelDeploymentTarget` is unverified in both halves — REST and CLI | `docs/deploy-plan.md` §6 |
+| The real agent has never run *inside the app* — every turn so far has been the mock | `whats_next.md` §1 |
 | Hub DTOs are declared by hand in the client | `docs/agent-plan.md` §3.3 |
+| A published version cannot be republished: 409, and no way to retry a lost deployment | `whats_next.md` |
 
-Closed since the pivot, by running things rather than reading them: `ClaudeCodeAgent`'s stream-json format is
-reconciled against a recorded turn and covered by `ClaudeStreamJsonParserTests`; the preview proxy was broken
-and is fixed; the sandbox agent leaked a dev server per stop and does not; `Directory.Build.props` was missing
-entirely, so nothing could have built at all.
+Closed by running things rather than reading them, which is the only reason any of it is closed:
+`Directory.Build.props` was missing entirely, so nothing could have built; the preview proxy was broken twice
+over, first in the sandbox agent and then in the controller that handed YARP an `HttpClient`; the sandbox
+agent leaked a dev server per stop; `InvariantGlobalization` silently disabled accent folding, so a site named
+"Kovács Bicikli" was published at `kov-cs-bicikli`; seeding a workspace rewrote the site's lockfile and
+committed it; a publish reported Ready and served nothing; static files never ran because `WebApplication`
+inserts `UseRouting` in front of them; and account deletion turned out to be impossible through EF's change
+tracker. `whats_next.md` is the list with the reasons.
 
 ---
 
 ## P1 — Make it real
 
-The phase that turns the skeleton into a running product. No new features.
+The phase that turns the skeleton into a running product. No new features. **Steps 0–4 are done**; the
+paragraphs are kept because each one names a thing to check again after a change of that kind.
 
-0. `node tools/e2e/run.mjs --agent mock` first, because it needs nothing and it is the fastest way to find out
-   whether the machine can do the things the product needs at all.
-1. `dotnet build`, then `dotnet ef migrations add InitialCreate`, then **hand-write the deferred-constraint
-   SQL** into that migration (see `CLAUDE.md` "Deferred foreign keys") and run
-   `WeblyDbContextTests.Deleting_a_user_removes_their_sites_and_everything_under_them`.
-2. Run `GitSiteRepositoryStoreTests` and `ClaudeStreamJsonParserTests`. Neither needs Postgres, Docker or a
-   key, so they are the first suites that can be green — and between them they cover the layer where being
-   wrong loses somebody's website and the one whose input format belongs to another product.
-3. Start the stack, run `regen_api`, commit `client/src/app/api/`, fix whatever the generated names actually
-   are, and get `client_typecheck` and `client_build` green.
-4. **One real turn through the app**, with the defaults (local sandbox, mock agent, filesystem publish) and no
-   credentials at all: register, verify, create a site, send a message, watch the preview change, publish, open
-   the published page. Everything in that sentence has been proven to work from node; this is the step that
-   proves the C# orchestrating it does.
-5. Then the same with `Agent:ClaudeCode:ApiKey` set, and a reload mid-turn and Stop — the two paths that only
-   exist because a run outlives its connection.
-6. Reconcile `VercelDeploymentTarget` against a real token: publish, add a domain, verify it.
+0. ~~`node tools/e2e/run.mjs --agent mock`~~, because it needs nothing and it is the fastest way to find out
+   whether the machine can do the things the product needs at all. Sixteen steps, all green.
+1. ~~`dotnet build`, then the migration, then the deferred-constraint SQL by hand~~ — `InitialSchema` carries
+   ten `ALTER CONSTRAINT … DEFERRABLE INITIALLY DEFERRED` statements, and the canary that justifies them
+   passes. It also turned out that the delete cannot go through EF's change tracker at all; the test says why.
+2. ~~`GitSiteRepositoryStoreTests` and `ClaudeStreamJsonParserTests`~~, then the rest: 68 tests, green, and
+   `WEBLY_TEST_POSTGRES` lets the Postgres-backed ones run without Docker.
+3. ~~`regen_api`, commit `client/src/app/api/`, get the client green~~ — and keep
+   `SupportNonNullableReferenceTypes()` in `AddSwaggerGen`, without which every string in the generated client
+   is nullable and its types stop meaning anything.
+4. ~~**One real turn through the app**~~ with the defaults and no credentials: register, verify, create a site,
+   send a message, watch the version commit, fetch the preview, publish, open the published page. That is what
+   `tools/e2e/turn.mjs` does, and it found four bugs that reading had not.
+5. **Then the same with `Agent:ClaudeCode:ApiKey` set**, and a reload mid-turn and Stop — the two paths that
+   only exist because a run outlives its connection. This is the next thing to do.
+6. **Reconcile `VercelDeploymentTarget`** against a real token: publish, add a domain, verify it.
+7. **Build the sandbox image** and run the same turn with `Sandbox:Provider=docker`. The prebaked-dependencies
+   bet — `npm ls --depth=0` passing without an install — is the one thing the local provider cannot tell you.
 
 ## P2 — The editor people can actually use
 

@@ -314,13 +314,22 @@ Done, as code that has never run — see `whats_next.md`:
 
 Next, in order:
 
-1. ⬜ **Compile it.** Nothing here has been built; there is no .NET SDK in the environment it was written in.
-2. ⬜ **The first real turn**, locally, with the Docker provider: a message, a file written, a commit, the
-   preview updating by itself. Then a reload mid-turn, then Stop.
-3. ⬜ **Reconcile `ClaudeCodeAgent`'s stream-json parsing with the CLI's actual output.** The flags and the
-   event shapes are written from the documented interface, and the summary convention is ours.
-4. ⬜ **Reconcile `E2bSandboxProvider` with E2B's live API**, which has never been called.
-5. ⬜ The OpenAPI document filter for the hub DTOs (§3.3).
-6. ⬜ Tests worth writing next: `RunRegistry` (cancel ownership, subscriber accounting), `RunWriter`'s flush
-   order, `SiteWorkspaceRegistry`'s re-seed decision against a fake sandbox, and `StreamJsonParser` against
-   recorded CLI output.
+1. ✅ **Compile it**, migrate it, and get the suite green. The .NET 10 SDK is in the Ubuntu archive, which is
+   what unblocked this after several commits of "written, not run".
+2. ✅ **The first real turn**, with the local provider and the mock agent: a message, a file written, one
+   commit, the preview served through Webly's origin, a publish, a page. `tools/e2e/turn.mjs` drives it,
+   because `StartChat` is a hub method and a SignalR client is the only way to start a turn.
+3. ✅ **Reconcile `ClaudeCodeAgent`'s stream-json parsing with the CLI's actual output** — recorded as
+   `tools/e2e/fixtures/claude-stream-json.ndjson` and covered by `ClaudeStreamJsonParserTests`, which now
+   computes its expectations from the fixture rather than quoting one recording's prose. The `SUMMARY:`
+   convention is ours and the CLI does follow it.
+4. ⬜ **A turn with the real agent inside the app**, and then a reload mid-turn and Stop. Every turn through
+   the running app so far has been the mock, so what is untested is narrow: whether `BuildPrompt` produces a
+   turn worth having, and the two paths that exist only because a run outlives its connection.
+5. ⬜ **Reconcile `DockerSandboxProvider`**, then `E2bSandboxProvider` with E2B's live API, which has never
+   been called. They speak the contract `tools/e2e` already exercises, so what is unverified is the "start
+   this image, give me a URL" half only.
+6. ⬜ The OpenAPI document filter for the hub DTOs (§3.3).
+7. ⬜ Tests worth writing next: `RunRegistry` (cancel ownership, subscriber accounting), `RunWriter`'s flush
+   order, and `SiteWorkspaceRegistry`'s re-seed decision against a fake sandbox — which is also where the
+   `npm ci` rule belongs, since its absence rewrote a site's lockfile and committed it.

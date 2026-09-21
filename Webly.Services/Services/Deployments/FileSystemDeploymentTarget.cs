@@ -17,7 +17,7 @@ namespace Webly.Services.Services.Deployments;
 ///
 /// <b>The build is real.</b> It runs the same <c>npm run build</c> in the same sandbox, so a site that does
 /// not compile fails here exactly as it would in production, with the same log. What is fake is only the
-/// upload: the static export is copied out of the sandbox and served from <c>/published/{slug}/</c> by the dev
+/// upload: the static export is copied out of the sandbox and served from <c>/published/{nanoid}/</c> by the dev
 /// host, so a published page is a page somebody can actually open.
 ///
 /// <b>Domains are simulated, and say so.</b> <see cref="AttachDomainAsync"/> answers pending with a record
@@ -69,16 +69,22 @@ public class FileSystemDeploymentTarget(
                 "Your site did not build, so nothing was published. The error is below — ask the assistant to fix it.",
                 Tail(build.Output));
 
-        var slug = projectId.StartsWith("local-", StringComparison.Ordinal) ? projectId["local-".Length..] : projectId;
-        var target = Path.Combine(Path.GetFullPath(_local.Root), slug);
+        // The site's nanoid, which is what the project id is made of — not its slug, although the directory
+        // reads like one. A slug can be reused by a later site once an old one is deleted; a nanoid never is,
+        // and a published directory outliving the site that wrote it must not become a different site's.
+        var directory = projectId.StartsWith("local-", StringComparison.Ordinal)
+            ? projectId["local-".Length..]
+            : projectId;
+
+        var target = Path.Combine(Path.GetFullPath(_local.Root), directory);
 
         await CopyOutputAsync(sandbox, target, cancellationToken);
 
         logger.LogInformation("Published {Project} to {Target}.", projectId, target);
 
         return new DeploymentHandle(
-            ProviderDeploymentId: $"{slug}-{DateTime.UtcNow:yyyyMMddHHmmss}",
-            ProviderUrl: $"{_local.BaseUrl.TrimEnd('/')}/published/{slug}/");
+            ProviderDeploymentId: $"{directory}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+            ProviderUrl: $"{_local.BaseUrl.TrimEnd('/')}/published/{directory}/");
     }
 
     /// <summary>

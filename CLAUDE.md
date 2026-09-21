@@ -21,33 +21,45 @@ actually stopped, and `docs/` holds the long-form reasoning: `domain-plan.md` (s
 Vercel). Read the relevant one before designing in that area — the "why" is written down there rather than
 re-derived.
 
-## Status: written, not run
+## Status: running
 
-**The repository was initialized in an environment with no .NET SDK.** Nothing in the backend has been
-compiled, no migration has been generated, and the generated Angular API client (`client/src/app/api/`)
-does not exist yet — so the client does not type-check against real DTOs either, although it builds and
-its templates type-check against the shapes the services declare.
+**The whole product loop has been driven through the running app.** A verified account, a site whose bare
+repository holds the template in one commit, three agent turns over the hub each committing one version, the
+preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
+person typed. The backend compiles, the schema is a real migration applied to a real Postgres, the 68-test
+suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
+prerenders against.
 
-**What has been run, end to end, is the whole product loop except the C# that orchestrates it.**
-`tools/e2e/run.mjs` stands in for `AgentTurnService` and drives everything underneath it for real — real git
-plumbing, the real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — and asserts
-fourteen steps from "a new site is the template" to "the published page says what the person typed". Run it
-with `node tools/e2e/run.mjs --agent mock` (no credentials) or `--agent claude`. `tools/e2e/README.md`
-explains what is real, what is standing in, and the bugs it has already caught. Also verified: the Angular
-client builds and prerenders (against throwaway stand-ins for the generated client).
+Two harnesses drive it, and they answer different questions:
 
-So the git layer, the sandbox contract, the agent CLI's interface, the template and the build are evidence
-rather than intent. What is **still unrun** is everything that needs a compiler:
+- **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in sixteen steps from "a
+  new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
+  database, no credentials. `tools/e2e/README.md` lists what it has caught.
+- **`tools/e2e/turn.mjs`** does the opposite: it talks to the running backend over the real hub, so what it
+  exercises is the C# — `ChatRunLauncher`, `AgentTurnService`, `SiteWorkspaceRegistry`, the sandbox provider,
+  `CommitSiteVersion`. It exists because a turn cannot be started over HTTP; `StartChat` is a hub method, so a
+  SignalR client is the only way to press the button.
 
-- **No .NET has been compiled**, so every C# file is unverified *as C#* — including the four classes added
-  for the MVP (`LocalSandboxProvider`, `MockCodingAgent`, `FileSystemDeploymentTarget`,
-  `ClaudeStreamJsonParser`). Their behaviour is mirrored in the harness where it could be; their syntax is
-  not checked by anything.
-- **There is no EF migration**, so the app cannot start until one is generated.
-- **`client/src/app/api/` does not exist**, so the client does not type-check against real DTOs.
-- **`OpenCodeAgent` and `VercelDeploymentTarget` have never run.** Treat their shapes as the plan.
+**What is still unrun**, and treat each as the plan rather than as working code:
 
-`MASTER_PLAN.md` P1 and `whats_next.md` list the exact first steps, in order.
+- **`OpenCodeAgent` and `VercelDeploymentTarget`** — written against another product's documented interface,
+  never executed. `docs/deploy-plan.md` §6 says what to reconcile in the Vercel one first.
+- **`DockerSandboxProvider` and `E2bSandboxProvider`** — only `local` has run. The contract they all speak is
+  the one `tools/e2e` exercises, which is the point of having it.
+- **The real agent inside the app.** `ClaudeStreamJsonParser` is covered by a recorded transcript and the
+  `claude` CLI has run under `tools/e2e/run.mjs`, but every turn through the running app so far has been the
+  mock. That needs `Agent:ClaudeCode:ApiKey` in user secrets and nothing else.
+- **Google sign-in and Resend**, which are configuration away and absent by design without it.
+
+### Getting a .NET SDK where there is not one
+
+`apt-get install dotnet-sdk-10.0` — it is in the Ubuntu archive (`noble-updates/universe`), which matters
+because the official installer host is blocked on plenty of networks and that is what made this repository
+"written, not run" for its first several commits. `apt-get update` first: the index and the pool rotate
+independently and a stale index 404s. `dotnet tool install --global dotnet-ef` for migrations.
+
+The client needs **Node ≥ 22.22.3** (Angular 22's own floor) — `nvm use 24` where the system node is older.
 
 ### Running it with nothing installed
 
@@ -58,7 +70,7 @@ nothing else — no Docker, no model key, no hosting account:
 |---|---|---|
 | `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process. **Not isolation**, and refused outside Development. |
 | `Agent:Mock:Enabled` | `true` | `MockCodingAgent` makes one real, deterministic edit. A real key takes over without a settings change. |
-| `Deployment:Provider` | `filesystem` | The real `next build` as the publish gate, then the export written to `.run/published/{slug}` and served at `/published/{slug}/`. |
+| `Deployment:Provider` | `filesystem` | The real `next build` as the publish gate, then the export written to `.run/published/{nanoid}` and served at `/published/{nanoid}/`. |
 
 Each of those is a development-only substitute and each refuses to run in production, in code rather than in
 a comment. Swapping any one of them for the real thing is one configuration key.
@@ -85,7 +97,7 @@ more than one restating what the line does.
 |---|---|---|
 | Start / stop / restart / status | `app_start`, `app_stop`, `app_restart`, `app_status` | `./run-app.ps1 start\|stop\|status` |
 | Build backend (stops it first if running) | `app_build` | `dotnet build Webly.slnx` |
-| Backend tests (needs Docker) | `app_test` (optional `filter`) | `dotnet test Webly.Tests/Webly.Tests.csproj` |
+| Backend tests | `app_test` (optional `filter`) | `dotnet test Webly.Tests/Webly.Tests.csproj` — set `WEBLY_TEST_POSTGRES` to a server's connection string to use it instead of Testcontainers (no Docker needed) |
 | Tail logs | `app_logs` | `./run-app.ps1 logs -Only backend` |
 | Persistent dev DB up/down | `db_compose_up`, `db_compose_down` | `docker compose -f docker-compose.dev.yml up -d` |
 | Inspect the DB | `db_status`, `db_query` (read-only SQL) | `docker exec webly-postgres-dev psql -U webly -d webly` |
@@ -97,6 +109,7 @@ more than one restating what the line does.
 | Inspect a live sandbox | — | `docker ps --filter name=webly-sandbox`, then `docker exec -it <name> sh` |
 | Look at a site's repository | — | `git --git-dir .run/repositories/<nanoid>.git log --stat` |
 | **Drive the whole product loop without the backend** | — | `node tools/e2e/run.mjs --agent mock` (or `--agent claude`) |
+| **Drive one turn through the running backend** | — | `node tools/e2e/turn.mjs --site <nanoid> --cookies <curl jar> "<message>"` |
 
 ### Running-the-stack facts that cost time if unknown
 
@@ -115,6 +128,12 @@ more than one restating what the line does.
   Postgres (needs Docker) — **that data is gone on the next restart** — and if Docker is absent too it says
   so in a sentence naming both remedies rather than throwing a Testcontainers stack trace.
   `GET /health` → `{ status, dbSource }` says which is active; so does `app_status`.
+- **The app does not care what directory it is started from**, and that took a class to arrange.
+  `Webly.Api/Infrastructure/PathAnchor.cs` resolves the five settings that name something on disk against the
+  repository root when the walk up from the binary finds `Webly.slnx`, and against the content root (which is
+  the binary's own directory) when it does not — so development works from anywhere and `/app` in the
+  container is the same case. Before it, `run-app.ps1` and the dev MCP server each started the app in a
+  working directory that broke the other, because `dotnet run` ignores the shell's and uses the project's.
 - **Start order: backend first.** The frontend's `prestart` (`ng-openapi-gen`) reads the backend's live
   swagger. `run-app.ps1` and `app_start` both do this in the right order.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
@@ -134,8 +153,8 @@ more than one restating what the line does.
   `Agent:Mock:Enabled` false and no key, `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the
   client hides the chat rather than failing inside it.
 - **Publishing goes to a directory by default.** `Deployment:Provider` is `filesystem`, which runs the real
-  `next build` and writes the export to `.run/published/{slug}`, served at
-  `https://localhost:5000/published/{slug}/`. So the publish path — including a failed build blocking it — is
+  `next build` and writes the export to `.run/published/{nanoid}`, served at
+  `https://localhost:5000/published/{nanoid}/`. So the publish path — including a failed build blocking it — is
   testable with no hosting account. Set it to `vercel` once `Deployment:Vercel:Token` is in user secrets.
 - The solution file is `Webly.slnx` (the new .NET 10 format).
 - Package manager for `client/` is **yarn** (classic). Central Package Management for .NET: versions live
@@ -400,9 +419,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
 `guards/`, `interceptors/`, `models/`, `shared/`.
 
 - **`client/src/app/api/` is generated. Never hand-edit it.** After any controller or DTO change run
-  `regen_api` (MCP) or `./regen-api.ps1`; it is committed so CI needs no backend. **It does not exist yet**
-  — see "Status" above — which is why CI's client job is currently skipped and why the client's services
-  declare their own return types rather than inferring them.
+  `regen_api` (MCP) or `./regen-api.ps1`; it is committed so CI needs no backend. Two things about the
+  document it is generated from are load-bearing and were both found by generating it: `AddSwaggerGen` must
+  keep `SupportNonNullableReferenceTypes()`, or every `string` in all 29 models comes out as `string | null`
+  and the client's types stop meaning anything; and an action returning `IActionResult` describes **no type at
+  all**, so it generates as `void` — declare `ActionResult<T>` even where the body is written by hand.
 - SSR is on: `src/server.ts` is the Express host, `main.server.ts` the server entry. Anything touching
   `window`/`document` must be guarded (`isPlatformBrowser`/`afterNextRender`), and **the realtime
   connection is browser-only** — an unanswerable HTTP call during prerendering does not error, it hangs
@@ -525,6 +546,16 @@ start, not a build error.
 - **An unconfigured feature is absent, not broken.** Google sign-in, the editor agent and publishing each
   check their own configuration and answer honestly. That is what lets a fresh clone run, and the tests run,
   with no secrets at all.
+- **`Program.cs` calls `app.UseRouting()` explicitly, and moving or removing it breaks things silently.**
+  `WebApplication` inserts routing at the *front* of the pipeline when nothing has called it, which puts
+  endpoint selection before every middleware in the file — and `MapReverseProxy` is a catch-all, so an
+  endpoint is then selected for every request. `StaticFileMiddleware` stands down when one already is, so the
+  locally published sites 502ed through the proxy while their `index.html` sat on disk, with nothing logged
+  anywhere. Anything that serves files or defers to endpoints has to be registered **above** that call.
+- **A proxying action gets an `HttpMessageInvoker`, never an `HttpClient`.** YARP's `IHttpForwarder` throws on
+  the latter, because `HttpClient` adds a total-request timeout, redirect following and buffering, and all
+  three are wrong for a response that is streamed and a WebSocket that is held open. `PreviewForwarder` is the
+  one in this codebase and says so at length.
 - New endpoints are protected by default. Add `[AllowAnonymous]` deliberately, never reflexively.
 - Add the `[Route("api/...")]` prefix to every real controller. `HealthController` deliberately sits at
   `/health` (no prefix) so it is a proxy-bypass canary — leave it there.
