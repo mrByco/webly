@@ -424,6 +424,19 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   the most to diagnose.
 - **One platform-owned Vercel account.** "Self-service" cannot begin with "create a Vercel account". The
   bring-your-own upgrade is a nullable token on `Site` and nothing else — see `docs/deploy-plan.md` §3.
+- **A site's address is arranged, not assumed.** A provider serves a hostname only once that hostname has been
+  attached to the project, so `{slug}.{BaseDomain}` — the address every screen prints — resolves nowhere until
+  something attaches it. `DeploymentJobRunner.EnsureAddressAsync` does, after the first successful publish (the
+  earliest moment there is a project to attach it to), stamps `Site.AddressReadyAt` when the provider confirms it,
+  and tries again on the next publish while it has not: a retry loop with no timer and no state machine. It is
+  best-effort by design — a publish that worked must not be reported as failed because a domain call did.
+- **So a site has two URLs, and `SiteMapper` is the one place both are decided.** `Url` is its **address**, what
+  the settings screen prints and somebody reads out over the phone; `LiveUrl` is where the published version can
+  **actually be opened** — the address once `AddressReadyAt` says the provider serves it, the deployment's own
+  provider URL until then, and null for a site nobody has published. The header, the site cards and the publish
+  email all link `LiveUrl`, because a link that 404s immediately after "published" reads as the publish having
+  lied. In development `AddressReadyAt` stays null for ever, which is honest: nothing local resolves a subdomain
+  of the production zone, and the filesystem target's `/published/{nanoid}/` is where the site really is.
 - **A `Domain` row mirrors the provider**, which owns verification and the certificate. A local "verified"
   flag it disagrees with is a site that is live according to us and 404 according to the internet. Checking
   is a button, never a timer. Exactly one primary hostname per site, by partial unique index; only a

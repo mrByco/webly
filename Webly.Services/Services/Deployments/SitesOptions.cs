@@ -19,6 +19,9 @@ public class SitesOptions
     /// possible form; billing replaces it (MASTER_PLAN.md P7) rather than removes it.</summary>
     public int MaxSitesPerUser { get; set; } = 3;
 
-    /// <summary>The URL a site is reachable at on its Webly subdomain.</summary>
-    public string UrlFor(string slug) => $"https://{slug}.{BaseDomain}";
+    /// <summary>The hostname a site is given: the one the provider has to be told about before it resolves.</summary>
+    public string HostFor(string slug) => $"{slug}.{BaseDomain}";
+
+    /// <summary>The URL a site is reachable at on its Webly subdomain, once that subdomain is arranged.</summary>
+    public string UrlFor(string slug) => $"https://{HostFor(slug)}";
 }

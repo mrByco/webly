@@ -27,6 +27,17 @@
       <div class="rounded-field bg-base-200 p-3">
         <p class="section-label">Web address</p>
         <p class="font-mono text-sm">{{ detail.summary.url }}</p>
+
+        <!-- Said once, here, rather than left for somebody to discover by clicking: a published site is
+             reachable at its deployment's own URL until its address is serving, and the difference between the
+             two is not something anybody should have to infer from a 404. -->
+        @if (detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.url) {
+          <p class="mt-2 text-xs text-base-content/60">
+            This address is still being set up. Your site is live at
+            <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>
+            in the meantime.
+          </p>
+        }
       </div>
     }
 

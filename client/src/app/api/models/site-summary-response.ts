@@ -3,6 +3,7 @@
 
 export interface SiteSummaryResponse {
   hasUnpublishedChanges: boolean;
+  liveUrl?: string | null;
   name: string;
   nanoid: string;
   publishedAt?: string | null;

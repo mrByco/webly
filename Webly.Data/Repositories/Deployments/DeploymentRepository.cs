@@ -26,6 +26,17 @@ public class DeploymentRepository(WeblyDbContext dbContext) : IDeploymentReposit
             .Take(take)
             .ToListAsync(cancellationToken);
 
+    public Task<Deployment?> FindLiveAsync(
+        int siteId,
+        int siteVersionId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Deployments
+            .Where(x => x.SiteId == siteId
+                && x.SiteVersionId == siteVersionId
+                && x.Status == DeploymentStatus.Ready)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<Deployment?> FindInFlightAsync(int siteId, CancellationToken cancellationToken = default) =>
         dbContext.Deployments
             .Where(x => x.SiteId == siteId && InFlight.Contains(x.Status))

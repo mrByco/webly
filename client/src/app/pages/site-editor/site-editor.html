@@ -7,24 +7,30 @@
           <h1 class="truncate text-lg font-bold tracking-tight">{{ detail.summary.name }}</h1>
 
           <!--
-            A link only once there is something at the other end of it. Before the first publish this address
-            is where the site *will* live, and offering it as a link means the first thing somebody does with
-            their new site is click through to a 404 — the same "live according to us, gone according to the
-            internet" mistake the domains code is careful to avoid.
+            `liveUrl`, not `url`: the link goes where the site can actually be opened, and its text is that same
+            URL so the two cannot disagree. `url` is the site's address, which is where it will be reachable once
+            the provider is serving that hostname and is somewhere it is *not* until then — linking it
+            unconditionally is the "live according to us, gone according to the internet" mistake the domains
+            code goes out of its way to avoid, and before the first publish it means the first thing somebody
+            does with their new site is click through to a 404. The address itself is on the settings screen,
+            which is where somebody goes to read it rather than to visit it.
           -->
-          @if (detail.summary.publishedAt) {
+          @if (detail.summary.liveUrl) {
             <a
               class="flex items-center gap-1 truncate text-xs text-base-content/60 hover:text-base-content"
               target="_blank"
               rel="noopener"
-              [href]="detail.summary.url">
-              {{ detail.summary.url }}
+              [href]="detail.summary.liveUrl">
+              {{ detail.summary.liveUrl }}
               <app-icon class="size-3" name="external" />
             </a>
           } @else {
             <p class="flex items-center gap-1.5 truncate text-xs text-base-content/50">
               {{ detail.summary.url }}
-              <span class="badge badge-ghost badge-xs">not published yet</span>
+              <span class="badge badge-ghost badge-xs">
+                @if (detail.summary.publishedAt) { published }
+                @else { not published yet }
+              </span>
             </p>
           }
         </div>

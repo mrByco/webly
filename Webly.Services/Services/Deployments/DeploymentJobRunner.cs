@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Webly.Data;
 using Webly.Data.Models.Deployments;
+using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Users;
@@ -80,6 +82,7 @@ public class DeploymentJobRunner(
         var users = serviceProvider.GetRequiredService<IUserRepository>();
         var email = serviceProvider.GetRequiredService<IEmailSender>();
         var sink = serviceProvider.GetRequiredService<IRunEventSink>();
+        var sites = serviceProvider.GetRequiredService<IOptions<SitesOptions>>();
 
         var deployment = await repository.FindWithSiteAsync(deploymentNanoid, stoppingToken);
 
@@ -143,8 +146,15 @@ public class DeploymentJobRunner(
 
             await dbContext.SaveChangesAsync(stoppingToken);
 
+            // The address the whole product prints, arranged rather than assumed. See EnsureAddressAsync.
+            await EnsureAddressAsync(target, site, sites.Value.HostFor(site.Slug), dbContext, stoppingToken);
+
             var primary = await domains.FindPrimaryAsync(site.Id, stoppingToken);
-            var url = mapper.UrlFor(site, primary);
+
+            // Where it can be opened, which is not always its address — see `SiteMapper`. The email and the
+            // terminal event carry the same one the header links, because a link in an email that 404s is worse
+            // than no link: it reads as "the publish said it worked and it did not".
+            var url = mapper.LiveUrlFor(site, primary, deployment) ?? mapper.UrlFor(site, primary);
 
             await sink.EmitAsync(deployment.Nanoid, new RunEvent
             {
@@ -196,6 +206,55 @@ public class DeploymentJobRunner(
             if (sandbox is not null) await sandbox.DisposeAsync();
 
             registry.Finish(handle.RunId);
+        }
+    }
+
+    /// <summary>
+    /// Tells the provider to serve the site's Webly subdomain, once, and records it when it takes.
+    ///
+    /// The subdomain is the whole self-service premise — a published site has an address before anybody has bought
+    /// a domain — and a provider serves a hostname only when that hostname has been attached to the project. So it
+    /// has to be attached by something, and the first successful publish is the earliest moment there is a project
+    /// to attach it to. While it has not taken, every later publish tries again: that is a retry loop with no timer
+    /// and no state machine, and the cost of a spare provider call is one call per publish of an unaddressed site.
+    ///
+    /// <b>Best effort, deliberately.</b> A publish that succeeded must not be reported as failed because a domain
+    /// call did: the site is live at the deployment's own URL either way, and that is the URL the person is given
+    /// until this works. The development target answers unverified, which is honest — nothing local resolves a
+    /// subdomain of the production zone.
+    /// </summary>
+    private async Task EnsureAddressAsync(
+        IDeploymentTarget target,
+        Site site,
+        string hostname,
+        WeblyDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        if (site.AddressReadyAt is not null || site.ProviderProjectId is null) return;
+
+        try
+        {
+            var attachment = await target.AttachDomainAsync(site.ProviderProjectId, hostname, cancellationToken);
+
+            if (!attachment.Verified)
+            {
+                logger.LogInformation(
+                    "The address {Hostname} for site {Site} is not being served yet ({Error}); the next publish will ask again.",
+                    hostname, site.Nanoid, attachment.Error ?? "no error reported");
+                return;
+            }
+
+            site.AddressReadyAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Site {Site} is now served at {Hostname}.", site.Nanoid, hostname);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Attaching the address {Hostname} to site {Site} failed; its deployment URL is unaffected.",
+                hostname, site.Nanoid);
         }
     }
 

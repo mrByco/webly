@@ -12,6 +12,13 @@ public interface IDeploymentRepository
     Task<List<Deployment>> ListForSiteAsync(int siteId, int take, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The ready deployment that is serving the site's published version, if there is one. Scoped to that version
+    /// rather than "the newest ready one", because a restore publishes an older tree and the deployment whose URL
+    /// we hand out has to be the one holding what the site currently says it is serving.
+    /// </summary>
+    Task<Deployment?> FindLiveAsync(int siteId, int siteVersionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// A deploy of this site that has not finished yet, if there is one. Publishing while one is in
     /// flight cancels it rather than queueing a second — the newer document is what the person wants
     /// live, and two concurrent uploads to one provider project race to decide which.

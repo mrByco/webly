@@ -43,12 +43,14 @@
                 <p class="truncate text-sm text-base-content/60">{{ site.url }}</p>
               </button>
 
-              @if (site.publishedAt) {
+              <!-- `liveUrl`, which is null until there is something to open: the card shows the address and the
+                   button goes where the site is. See the editor header's comment. -->
+              @if (site.liveUrl) {
                 <a
                   class="btn btn-ghost btn-sm"
                   target="_blank"
                   rel="noopener"
-                  [href]="site.url"
+                  [href]="site.liveUrl"
                   title="Open the live site">
                   <app-icon class="size-4" name="external" />
                 </a>

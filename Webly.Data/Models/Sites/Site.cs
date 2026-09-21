@@ -74,6 +74,20 @@ public class Site : IHasNanoid, IHasTimestamps
     /// </summary>
     public string? ProviderProjectId { get; set; }
 
+    /// <summary>
+    /// When the provider confirmed that <c>{Slug}.{BaseDomain}</c> serves this site's project — in other words,
+    /// when the address every screen prints stopped being an assumption.
+    ///
+    /// It exists because the subdomain is not free: a provider serves a hostname only once that hostname has been
+    /// attached to the project, and until then the address is somewhere the site is *not*. The publish path
+    /// attaches it and stamps this, so the URL the header links and the email carries can be the one that
+    /// resolves — the deployment's own URL while this is null, the site's address once it is not.
+    ///
+    /// Null is the normal state in development, where the substitute deployment target serves from this host and
+    /// nothing anywhere resolves a subdomain of the production zone.
+    /// </summary>
+    public DateTime? AddressReadyAt { get; set; }
+
     /// <summary>Named commits, newest first. See <see cref="SiteVersion"/>.</summary>
     public ICollection<SiteVersion> Versions { get; set; } = [];
 

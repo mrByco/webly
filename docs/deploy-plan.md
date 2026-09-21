@@ -164,4 +164,12 @@ dotnet user-secrets set "Sites:BaseDomain" "webly-dev.example.com" --project Web
 ```
 
 The subdomain zone has to be one the token can add domains to, or the site's own `{slug}` address will not
-resolve — the site will publish and the provider URL will work, which is enough to exercise the pipeline.
+resolve — the site will publish and the provider URL will work, which is enough to exercise the pipeline, and the
+product says so rather than hiding it: `Site.AddressReadyAt` stays null, `SiteSummaryResponse.LiveUrl` is the
+deployment's own URL, and that is what the header links and the settings screen offers under the address. The first
+publish is also what asks the provider to serve the address (`DeploymentJobRunner.EnsureAddressAsync`), so a zone
+the token owns needs no second step — and one it does not own retries on every publish, harmlessly, for ever.
+
+Whether Vercel answers that attach as verified for a subdomain of a zone already pointed at it is one of the
+things §6 has to reconcile: if it comes back pending with a challenge, the address needs the same
+"come back and check" step a customer's domain has, and `CheckDomainAsync` is the call to make it with.

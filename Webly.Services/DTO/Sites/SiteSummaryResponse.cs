@@ -7,8 +7,18 @@ public record SiteSummaryResponse
     public required string Name { get; init; }
     public required string Slug { get; init; }
 
-    /// <summary>Where it is reachable — its custom primary domain if it has one, otherwise its Webly subdomain.</summary>
+    /// <summary>
+    /// The site's address — its custom primary domain if it has a verified one, otherwise its Webly subdomain.
+    /// What it is called, not necessarily what serves it yet: see <see cref="LiveUrl"/>.
+    /// </summary>
     public required string Url { get; init; }
+
+    /// <summary>
+    /// Where the published version can actually be opened, or null for a site that has never been published. Equal
+    /// to <see cref="Url"/> once the provider serves that hostname, and the deployment's own URL until it does —
+    /// so this is the one to link and <see cref="Url"/> the one to print.
+    /// </summary>
+    public string? LiveUrl { get; init; }
 
     /// <summary>Null for a site that has never been published. What the "Live"/"Draft" badge reads.</summary>
     public DateTime? PublishedAt { get; init; }
