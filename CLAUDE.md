@@ -221,6 +221,13 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   default because the default accessor is. The hub restates the same gate as
   `ClaimsPrincipal.GetUserIdVerified()` — a hub invocation never reaches the HTTP middleware that turns
   that exception into a 403, so it throws `HubException` instead.
+- **An account can be closed, and that is the one operation that asks for the password again.** `DELETE
+  /api/auth/account` deletes each site through `DeleteSite` first — a site is a git repository, a warm sandbox and
+  a provider project as well as rows, and only that use case knows about all three — and then removes the user
+  with `ExecuteDelete`, because EF cannot: a message points at the version it produced and that version points
+  back, so the client-side cascade reports a circular dependency and sends nothing. It uses
+  `GetUserIdUnverified`, deliberately: somebody who never confirmed their address is the person most entitled to
+  leave.
 - **Verification is a blocking onboarding step.** Registering lands on `/verify-email` and nothing else is
   reachable until the address is proven: a site publishes to the public internet under our infrastructure.
   Google-created accounts arrive verified and skip it.

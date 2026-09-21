@@ -22,6 +22,7 @@ public class AuthController(
     SignInWithExternalLogin signInWithExternalLogin,
     SignOut signOut,
     GetCurrentUser getCurrentUser,
+    DeleteAccount deleteAccount,
     IOptions<JwtOptions> jwtOptions,
     IOptions<GoogleAuthOptions> googleOptions) : ControllerBase
 {
@@ -72,6 +73,34 @@ public class AuthController(
             tokenId,
             expiresAt,
             cancellationToken);
+        AuthCookies.Clear(Response);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Closes the account: its sites, their repositories, their hosting, and every row under them.
+    ///
+    /// <c>GetUserIdUnverified</c>, deliberately. Somebody who registered, never confirmed their address and
+    /// thought better of the whole thing is exactly the person most entitled to leave — and the verification gate
+    /// exists to stop unverified accounts publishing to the internet, not to hold them captive.
+    /// </summary>
+    [HttpDelete("account")]
+    [Authorize]
+    public async Task<IActionResult> DeleteAccount(
+        DeleteAccountRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = this.GetUserIdUnverified();
+
+        if (userId is null) return Unauthorized();
+
+        var result = await deleteAccount.ExecuteAsync(userId.Value, request.CurrentPassword, cancellationToken);
+
+        if (!result.Succeeded)
+            return BadRequest(new ProblemDetails { Title = "That password does not match." });
+
+        // The session is gone with the row; this is the browser's copy.
         AuthCookies.Clear(Response);
 
         return NoContent();

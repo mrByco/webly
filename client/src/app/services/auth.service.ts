@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import { AppRoutes } from '../app.routes.paths';
 import { Api } from '../api/api';
+import { apiAuthAccountDelete } from '../api/fn/auth/api-auth-account-delete';
 import { apiAuthLoginPost$Json } from '../api/fn/auth/api-auth-login-post-json';
 import { apiAuthLogoutPost } from '../api/fn/auth/api-auth-logout-post';
 import { apiAuthMeGet$Json } from '../api/fn/auth/api-auth-me-get-json';
@@ -200,6 +201,18 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
     this.me.set(await this.api.invoke(apiAuthPasswordResetPost$Json, { body: { token, newPassword } }));
+    this.loaded.set(true);
+  }
+
+  /**
+   * Closes the account, which takes the sites, their history and their hosting with it. The session is gone
+   * when this returns — the server clears the cookies and the row they name no longer exists — so the caller
+   * navigates to the way back in rather than refreshing a profile that has nobody to describe.
+   */
+  async deleteAccount(currentPassword?: string): Promise<void> {
+    await this.api.invoke(apiAuthAccountDelete, { body: { currentPassword } });
+
+    this.me.set(ANONYMOUS);
     this.loaded.set(true);
   }
 

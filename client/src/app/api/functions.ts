@@ -11,6 +11,8 @@ export type { ApiAuthLoginPost$Json$Params as ApiAuthLoginPost$Json$Params } fro
 export { apiAuthLoginPost$Json as apiAuthLoginPost$Json } from './fn/auth/api-auth-login-post-json';
 export type { ApiAuthLogoutPost$Params as ApiAuthLogoutPost$Params } from './fn/auth/api-auth-logout-post';
 export { apiAuthLogoutPost as apiAuthLogoutPost } from './fn/auth/api-auth-logout-post';
+export type { ApiAuthAccountDelete$Params as ApiAuthAccountDelete$Params } from './fn/auth/api-auth-account-delete';
+export { apiAuthAccountDelete as apiAuthAccountDelete } from './fn/auth/api-auth-account-delete';
 export type { ApiAuthMeGet$Plain$Params as ApiAuthMeGet$Plain$Params } from './fn/auth/api-auth-me-get-plain';
 export { apiAuthMeGet$Plain as apiAuthMeGet$Plain } from './fn/auth/api-auth-me-get-plain';
 export type { ApiAuthMeGet$Json$Params as ApiAuthMeGet$Json$Params } from './fn/auth/api-auth-me-get-json';

@@ -83,5 +83,56 @@
         </button>
       </form>
     </section>
+
+    <!--
+      Deliberately flatter than the panel above it and last on the page, the same shape a site's settings use
+      for the same reason: a destructive action that looks like a setting reads as one.
+    -->
+    <section class="rounded-box border border-error/40 p-4">
+      <h2 class="text-sm font-bold text-error">Close your account</h2>
+      <p class="mb-3 max-w-xl text-sm text-base-content/65">
+        Your sites go with it — the pages, every version of them, the domains you connected and anything
+        published. Take a copy first if you want one: each site's settings has a Download.
+      </p>
+
+      <button class="btn btn-outline btn-error btn-sm" type="button" (click)="confirmingDelete.set(true)">
+        Close my account
+      </button>
+    </section>
   </main>
 </app-shell>
+
+<app-modal [open]="confirmingDelete()" (close)="cancelDelete()">
+  <h3 class="text-lg font-bold">Close {{ me().email }}?</h3>
+  <p class="py-3 text-sm text-base-content/70">
+    Everything goes, and there is no way back: your sites, their history, their domains, and anything you have
+    published stops being reachable.
+  </p>
+
+  @if (!settingFirstPassword()) {
+    <label class="floating-label">
+      <span>Your password</span>
+      <input
+        class="input input-bordered w-full"
+        type="password"
+        placeholder="Your password"
+        autocomplete="current-password"
+        [value]="deletePassword()"
+        (input)="deletePassword.set($any($event.target).value)" />
+    </label>
+  }
+
+  @if (deleteError()) {
+    <p class="mt-2 text-sm font-semibold text-error">{{ deleteError() }}</p>
+  }
+
+  <div class="mt-4 flex justify-end gap-2">
+    <button class="btn btn-ghost" type="button" (click)="cancelDelete()">Keep it</button>
+    <button class="btn btn-error" type="button" [disabled]="deleting()" (click)="deleteAccount()">
+      @if (deleting()) {
+        <span class="loading loading-spinner loading-sm"></span>
+      }
+      Close my account
+    </button>
+  </div>
+</app-modal>

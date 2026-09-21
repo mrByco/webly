@@ -7,6 +7,7 @@ export type { ChangePasswordRequest } from './models/change-password-request';
 export type { ChatMessageResponse } from './models/chat-message-response';
 export type { ConversationResponse } from './models/conversation-response';
 export type { CreateSiteRequest } from './models/create-site-request';
+export type { DeleteAccountRequest } from './models/delete-account-request';
 export type { DeploymentResponse } from './models/deployment-response';
 export type { DeploymentStatus } from './models/deployment-status';
 export type { DomainResponse } from './models/domain-response';
