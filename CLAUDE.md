@@ -346,7 +346,10 @@ neither. Collaboration, when it lands, is a membership table plus one clause ins
   context stamps on insert.
 - **`User.CurrentSiteId` is which site the editor opens on**, the reference project's `CurrentFamilyId` in
   the same role. Read it **before** deleting anything: the FK nulls it on cascade, so a check afterwards
-  can no longer tell "was looking at this site" from "was looking at nothing".
+  can no longer tell "was looking at this site" from "was looking at nothing". Its successor when that site
+  goes is the **most** recently updated of the rest — `ListForOwnerAsync` orders by `UpdatedAt` descending, and
+  `DeleteSite` took the *last* of that list, which is the site its owner has cared about least. Three tests in
+  `SiteDeletionTests` pin the three cases, and the first of them is red on the old line.
 - **The slug does not follow the name.** A rename leaves the address alone, because the address may already
   be published, linked to and indexed. What the name *does* reach, when the person asks for it, is the site's
   own source — see `SiteIdentity` under "A site's source".

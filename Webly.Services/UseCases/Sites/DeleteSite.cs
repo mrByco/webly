@@ -61,10 +61,12 @@ public class DeleteSite(
 
         if (wasCurrent && user is not null)
         {
-            // Their oldest remaining site, or nothing — in which case the app offers to create one again, exactly
-            // as it does for a new account.
+            // The one they touched most recently, or nothing — in which case the app offers to create one again,
+            // exactly as it does for a new account. `ListForOwnerAsync` orders by `UpdatedAt` descending, so
+            // that is the first of what is left; this took the *last*, which is the site its owner has cared
+            // about least, and is what the editor would then open on.
             var remaining = await siteRepository.ListForOwnerAsync(userId, cancellationToken);
-            user.CurrentSiteId = remaining.Count > 0 ? remaining[^1].Id : null;
+            user.CurrentSiteId = remaining.Count > 0 ? remaining[0].Id : null;
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }

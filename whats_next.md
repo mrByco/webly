@@ -368,6 +368,16 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     workspace starts — a git read behind it would be sixty process spawns for a sentence on a screen nobody has
     open.
 
+39. **Deleting the open site handed the editor the wrong successor.** `DeleteSite` repointed
+    `User.CurrentSiteId` at `remaining[^1]`, with a comment calling it "their oldest remaining site" —
+    but `ListForOwnerAsync` orders by `UpdatedAt` **descending**, so the last of that list is the site its owner
+    has touched least recently. Delete the one you are working on and the app opens next time on the one you
+    care about least. One character, and it took reading the repository's ordering rather than the comment.
+
+    `SiteDeletionTests` pins all three cases — the successor, the last site leaving the account with none, and
+    deleting a site that is not the open one leaving the pointer alone — and the first is red on the old line,
+    which is how the discrimination was checked rather than assumed.
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
