@@ -860,6 +860,13 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   button on that row. A domain somebody added could never be taken away. Nothing is left pointing at
   nothing: a site always has its Webly subdomain, and `SiteMapper.UrlFor` falls back to it the moment there
   is no verified primary. The client asks first and names the address it goes back to.
+- **The domains panel asks `AddressReadyAt`, not `liveUrl == weblyUrl`.** That comparison is a sound proxy for
+  "the provider serves our subdomain" right up to the moment somebody promotes their own domain — after which
+  `LiveUrl` is that domain and the two can never be equal again. So the Webly row read "Being set up" for ever,
+  and the line under it said the site was live at the customer's own domain *until this address is ready*:
+  their main address framed as a stand-in for ours, on the screen where they had just connected it. The second
+  sentence now branches on `liveUrl === url` too — "which is its main address" against "until this address is
+  ready" — because the same fact means opposite things in the two states.
 - **The DNS record is shown in full, and each half has its own copy button.** It used to truncate both the
   name and the value, and only the value could be copied — on the one screen whose own class comment says
   its whole job is the copying, into a registrar in another tab. Pressing copy also does something visible

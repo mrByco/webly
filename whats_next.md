@@ -679,6 +679,28 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     lesson.
 
 
+55. **Connecting your own domain told you it was the temporary one.** Driven by walking the whole domains flow
+    for the first time — add a domain, see the DNS record, check it, promote it, then try to remove it. Every
+    step works, and the removal's confirm is genuinely good: it names the address the site falls back to and
+    warns that anyone holding the old one stops finding it.
+
+    The defect is in the panel above. The Webly-address row asked `liveUrl === weblyUrl` to decide whether the
+    platform subdomain was being served. That is a sound proxy right up to the moment somebody promotes their
+    own domain — after which `liveUrl` *is* that domain and the two can never be equal again. So the row read
+    **"Being set up"** for ever, however long ago the provider had confirmed the subdomain, and the line beneath
+    it read: *"Your site is live at https://oldforge-blacksmith.co.uk **until this address is ready**."* The
+    customer's own main address, framed as the stand-in for ours, on the screen where they had just finished
+    connecting it. Exactly backwards, and at the worst possible moment.
+
+    Two states that one comparison cannot tell apart, so the panel now asks the question it means:
+    `SiteSummaryResponse.AddressReadyAt` for the badge, and `liveUrl === url` to choose between "which is its
+    main address" and "until this address is ready". Both read correctly in the running app, on a site with a
+    promoted domain and one without.
+
+    (And the `@if` opens on the line the anchor closes on, deliberately: a line break between them renders as a
+    space, and a space before a comma is how a sentence looks unfinished. It did, the first time.)
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

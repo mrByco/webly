@@ -83,6 +83,20 @@ public class SiteUrlTests
 
         Assert.That(summary.Url, Is.EqualTo("https://koopmancycles.nl"));
         Assert.That(summary.LiveUrl, Is.EqualTo("https://koopmancycles.nl"));
+
+        // And the Webly subdomain's own state is still reported separately, which is the half that was
+        // missing. The domains screen asked `liveUrl == weblyUrl` to decide whether the platform address was
+        // being served — a sound proxy until somebody promotes their own domain, after which `liveUrl` is that
+        // domain and the two can never be equal again. So the Webly row read "Being set up" for ever, and the
+        // line under it said the site was live at the customer's own domain *until this address is ready*:
+        // their main address framed as a stand-in for ours, on the screen where they had just connected it.
+        Assert.That(summary.WeblyUrl, Is.EqualTo("https://koopman-cycles.webly.site"));
+        Assert.That(summary.AddressReadyAt, Is.Null, "the subdomain is unattached whatever the domain says");
+
+        var attached = Mapper().ToSummary(Site(addressReadyAt: DateTime.UtcNow), domain, DateTime.UtcNow, Live());
+
+        Assert.That(attached.AddressReadyAt, Is.Not.Null);
+        Assert.That(attached.LiveUrl, Is.EqualTo("https://koopmancycles.nl"), "and the domain still wins");
     }
 
     /// <summary>

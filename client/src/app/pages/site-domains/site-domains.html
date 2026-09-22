@@ -12,9 +12,17 @@
       customer's own domain the moment one is promoted — which had this panel labelling their domain as ours.
 
       And the badge is the truth rather than a reassurance. "Always on" is only true once the provider is serving
-      that hostname, which is what `liveUrl` being the same string means; before the first publish there is
-      nothing at either address, and in between the site is live at its deployment's own URL, said below rather
-      than left to be discovered by clicking.
+      that hostname, which is what `addressReadyAt` records; before the first publish there is nothing at either
+      address, and in between the site is live at its deployment's own URL, said below rather than left to be
+      discovered by clicking.
+
+      `addressReadyAt` rather than `liveUrl === weblyUrl`, which is what this used to ask. That is a sound proxy
+      right up to the moment somebody promotes their own domain — after which `liveUrl` is that domain, so this
+      row said "Being set up" for ever however long ago the provider had confirmed the subdomain, and the line
+      under it read "your site is live at oldforge-blacksmith.co.uk **until this address is ready**": the
+      customer's own main address, framed as the temporary stand-in for ours, on the screen where they have just
+      finished connecting it. Two states that `liveUrl` alone cannot tell apart, so the panel asks the question
+      it actually means.
     -->
     @if (site(); as detail) {
       <div class="surface flex flex-col gap-2 p-4">
@@ -22,7 +30,7 @@
           <app-icon class="size-4.5 text-base-content/55" name="globe" />
           <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ detail.summary.weblyUrl }}</span>
 
-          @if (detail.summary.liveUrl === detail.summary.weblyUrl) {
+          @if (detail.summary.addressReadyAt) {
             <span class="badge badge-sm">Always on</span>
           } @else if (detail.summary.publishedAt) {
             <span class="badge badge-sm badge-warning">Being set up</span>
@@ -34,8 +42,15 @@
         @if (detail.summary.publishedAt && detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.weblyUrl) {
           <p class="text-xs text-base-content/60">
             Your site is live at
-            <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>
-            until this address is ready.
+            <!--
+              Two different sentences, because the same fact means opposite things. When the customer's own
+              domain is the address, that is the finished state and this subdomain is the spare; when it is not,
+              the site is on a provider URL and this subdomain is what it is waiting for.
+
+              The `@if` opens on the same line the anchor closes on, deliberately: a line break between them is
+              a space in the rendered text, and a space before a comma is how a sentence looks unfinished.
+            -->
+            <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>@if (detail.summary.liveUrl === detail.summary.url) {, which is its main address.} @else { until this address is ready.}
           </p>
         }
       </div>

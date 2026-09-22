@@ -56,6 +56,7 @@ public class SiteMapper(IOptions<SitesOptions> sites)
         Url = UrlFor(site, primaryDomain),
         LiveUrl = LiveUrlFor(site, primaryDomain, liveDeployment),
         PublishedAt = publishedAt,
+        AddressReadyAt = site.AddressReadyAt,
         // Two pointers, one question. Equal means the world is looking at what the editor is editing.
         HasUnpublishedChanges = site.PublishedVersionId != site.HeadVersionId,
         UpdatedAt = site.UpdatedAt

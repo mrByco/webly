@@ -32,6 +32,18 @@ public record SiteSummaryResponse
     public DateTime? PublishedAt { get; init; }
 
     /// <summary>
+    /// When the provider confirmed it serves the site's <see cref="WeblyUrl"/>, or null while it does not.
+    ///
+    /// Exposed because the domains screen has to say whether *that* subdomain works, and until now it inferred
+    /// it from `LiveUrl == WeblyUrl` — which is a sound proxy right up to the moment a customer promotes their
+    /// own domain. After that `LiveUrl` is the domain, so the Webly row read "Being set up" for ever no matter
+    /// what the provider had confirmed, and its explanation named the customer's own domain as the stand-in
+    /// the subdomain was being set up to replace. Exactly backwards, on the screen where somebody has just
+    /// finished connecting it.
+    /// </summary>
+    public DateTime? AddressReadyAt { get; init; }
+
+    /// <summary>
     /// Whether the draft has moved on since the last publish. Computed from the two pointers rather than stored —
     /// a boolean beside them is a third fact that can disagree with both.
     /// </summary>
