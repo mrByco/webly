@@ -879,6 +879,32 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     returns to 42px.
 
 
+63. **The inbox showed field names and three comments called them labels — including the one the agent
+    reads.** Found while driving the Messages tab for a site with two real enquiries in it: the answers were
+    headed `name`, `email`, `phone`, `message`, in lower case, while the form the visitor filled in had asked
+    "Your name", "Your email", "Your phone number", "How can we help?".
+
+    A browser posts a field's `name` and never the `label` beside it. That is simply how forms work, and
+    everything downstream was right about it — `SubmittedFormField` is a name and a value, and the backend's
+    own tests post labels *as* names. What was wrong was the prose. The messages template called the list
+    "the visitor's own labels". `CLAUDE.md` said the tab "lists the labels the visitor's own form used". And
+    `ContactForm`'s `FormField.label` was documented as "the label the visitor reads, **and the name the
+    owner sees above their answer**" — which is the one that matters, because that comment is what the
+    coding agent reads when it writes a form for somebody's site. Follow it and `{ label: 'Which service?',
+    name: 'f3' }` is a perfectly reasonable thing to write, and the owner's inbox says `f3`.
+
+    So the documentation is honest now — the name is what the owner reads, and `AGENTS.md` asks for names a
+    person can read — and `models/field-label.ts` tidies it: separators and camelCase humps become spaces
+    and the first letter is capitalised. Deliberately no further. It does not expand `qty`, because it cannot
+    know that means quantity and a confident wrong word above somebody's enquiry is worse than a plain one;
+    and a name already written as prose is returned untouched, since a form whose names *are* its labels is
+    allowed and is what the backend's tests post. Five cases in the spec, one for each of those decisions.
+
+    Not a defect in behaviour, which is why it survived: every layer did exactly what it said, and only the
+    sentences joining them were wrong. The kind of thing that is invisible until somebody reads the screen
+    the way its owner would.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

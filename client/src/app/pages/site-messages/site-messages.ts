@@ -7,6 +7,7 @@ import { SubmissionService } from '../../services/submission.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf } from '../../models/problem-details';
 import { contactLink } from '../../models/contact-link';
+import { fieldLabel } from '../../models/field-label';
 import { FormSubmissionResponse } from '../../api/models/form-submission-response';
 
 /**
@@ -117,6 +118,14 @@ export class SiteMessagesPage {
    */
   protected label(submission: FormSubmissionResponse): string | undefined {
     return submission.formName && submission.formName !== 'contact' ? submission.formName : undefined;
+  }
+
+  /**
+   * What to print above an answer. A browser posts a field's `name` and never the label beside it, so this is
+   * that name tidied — see `models/field-label.ts`, which says how far it goes and why it stops there.
+   */
+  protected fieldLabel(name: string): string {
+    return fieldLabel(name);
   }
 
   /**

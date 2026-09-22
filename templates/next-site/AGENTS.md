@@ -34,6 +34,8 @@ actually confirmed.
     action or an API route will compile and then 404 on the published site, and the enquiry it was supposed to
     receive is simply lost. Change the fields, the labels and the copy; keep the hidden fields as the component
     sets them, honeypot included, and give the email field a name containing "email" so the owner can reply.
+    **Name every field for a person to read** — `preferred-date`, not `f3`: a browser posts field names and
+    never the labels beside them, so the name is what appears above the answer in the owner's messages.
     A `mailto:` link is not a substitute: it opens whatever the visitor's device thinks is a mail client, which
     on a phone is often nothing at all.
 

@@ -19,10 +19,14 @@ export interface ContactFormProps {
 }
 
 export interface FormField {
-  /** The label the visitor reads, and the name the owner sees above their answer. Write it for them. */
+  /** The label the visitor reads. Only the visitor: a browser posts field names, never labels. */
   label: string;
 
-  /** `name` in the posted form. Include "email" in the one asking for an address: see below. */
+  /**
+   * `name` in the posted form — and **what the owner reads above the answer**, since that is what reaches
+   * them. So write it for a person: `preferred-date`, not `f3`. Include "email" in the one asking for an
+   * address: see below.
+   */
   name: string;
 
   type?: 'text' | 'email' | 'tel' | 'textarea';

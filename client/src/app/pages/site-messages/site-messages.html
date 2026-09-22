@@ -70,13 +70,15 @@
         </header>
 
         <!--
-          The visitor's own labels, in the order their form asked for them. `whitespace-pre-line` because
-          somebody typed a paragraph into a textarea and collapsing the newlines loses what they meant.
+          The fields the visitor's form posted, in the order it asked for them. What arrives is each field's
+          `name`, never the label beside it — a browser does not send labels — so `fieldLabel` tidies the
+          name and nothing here pretends it is more than that. `whitespace-pre-line` because somebody typed a
+          paragraph into a textarea and collapsing the newlines loses what they meant.
         -->
         <dl class="flex flex-col gap-2.5">
           @for (field of submission.fields; track $index) {
             <div class="flex flex-col gap-0.5">
-              <dt class="text-xs font-semibold text-base-content/55">{{ field.name }}</dt>
+              <dt class="text-xs font-semibold text-base-content/55">{{ fieldLabel(field.name) }}</dt>
 
               <!--
                 An address or a number is a link, because answering is what somebody opened this for and the

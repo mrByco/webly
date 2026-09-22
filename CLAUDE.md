@@ -1000,7 +1000,14 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   the backup, and the confirm dialog says so.
 - **`Fields` is one jsonb column**, not a table and not a fixed set of columns. The agent writes the form, so
   Webly cannot know whether this site asks for a postcode — and a column per question is a migration per
-  question. The editor's Messages tab lists the labels the visitor's own form used.
+  question. The editor's Messages tab lists the field **names** the visitor's form posted, which is not the
+  same as its labels and was documented as if it were: a browser posts names and never labels, so the name is
+  what the owner reads above the answer. `ContactForm`'s own comment told the agent the opposite, which is how
+  a form with tidy labels and `f3` for a name would have reached somebody's inbox. `models/field-label.ts`
+  tidies the name as far as a name can be tidied — separators and camelCase humps become spaces, the first
+  letter is capitalised — and deliberately no further: it cannot know `qty` means quantity, and a confident
+  wrong word above somebody's enquiry is worse than a plain one. A name already written as prose is left
+  alone, because a form whose names *are* its labels is allowed.
 - **`App:BaseUrl` is where the endpoint's address comes from**, the same setting the links in mail are built
   from: a form action and a verification link are one fact about one host. `AppOptions.FormEndpointFor` is the
   one place it is composed, and both the dev server and the publish read it — a preview whose form posts
