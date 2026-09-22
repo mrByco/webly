@@ -998,6 +998,18 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   beside the chat and an ancestor clipped it: the title was cut off mid-word, the diff ran off the edge, and
   the page's own `scrollWidth` never changed, because clipping is exactly what hides that. It read as a bug in
   the diff renderer. `tools/e2e/screens.mjs` now fails on it.
+- **The same rule reaches grid items and trailing badges**, and it has now cost three defects. A **grid**
+  item's default `min-width` is `auto` too, so one site called "The Old Forge Blacksmith & Metalwork
+  Restoration Company (Northumberland)" dragged the whole All-sites list to 688px inside a 390px screen and
+  pushed every card's "Open editor" off the edge — including the short-named ones — because `truncate` inside
+  sets `nowrap` and the `<li>` would not shrink. And `truncate` written on a flex **row** rather than on the
+  text inside it clips whatever follows: the editor's header read "not publis", the site's own state cut off by
+  its own address. `truncate` goes on the text, `shrink-0` on what comes after, `min-w-0` on the item that has
+  to give way. **`clippedText` in the sweep is the guard**, because nothing else can be: a child overflowing a
+  clipping ancestor never changes the page's `scrollWidth`. It measures leaf text against the nearest clipping
+  ancestor and ignores anything wearing its own ellipsis.
+- **Sweep the account with real content.** The sideways-scroll rule found the grid defect the first time it ran
+  against an account whose sites have realistic names; the sparse one had walked clean over it for weeks.
 - **The editor shell owns the site.** One load, one signal (`SiteService.current`), so the header, the chat,
   the preview and whichever child route is showing cannot disagree about what is open. History, domains and
   settings render **in place of the preview**, not over the whole page, so the chat stays available.

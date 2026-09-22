@@ -36,7 +36,16 @@
     } @else {
       <ul class="grid gap-4 sm:grid-cols-2">
         @for (site of list(); track site.nanoid) {
-          <li class="surface flex flex-col gap-3 p-5">
+          <!--
+            `min-w-0` on the grid item, which is the level that decides. A grid item's default `min-width` is
+            `auto` — it will not shrink below its content — and `truncate` inside sets `white-space: nowrap`,
+            so the name's min-content width becomes the whole name on one line. The `min-w-0` on the button
+            below cannot help with that: the constraint is here, not there. One site with a long name dragged
+            the *whole list* to 688px on a 390px screen, pushing every card's "Open editor" off the right edge
+            — including the cards whose names were short. Same rule as the editor's child pane, on a grid
+            rather than a flex row.
+          -->
+          <li class="surface flex min-w-0 flex-col gap-3 p-5">
             <div class="flex items-start justify-between gap-3">
               <button class="min-w-0 text-left" type="button" (click)="open(site)">
                 <h2 class="truncate text-lg font-bold">{{ site.name }}</h2>

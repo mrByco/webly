@@ -652,6 +652,33 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     compiled" is only proved by compiling it: the published page's title is `O&#x27;Brien Plumbing`.
 
 
+54. **A long business name cut off the two things beside it, in two different ways.** Driven by creating a site
+    called "The Old Forge Blacksmith & Metalwork Restoration Company (Northumberland)" — which is not a stress
+    test, it is how small businesses are called — and looking at the app on a 390px screen.
+
+    In the editor's header, the address and the published-state badge share a flex row that carried `truncate`.
+    `truncate` on a **row** sets `overflow:hidden` on the container and nothing on the children: the address
+    would not give way, so the badge was sliced, and the header read **"not publis"** — the site's own status,
+    clipped by its own address. `truncate` belongs on the text, `shrink-0` on what follows it.
+
+    On the All sites screen it was worse, because the cards are a **grid**. A grid item's default `min-width` is
+    `auto`, so it will not shrink below its content — and `truncate` inside sets `white-space: nowrap`, which
+    makes the name's min-content width the whole name on one line. One long-named site dragged the *entire
+    list* to 688px inside a 390px screen, pushing every card's "Open editor" off the right edge, **including
+    the cards whose names were short**. The `min-w-0` already on the button could not help: the constraint is
+    on the `<li>`. Caught by the sweep's existing sideways-scroll rule the first time it ran against an account
+    whose sites have real names — which is the other lesson, and why it now runs against that account.
+
+    **`tools/e2e/screens.mjs` gained a rule for the first one**, because nothing could see it. When a child
+    overflows an ancestor that clips, the page's `scrollWidth` does not change — clipping is precisely what
+    hides it — so neither the browser nor the sideways-scroll rule can tell. `clippedText` measures **leaf
+    text** against the nearest clipping ancestor and skips anything wearing its own ellipsis, since an ellipsis
+    is a decision. Red on every screen carrying that header before the fix, naming the element and the words
+    lost; silent across all 26 screens at both widths otherwise. That is the third defect of this shape — the
+    version summary, the badge, the card — so it is worth a rule rather than a third reading of the same
+    lesson.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

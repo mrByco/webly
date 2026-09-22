@@ -157,6 +157,72 @@ async function sidewaysScroll(page) {
 }
 
 /**
+ * A word cut off by the box around it, which nothing else here can see.
+ *
+ * `sidewaysScroll` catches a pane that has grown too wide, and cannot catch this: when a child overflows an
+ * ancestor that clips, the page's own `scrollWidth` does not change — clipping is precisely what hides it.
+ * That is the `min-w-0` lesson, and it has now cost two defects. The first was a version summary making the
+ * editor's child pane wider than the room beside the chat, so the title was cut mid-word and the diff ran off
+ * the edge. The second was `truncate` written on a flex *row* rather than on the text inside it: `truncate`
+ * sets `overflow:hidden` on the container and nothing on the children, so the address would not give way and
+ * the badge after it was simply sliced — a site with a long name read "not publis" on a phone, its own
+ * published state clipped by its own address.
+ *
+ * Only **leaf text** is measured: a badge, a label, a button's caption — things whose whole content is a word
+ * somebody has to read. An element with children of its own is a layout box, and a layout box being clipped is
+ * usually the truncation working. An element that truncates *itself* is excluded for the same reason: an
+ * ellipsis is a decision, and a rule that fails on one is a rule people route around.
+ */
+async function clippedText(page) {
+  return page.evaluate(() => {
+    const found = [];
+    const clips = value => value === 'hidden' || value === 'clip';
+
+    for (const element of document.querySelectorAll('body *')) {
+      if (element.children.length > 0) continue;
+
+      const text = (element.textContent ?? '').trim();
+
+      if (text.length === 0) continue;
+
+      const style = getComputedStyle(element);
+
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+
+      // Its own ellipsis is a decision, not a defect.
+      if (style.textOverflow === 'ellipsis') continue;
+
+      const box = element.getBoundingClientRect();
+
+      if (box.width === 0 || box.height === 0) continue;
+
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        const parentStyle = getComputedStyle(parent);
+
+        if (!clips(parentStyle.overflowX) && !clips(parentStyle.overflowY)) continue;
+
+        const within = parent.getBoundingClientRect();
+
+        // A pixel of slack: sub-pixel layout puts an edge a fraction over without anything being lost.
+        const cut = box.right > within.right + 1 || box.left < within.left - 1;
+
+        if (cut) {
+          const classes = (element.className?.toString?.() ?? '').trim().split(/\s+/).slice(0, 2).join('.');
+
+          found.push(
+            `${element.tagName.toLowerCase()}${classes ? '.' + classes : ''} "${text.slice(0, 30)}" `
+            + `is cut off by the box around it`);
+        }
+
+        break;
+      }
+    }
+
+    return found.slice(0, 3);
+  });
+}
+
+/**
  * The accessibility mistakes that are worth failing a build for, and only those.
  *
  * Not an audit — a real one needs a dependency and produces a report somebody has to triage, and the whole
@@ -334,6 +400,10 @@ async function walk(page, name, url, open) {
 
     for (const pane of await sidewaysScroll(page))
       problems.push(`${name} @${width}: ${pane} — content is being cut off`);
+
+    // At both widths, unlike the accessibility questions: this one is about the room a word has, and a phone
+    // is where it runs out.
+    for (const cut of await clippedText(page)) problems.push(`${name} @${width}: ${cut}`);
 
     // Only at one width: these are questions about the markup, and asking them twice reports each answer
     // twice.

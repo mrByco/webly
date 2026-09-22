@@ -15,19 +15,28 @@
             does with their new site is click through to a 404. The address itself is on the settings screen,
             which is where somebody goes to read it rather than to visit it.
           -->
+          <!--
+            `truncate` belongs on the text, never on the flex row around it, and `shrink-0` on what follows.
+            On the row it sets `overflow:hidden` on the container and nothing on the children — so the address
+            does not give way, and the thing after it is simply cut off. On a 390px screen a site with a long
+            name read "not publis": the site's own status, clipped by its address. The page's `scrollWidth`
+            never changes when that happens, which is why neither the browser nor the screens sweep can see it
+            — clipping is exactly what hides it. Same lesson as `min-w-0` on the editor's child pane, a row
+            further in.
+          -->
           @if (detail.summary.liveUrl) {
             <a
-              class="flex items-center gap-1 truncate text-xs text-base-content/60 hover:text-base-content"
+              class="flex items-center gap-1 text-xs text-base-content/60 hover:text-base-content"
               target="_blank"
               rel="noopener"
               [href]="detail.summary.liveUrl">
-              {{ detail.summary.liveUrl }}
-              <app-icon class="size-3" name="external" />
+              <span class="truncate">{{ detail.summary.liveUrl }}</span>
+              <app-icon class="size-3 shrink-0" name="external" />
             </a>
           } @else {
-            <p class="flex items-center gap-1.5 truncate text-xs text-base-content/50">
-              {{ detail.summary.url }}
-              <span class="badge badge-ghost badge-xs">
+            <p class="flex items-center gap-1.5 text-xs text-base-content/50">
+              <span class="truncate">{{ detail.summary.url }}</span>
+              <span class="badge badge-ghost badge-xs shrink-0">
                 @if (detail.summary.publishedAt) { published }
                 @else { not published yet }
               </span>
