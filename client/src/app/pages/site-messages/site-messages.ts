@@ -6,6 +6,7 @@ import { Modal } from '../../components/modal/modal';
 import { SubmissionService } from '../../services/submission.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf } from '../../models/problem-details';
+import { contactLink } from '../../models/contact-link';
 import { FormSubmissionResponse } from '../../api/models/form-submission-response';
 
 /**
@@ -116,5 +117,13 @@ export class SiteMessagesPage {
    */
   protected label(submission: FormSubmissionResponse): string | undefined {
     return submission.formName && submission.formName !== 'contact' ? submission.formName : undefined;
+  }
+
+  /**
+   * An address or a number the owner can act on, as a link. The rule is in `models/contact-link.ts`, with its
+   * own spec: it is a judgement about a string rather than anything to do with this screen.
+   */
+  protected linkFor(value: string): string | undefined {
+    return contactLink(value);
   }
 }

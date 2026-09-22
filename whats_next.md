@@ -587,6 +587,21 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     restyle. Worth revisiting the day there are sites somebody would mind.
 
 
+51. **The address on the Messages screen was not a link.** The screen has no reply of its own, deliberately —
+    an enquiry is answered from the owner's own email, where the notification already is with the visitor's
+    address in its reply-to. That is right, and it is exactly what made the plain text wrong: somebody reading
+    the list on their phone and deciding to answer *this* one had to select, copy and switch app, for the thing
+    the screen exists for. A phone number was the same.
+
+    `models/contact-link.ts` judges the value rather than the label, because the agent writes the form and the
+    field asking for an address might be called anything, while an address looks like an address whatever it is
+    called. Whole-value only, so the address inside somebody's paragraph stays part of what they wrote — driven
+    with a message carrying one, and it stayed text while the address field beside it became a link. `?` and
+    `&` are refused, because that is how a `mailto:` grows a `bcc`. Six cases in `contact-link.spec.ts`.
+
+    Not a fourth verb: the three the screen has, made usable.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

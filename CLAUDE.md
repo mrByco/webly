@@ -151,6 +151,7 @@ more than one restating what the line does.
 | Inspect the DB | `db_status`, `db_query` (read-only SQL) | `docker exec webly-postgres-dev psql -U webly -d webly` |
 | Regenerate the Angular API client | `regen_api` | `./regen-api.ps1` or `yarn --cwd client regen-api` |
 | Angular typecheck / build | `client_typecheck`, `client_build` | `yarn typecheck`, `yarn build` in `client/` |
+| Client tests (vitest) | — | `yarn test --watch=false` in `client/` — **not** `--run`, which `ng test` does not take |
 | Migrations | — | `dotnet ef migrations add <Name> --project Webly.Data --startup-project Webly.Data` |
 | Read a sent email | — | open the newest file in `.run/mail/` (dev sends nothing; it logs and saves) |
 | Build the sandbox image | — | `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` |
@@ -1085,6 +1086,16 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   `NotYetImplemented` during the build and the prerendered login, register and forgot-password pages come
   out unrendered — with an exit code of 0. The reference project has the shorter version and the same
   defect.
+- **`models/` is where a rule about a value lives**, with a spec beside it — `unified-diff.ts`,
+  `problem-details.ts`, and `contact-link.ts`, which decides whether something a stranger typed into a contact
+  form is an address or a number the owner can act on. That one is **by the value, never by the label**: the
+  agent writes the form, so the field asking for an address might be called anything, while an address looks
+  like an address whatever it is called. (The server guesses the notification's reply-to by *name*, which is a
+  different job — it picks one field out of many, where this judges one.) Whole value only, so an address
+  inside somebody's paragraph stays part of what they wrote; and `?` and `&` are refused, because that is how a
+  `mailto:` grows a `bcc` out of a string a stranger typed. The Messages screen still has no reply of its own —
+  an enquiry is answered from the owner's own inbox — and this is the three verbs it has made usable rather
+  than a fourth.
 - `models/problem-details.ts` holds the one `messageOf`. The generated client asks for
   `responseType: 'text'` on endpoints that answer 204, so a failure from one of those hands back the problem
   body as a *string* — reading only `error.title` there silently shows the generic message.
