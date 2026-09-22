@@ -780,6 +780,41 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     lesson: an observer that filters by what it already knows cannot see something new arrive.
 
 
+59. **A reload lost the warning, and the type-error case is where that is worst.** The build report was a run
+    event and nothing else: it reached the live screen and existed nowhere afterwards. Reload the editor and
+    the thread was the agent's cheerful reply with nothing under it. Measured exactly that way — "before
+    reload: warning shown / after reload: NO warning".
+
+    For a compile error this loses a sentence somebody could still get back by breaking the page again. For a
+    **type error** it loses the only thing on the screen that was true: the preview renders, the reply says the
+    change is done, and the site will refuse to publish. Every signal agrees the site is healthy and the one
+    that disagreed was the one that did not survive a refresh.
+
+    The fix follows this codebase's own precedent rather than inventing one. The stop note and the failure note
+    are already written into the thread as `MessageRole.System` for exactly this reason — so that a reload
+    tells the person what the live screen told them — and the build report is the third thing in that class.
+    `ReportAsync` now writes a note carrying the headline plus the first non-empty line of the compiler's
+    output: `This will stop your site publishing. src/app/page.tsx(43,7): error TS2322: Type 'number' is not
+    assignable to type 'string'.` One line deliberately, not the block: the full text is in the run event, in
+    the preview and in the publish's error detail, and a transcript is a conversation rather than a log.
+
+    Verified both ways in the browser — the live screen says it, and the reloaded thread still says it.
+
+60. **The chat opened at the oldest message.** Found while checking the one above, by measuring the transcript
+    scroller instead of looking at it: `{"h":2984,"c":757,"top":0,"gap":2227}` on a desktop and `gap: 2641` on
+    a phone. So every arrival at a site with any history put somebody two and a half screens above their own
+    last exchange, with the composer beneath a conversation from an hour ago.
+
+    `scrollToEnd()` existed. It was only ever called from `apply()`, the run-event handler — so the transcript
+    jumped to the end the moment anybody typed, and never on the way in. That is the shape that hides a defect
+    for weeks: it is right during the thing you are testing and wrong before you start.
+
+    Two changes, and the second is the one that matters. `load()` calls it. And it runs inside
+    `afterNextRender(…, { injector })`, because setting `entries` **schedules** a render rather than performing
+    one: reading `scrollHeight` in the same tick measures the transcript as it was a moment ago, which on a
+    first load is an empty one. Re-measured afterwards at both widths: `gap: 0`.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

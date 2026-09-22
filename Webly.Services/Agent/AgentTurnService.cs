@@ -271,7 +271,7 @@ public class AgentTurnService(
             }, cancellationToken);
         }
 
-        await ReportBreakageAsync(workspace, logOffset, version is not null, cancellationToken);
+        await ReportBreakageAsync(workspace, conversation.Id, logOffset, version is not null, cancellationToken);
     }
 
     /// <summary>
@@ -385,6 +385,7 @@ public class AgentTurnService(
     /// </param>
     private async Task ReportBreakageAsync(
         SiteWorkspace workspace,
+        int conversationId,
         long since,
         bool committed,
         CancellationToken cancellationToken)
@@ -403,6 +404,8 @@ public class AgentTurnService(
 
             await ReportAsync(
                 RunEventType.BuildFailed,
+                conversationId,
+                "Your site is not compiling.",
                 detail.Length <= DetailLimit ? detail : detail[^DetailLimit..],
                 cancellationToken);
 
@@ -414,7 +417,7 @@ public class AgentTurnService(
 
         if (!committed) return;
 
-        await ReportTypeErrorsAsync(workspace, cancellationToken);
+        await ReportTypeErrorsAsync(workspace, conversationId, cancellationToken);
     }
 
     /// <summary>
@@ -429,7 +432,10 @@ public class AgentTurnService(
     /// telling a customer their site does not compile because our sandbox is wrong is worse than saying nothing.
     /// So it is logged for us and the chat stays quiet.
     /// </summary>
-    private async Task ReportTypeErrorsAsync(SiteWorkspace workspace, CancellationToken cancellationToken)
+    private async Task ReportTypeErrorsAsync(
+        SiteWorkspace workspace,
+        int conversationId,
+        CancellationToken cancellationToken)
     {
         var check = await workspace.Sandbox.RunAsync(
             new SandboxCommand("npm", ["run", "--silent", "typecheck"], TimeSpan.FromMinutes(2)),
@@ -448,19 +454,48 @@ public class AgentTurnService(
             return;
         }
 
-        await ReportAsync(RunEventType.TypesFailed, CompilerOutput.TypeErrors(check.Output), cancellationToken);
+        await ReportAsync(
+            RunEventType.TypesFailed,
+            conversationId,
+            "This will stop your site publishing.",
+            CompilerOutput.TypeErrors(check.Output),
+            cancellationToken);
     }
 
     /// <summary>
-    /// Puts a compiler's complaint on screen, saying which compiler it was.
+    /// Puts a compiler's complaint on screen, saying which compiler it was — and leaves a line in the thread
+    /// saying it happened.
     ///
-    /// The two are true of different things and the screen has to say which. A dev-server failure means the page
-    /// is broken *now*, and the preview beside the chat is showing it; a type error means the page renders and
-    /// the **publish** will refuse, because `next dev` strips types without checking them while `next build`
-    /// runs `tsc`. One heading for both said "Your site is not compiling" over a preview that plainly was.
+    /// The two events are true of different things and the screen has to say which. A dev-server failure means
+    /// the page is broken *now*, and the preview beside the chat is showing it; a type error means the page
+    /// renders and the **publish** will refuse, because `next dev` strips types without checking them while
+    /// `next build` runs `tsc`. One heading for both said "Your site is not compiling" over a preview that
+    /// plainly was.
+    ///
+    /// <b>The note is what makes a reload agree with the live screen</b>, which is the rule the stop and failure
+    /// notes already follow and the one case that broke it. The run's log is in memory and dies with the run, so
+    /// after a reload there was nothing at all: for a type error in particular the preview renders perfectly and
+    /// the agent's reply is cheerful, so a site that will refuse to publish looked completely healthy until
+    /// somebody pressed Publish and got an email. Found by breaking the types and pressing reload.
+    ///
+    /// One line rather than the whole block, deliberately. The compiler's full text is on screen while the turn
+    /// is live, in the deployment's error detail when a publish fails, and on the settings screen after that —
+    /// three places already. What the thread needs to carry is the *state the site is in*, which is a sentence
+    /// and the first line naming the file.
     /// </summary>
-    private Task ReportAsync(RunEventType type, string detail, CancellationToken cancellationToken) =>
-        writer.WriteAsync(new RunEvent { Type = type, Detail = detail }, cancellationToken);
+    private async Task ReportAsync(
+        RunEventType type,
+        int conversationId,
+        string headline,
+        string detail,
+        CancellationToken cancellationToken)
+    {
+        await writer.WriteAsync(new RunEvent { Type = type, Detail = detail }, cancellationToken);
+
+        var first = detail.Split('\n').FirstOrDefault(line => line.Trim().Length > 0)?.Trim() ?? string.Empty;
+
+        await NoteAsync(conversationId, first.Length > 0 ? $"{headline} {first}" : headline);
+    }
 
     private static string Describe(ConversationMessage message) =>
         $"{(message.Role == MessageRole.User ? "They asked" : "You replied")}: {message.Text}";

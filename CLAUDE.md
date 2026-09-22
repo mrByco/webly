@@ -726,6 +726,14 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   heading reads "This will stop your site publishing"; `BuildFailed` keeps the other. Adding the value was safe
   because these cross the wire as **names**: a new one is a case a client has not handled yet rather than a
   silent renumbering of the ones it has.
+- **And a build report survives a reload, because a run event does not.** Both of those reached the live screen
+  and existed nowhere afterwards: refreshing the editor left the agent's cheerful reply with nothing under it.
+  That is worst for the type error, where the preview renders, the reply says the change is done, and the only
+  thing on screen that was true is the thing the reload dropped. `ReportAsync` writes a `MessageRole.System`
+  note beside the event — the headline plus the **first** line of the compiler's output, not the block, since
+  the full text is in the event, the preview and the publish's error detail, and a transcript is a conversation
+  rather than a log. It is the same reason the stop note and the failure note are already written into the
+  thread: a reload has to tell the person what the live screen told them.
 - **`tsc --incremental` writes a cache, and it must not reach a commit.** It defaults to sitting beside
   `tsconfig.json`, so every turn that ran the typecheck — which `AGENTS.md` has asked for all along — would have
   committed a machine-readable dump of the project into the customer's history and shown it in their diff. Two
@@ -1113,6 +1121,14 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts, and a `build` block carrying the
   compiler's own words.
+- **And the transcript opens at the newest one, which it did not.** `scrollToEnd()` existed and was called
+  only from `apply()`, the run-event handler — so the chat jumped to the end the moment anybody typed and never
+  on the way in, which is the shape that hides a defect: right during the thing being tested, wrong before it
+  starts. Measured rather than looked at: `scrollHeight - clientHeight - scrollTop` was 2227px on a desktop and
+  2641px on a phone, so every arrival put somebody two screens above their own last exchange. `load()` calls it
+  now, and it runs inside `afterNextRender(…, { injector })` — setting `entries` **schedules** a render rather
+  than performing one, so reading `scrollHeight` in the same tick measures the transcript as it was a moment
+  ago, which on a first load is an empty one.
 - **The app's own colours are quiet on purpose.** This app is a frame around somebody else's website, and
   the accents on screen should be the preview's.
 - **A field's border is the one place a faint line is not a style choice**, and daisyUI's default is 1.5:1

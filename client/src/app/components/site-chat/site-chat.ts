@@ -1,4 +1,4 @@
-import { Component, ElementRef, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
@@ -99,6 +99,7 @@ export class SiteChat {
   readonly turnFinished = output<void>();
 
   private readonly chat = inject(ChatService);
+  private readonly injector = inject(Injector);
   private readonly images = inject(ImageService);
   private readonly realtime = inject(RealtimeService);
 
@@ -154,6 +155,14 @@ export class SiteChat {
           versionNanoid: message.producedVersionNanoid ?? undefined,
         })),
       );
+
+      // The newest message, which is what somebody opening a site came to read. Without it the transcript
+      // opened at the *oldest* — 2200px of history above the fold on a desktop and 2600px on a phone — so the
+      // last thing the assistant said, whether it committed anything, and whether the site is broken were all
+      // below the composer. `scrollToEnd` existed and was only ever called from the run-event handler, so it
+      // looked right the moment anybody typed and wrong every time they arrived. Measured rather than judged
+      // by eye: `scrollTop` was 0 with the pane two and a half screens short of its end.
+      this.scrollToEnd();
 
       // A turn that is still running: re-attach and let the replay finish the transcript.
       if (conversation.activeRunId) {
@@ -458,11 +467,22 @@ export class SiteChat {
     });
   }
 
+  /**
+   * Puts the newest entry in view.
+   *
+   * After the next render, not now: setting `entries` schedules a render rather than performing one, so reading
+   * `scrollHeight` in the same breath measures the transcript as it was a moment ago — which on a first load is
+   * an empty one, and scrolling to the bottom of nothing is scrolling to the top. Harmless on the server, where
+   * there is no element to find.
+   */
   private scrollToEnd(): void {
-    const element = this.scroller()?.nativeElement;
+    afterNextRender(
+      () => {
+        const element = this.scroller()?.nativeElement;
 
-    if (element) {
-      element.scrollTop = element.scrollHeight;
-    }
+        if (element) element.scrollTop = element.scrollHeight;
+      },
+      { injector: this.injector },
+    );
   }
 }
