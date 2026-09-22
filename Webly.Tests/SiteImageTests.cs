@@ -308,4 +308,65 @@ public class SiteImageTests : AuthEndpointTestBase
         // And nothing was written: the other commit is still the tip.
         Assert.That(await store.ResolveHeadAsync(site, "main"), Is.EqualTo(moved!.Sha));
     }
+
+    /// <summary>
+    /// The bytes at a named version, which is what the history's diff asks for.
+    ///
+    /// Reading the head is the right question for the settings screen — "these are your photographs" is about
+    /// now — and the wrong one for a diff: the picture a version *added* is not necessarily the one at that name
+    /// today, and after a delete or a restore it is not there at all. So the screen whose whole job is to say
+    /// what a version did would have shown a broken image for exactly the versions worth looking at. Found by
+    /// restoring a site to a version older than its photographs and then opening the history.
+    /// </summary>
+    [Test]
+    public async Task An_image_can_be_read_at_the_version_that_had_it_after_it_is_gone_from_the_head()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+        var other = await SiteAsync(owner, "Elkins Upholstery");
+
+        await UploadAsync(owner, site, ("shopfront.gif", Gif()));
+
+        var withImage = (await ReadAsync(await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/versions", (AuthCookies.AccessTokenName, owner)))))[0]
+            .GetProperty("nanoid").GetString()!;
+
+        var removed = await Client.SendAsync(
+            Request(HttpMethod.Delete, $"/api/sites/{site}/images/shopfront.gif", (AuthCookies.AccessTokenName, owner)));
+
+        Assert.That(removed.StatusCode, Is.EqualTo(HttpStatusCode.NoContent));
+
+        // Gone from the head, which is the honest answer to "is this one of your photographs".
+        var atHead = await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{site}/images/shopfront.gif", (AuthCookies.AccessTokenName, owner)));
+
+        Assert.That(atHead.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+
+        // And still there at the version that had it, which is what makes the history readable.
+        var atVersion = await Client.SendAsync(Request(
+            HttpMethod.Get, $"/api/sites/{site}/images/shopfront.gif?version={withImage}",
+            (AuthCookies.AccessTokenName, owner)));
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(atVersion.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(atVersion.Content.Headers.ContentType?.MediaType, Is.EqualTo("image/gif"));
+            Assert.That(await atVersion.Content.ReadAsByteArrayAsync(), Is.EqualTo(Gif()));
+        });
+
+        // A version id is resolved against *this* site, so one belonging to another site — even the caller's
+        // own — is not a way to read across the boundary, and answers exactly as an invented one does.
+        var otherVersion = (await ReadAsync(await Client.SendAsync(
+            Request(HttpMethod.Get, $"/api/sites/{other}/versions", (AuthCookies.AccessTokenName, owner)))))[0]
+            .GetProperty("nanoid").GetString()!;
+
+        foreach (var id in new[] { otherVersion, "not-a-real-version" })
+        {
+            var refused = await Client.SendAsync(Request(
+                HttpMethod.Get, $"/api/sites/{site}/images/shopfront.gif?version={id}",
+                (AuthCookies.AccessTokenName, owner)));
+
+            Assert.That(refused.StatusCode, Is.EqualTo(HttpStatusCode.NotFound), id);
+        }
+    }
 }

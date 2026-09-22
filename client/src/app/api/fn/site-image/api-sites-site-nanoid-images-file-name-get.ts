@@ -11,6 +11,7 @@ import { RequestBuilder } from '../../request-builder';
 export interface ApiSitesSiteNanoidImagesFileNameGet$Params {
   siteNanoid: string;
   fileName: string;
+  version?: string;
 }
 
 export function apiSitesSiteNanoidImagesFileNameGet(http: HttpClient, rootUrl: string, params: ApiSitesSiteNanoidImagesFileNameGet$Params, context?: HttpContext): Observable<StrictHttpResponse<void>> {
@@ -18,6 +19,7 @@ export function apiSitesSiteNanoidImagesFileNameGet(http: HttpClient, rootUrl: s
   if (params) {
     rb.path('siteNanoid', params.siteNanoid, {});
     rb.path('fileName', params.fileName, {});
+    rb.query('version', params.version, {});
   }
 
   return http.request(

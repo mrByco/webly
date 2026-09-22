@@ -17,12 +17,16 @@ namespace Webly.Services.UseCases.Assets;
 /// From the head commit rather than the workspace, like the code view: what a person is looking at is the
 /// version their site is, not whatever a sandbox holds this second.
 /// </summary>
-public class ReadSiteImage(ISiteRepository siteRepository, ISiteRepositoryStore repositories)
+public class ReadSiteImage(
+    ISiteRepository siteRepository,
+    ISiteVersionRepository versionRepository,
+    ISiteRepositoryStore repositories)
 {
     public async Task<Result<AssetError, SiteImageContent>> ExecuteAsync(
         int userId,
         string siteNanoid,
         string fileName,
+        string? versionNanoid = null,
         CancellationToken cancellationToken = default)
     {
         var site = await siteRepository.FindForOwnerAsync(siteNanoid, userId, cancellationToken);
@@ -38,8 +42,27 @@ public class ReadSiteImage(ISiteRepository siteRepository, ISiteRepositoryStore 
             || fileName.Contains("..", StringComparison.Ordinal))
             return Fail(AssetError.NotFound);
 
+        // Which version's bytes. The head is what the settings screen's thumbnails want — "these are your
+        // photographs" is a question about now — and a named version is what the history's diff wants, because
+        // the picture a version *added* is not necessarily the one at that name today, and may not be there at
+        // all. Reading head for both would have shown the wrong photograph after a replacement and a broken
+        // image after a delete, on the screen whose job is to say what a version did.
+        //
+        // Resolved through the version repository rather than trusted, so an id belonging to another site
+        // answers not-found exactly as an invented one does.
+        var commitSha = site.HeadVersion.CommitSha;
+
+        if (versionNanoid is not null)
+        {
+            var version = await versionRepository.FindForSiteAsync(versionNanoid, site.Id, cancellationToken);
+
+            if (version is null) return Fail(AssetError.NotFound);
+
+            commitSha = version.CommitSha;
+        }
+
         var file = await repositories.ReadFileAsync(
-            site.Nanoid, site.HeadVersion.CommitSha, $"{UploadSiteImages.Directory}/{fileName}", cancellationToken);
+            site.Nanoid, commitSha, $"{UploadSiteImages.Directory}/{fileName}", cancellationToken);
 
         if (file is null) return Fail(AssetError.NotFound);
 

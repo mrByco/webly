@@ -114,7 +114,19 @@
                   @if (file.removed) { <span class="font-mono text-error">−{{ file.removed }}</span> }
                 </summary>
 
-                @if (file.binary) {
+                @if (imageFor(file); as src) {
+                  <!--
+                    One of the owner's own photographs, shown rather than described — this is the screen where
+                    somebody decides what to bring back, and a file name is not how anybody knows which picture
+                    is which. At this version's commit, not the head: see `imageFor`.
+                  -->
+                  <div class="border-t border-base-300 p-3">
+                    <img
+                      [src]="src"
+                      [alt]="file.path"
+                      class="max-h-64 rounded-box border border-base-300 bg-base-200 object-contain" />
+                  </div>
+                } @else if (file.binary) {
                   <p class="border-t border-base-300 px-3 py-2 text-xs text-base-content/60">
                     A binary file. There is nothing to show line by line.
                   </p>

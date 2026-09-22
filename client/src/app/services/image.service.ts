@@ -20,8 +20,13 @@ export class ImageService {
    * published yet, or whose sandbox is asleep. Built as a string rather than fetched through the generated
    * client because it goes straight into an `<img src>`, where the browser sends the session cookie itself.
    */
-  contentUrl(siteNanoid: string, fileName: string): string {
-    return `/api/sites/${encodeURIComponent(siteNanoid)}/images/${encodeURIComponent(fileName)}`;
+  contentUrl(siteNanoid: string, fileName: string, versionNanoid?: string): string {
+    const base = `/api/sites/${encodeURIComponent(siteNanoid)}/images/${encodeURIComponent(fileName)}`;
+
+    // A version when the caller has one. The history's diff does — the picture a version *added* is not
+    // necessarily the one at that name today, and after a delete it is not there at all — while the settings
+    // screen's thumbnails want the head, which is the question that screen asks.
+    return versionNanoid ? `${base}?version=${encodeURIComponent(versionNanoid)}` : base;
   }
 
   /** Removes it, as a version. Refused with a 409 naming the pages while one still uses it. */

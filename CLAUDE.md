@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 173-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 174-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -481,6 +481,15 @@ structured-document model it replaced was better at.
   its bytes already exists for the settings screen's thumbnails. Only under `public/images/`, which is where
   uploads go and the only place that route reads from, and only when the file really is not text, so an
   `.svg` still shows as the source it is.
+- **And in the History diff too, at that version's commit.** The same lesson on the screen where it matters
+  more: this is where somebody decides what to bring back, and "Added lathe.png" followed by "there is nothing
+  to show line by line" is a question rather than an answer. It needed the other half of the route —
+  `GET …/images/{name}?version=` — because reading the **head** would show the wrong photograph once a name is
+  reused and a broken image as soon as one is deleted, which is exactly the version worth looking at. The id is
+  resolved against *this* site, so another site's answers 404 like an invented one. Not shown for a **removed**
+  file: it is not in that version's tree, so the bytes are the parent's, and a diff reaching into another
+  version is a thread to pull when somebody asks. Found by restoring a site to a version older than its
+  photographs and opening its history.
 - **The agent may read the source and so may the customer** — `GET /api/sites/{nanoid}/files` and
   `/file?path=`, shown by the editor's Code tab — because "you never have to touch the code" is not "you are
   not allowed to see it". The path is a query parameter, not a route catch-all, so `src/app/page.tsx` cannot be

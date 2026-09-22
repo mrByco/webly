@@ -39,10 +39,19 @@ public class SiteImageController(
     /// The file name is a route segment, so a name with a slash in it would not match this route at all — and
     /// the use case refuses one anyway, because a route's shape is not a place to keep a security rule.
     /// </summary>
+    /// <param name="version">
+    /// Which version's copy of the file, or the head when it is not given. The history's diff asks for a named
+    /// one, because the picture a version added is not necessarily the one at that name today and may not be
+    /// there at all; the settings screen's thumbnails want the head, which is the question they are asking.
+    /// </param>
     [HttpGet("{fileName}")]
-    public async Task<IActionResult> Content(string siteNanoid, string fileName, CancellationToken cancellationToken)
+    public async Task<IActionResult> Content(
+        string siteNanoid,
+        string fileName,
+        [FromQuery] string? version,
+        CancellationToken cancellationToken)
     {
-        var result = await readImage.ExecuteAsync(this.GetUserId(), siteNanoid, fileName, cancellationToken);
+        var result = await readImage.ExecuteAsync(this.GetUserId(), siteNanoid, fileName, version, cancellationToken);
 
         if (!result.Succeeded) return Failure(result.Error, result.Detail);
 

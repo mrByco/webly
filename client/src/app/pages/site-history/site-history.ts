@@ -5,7 +5,8 @@ import { ActivatedRoute } from '@angular/router';
 import { map } from 'rxjs';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
-import { DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
+import { ImageService } from '../../services/image.service';
+import { DiffFile, DiffLineKind, parseUnifiedDiff } from '../../models/unified-diff';
 import { messageOf } from '../../models/problem-details';
 import { isWideScreen } from '../../shared/wide-screen';
 import { SiteVersionResponse } from '../../api/models/site-version-response';
@@ -29,6 +30,7 @@ import { SiteVersionResponse } from '../../api/models/site-version-response';
 })
 export class SiteHistoryPage {
   private readonly route = inject(ActivatedRoute);
+  private readonly images = inject(ImageService);
   private readonly sites = inject(SiteService);
 
   protected readonly versions = signal<SiteVersionResponse[]>([]);
@@ -159,6 +161,33 @@ export class SiteHistoryPage {
    * under several thousand lines of template.
    */
   protected readonly expandByDefault = computed(() => this.diffFiles().length <= 3);
+
+  /**
+   * A photograph this version put into the site, as something to look at rather than a sentence about bytes.
+   *
+   * The same decision the Code tab made, on the screen that needs it more: this list is where somebody decides
+   * what to bring back, and "Added lathe.png" followed by "there is nothing to show line by line" is a question
+   * rather than an answer. It is the owner's own picture and a route for its bytes already exists.
+   *
+   * Asked for **at this version**, which is what the route's `version` parameter is for. Reading the head would
+   * show the wrong photograph once a name has been reused, and a broken image as soon as one is deleted — on
+   * the one screen whose whole job is to say what a version did.
+   *
+   * Narrow in three ways, each with a reason. Only a file git called binary, so an `.svg` stays the source it
+   * is. Only under `public/images/`, which is where uploads go and the only place that route reads from. And
+   * never for a **removed** file: it is not in this version's tree — that is what removed means — so the bytes
+   * to show are the parent's, and a version's diff pointing into a different version is a thread to pull when
+   * somebody asks for it rather than now.
+   */
+  protected imageFor(file: DiffFile): string | undefined {
+    const version = this.selected();
+
+    if (!version || !file.binary || file.change === 'removed') return undefined;
+    if (!file.path.startsWith('public/images/')) return undefined;
+
+    return this.images.contentUrl(
+      this.siteNanoid, file.path.slice('public/images/'.length), version.nanoid);
+  }
 
   protected classOf(kind: DiffLineKind): string {
     switch (kind) {

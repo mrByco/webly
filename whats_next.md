@@ -602,6 +602,33 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     Not a fourth verb: the three the screen has, made usable.
 
 
+52. **The history showed "a binary file" where a photograph belonged.** The Code tab had already learned this —
+    a picture is shown, not described, because a file name is not how anybody knows which one it is — and the
+    History screen had not, on the screen where it matters more: this is where somebody decides what to bring
+    back, and "Added lathe.png" followed by "there is nothing to show line by line" is a question rather than an
+    answer.
+
+    The half that made it worth doing properly: the image route read the **head** and nothing else, so showing
+    the picture would have been wrong the moment a name was reused and broken the moment one was deleted —
+    which is precisely the version somebody is looking at when they want it back. Found by restoring a site to a
+    version older than its photographs and then opening its history: at head that file now 404s, and the version
+    that added it still serves the real PNG. So `GET …/images/{name}` takes an optional `?version=`, resolved
+    through the version repository against *this* site, so another site's id answers 404 exactly as an invented
+    one does. Three cases driven against the running app, and pinned in `SiteImageTests`.
+
+    Deliberately not shown for a **removed** file: it is not in that version's tree — that is what removed
+    means — so the bytes are the parent's, and a version's diff reaching into another version is a thread to
+    pull when somebody asks rather than now.
+
+    Two things checked on the way and found already right, which is worth recording so nobody re-checks them:
+    **restore reaches the internet** (restored a site to a version predating its three photographs, published,
+    and the images are gone from the live export while the page still serves 200 and the history keeps the
+    commits — `FileSystemDeploymentTarget` deletes the target directory before copying, so a deleted file stops
+    serving rather than lingering); and **closing an account takes its published sites down with it** (a
+    throwaway account with one published site: repository gone, export gone, the page 404s, the credentials
+    answer 401).
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
