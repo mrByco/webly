@@ -172,15 +172,24 @@
             (change)="addImages($any($event.target))" />
         </label>
 
-        <!-- `appAutoGrow` is bound to the value, not just listening for typing: adding photographs writes
-             their paths in from the outside, and that is the case it exists for. -->
+        <!--
+          `appAutoGrow` is bound to the value, not just listening for typing: adding photographs writes their
+          paths in from the outside, and that is the case it exists for.
+
+          And the value is bound **natively** rather than through `ngModel`, which is what makes that work.
+          `ngModel` writes the model into the DOM on a promise scheduled from `ngOnChanges`, so the paths
+          arrived *after* the directive had measured: it read an empty box, set it to one line, and never ran
+          again. Measured at 42px on content needing 58, with the second path cut off by the bottom edge — the
+          exact defect the directive was written to prevent. A `[value]` binding is applied during the same
+          change-detection pass, so there is nothing left to race.
+        -->
         <textarea
           class="textarea textarea-bordered min-h-11 flex-1 resize-none"
-          name="message"
           rows="1"
           placeholder="Ask for a change…"
           [appAutoGrow]="message"
-          [(ngModel)]="message"
+          [value]="message"
+          (input)="message = $any($event.target).value"
           (keydown.enter)="onEnter($event)"></textarea>
 
         @if (running()) {

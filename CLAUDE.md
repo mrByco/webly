@@ -1123,11 +1123,20 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   no code; `isComposing` does, because Enter accepts an input method's candidate.
 - **The composer grows with the message, up to about eight lines.** It was one line and `resize-none`,
   which is right for "make the headline bigger" and wrong for the two cases that are not that: adding
-  photographs writes their paths into the box, one per line, and the second one was cut off by the bottom of
-  the window. `shared/auto-grow.ts` is bound to the **value** as well as listening for input, because that
-  case is a programmatic change and `ngModel` writing into the box fires no `input` event — a directive that
-  only listened for typing would have missed the one thing it was written for. The cap matters as much as the
-  growth: without one a long paragraph pushes the transcript off the top of the screen.
+  photographs writes their paths into the box, where two of them wrap onto a second line that was cut off by
+  the bottom edge. `shared/auto-grow.ts` is bound to the **value** as well as listening for input, because
+  that case is a programmatic change and fires no `input` event. The cap matters as much as the growth:
+  without one a long paragraph pushes the transcript off the top of the screen.
+- **And the composer is bound natively, not with `ngModel`, which is what makes that work.** Binding the
+  value is not enough if the value arrives late, and `ngModel` writes the model into the DOM on a **promise
+  scheduled from `ngOnChanges`** — so inside one change-detection pass the directive measured an empty
+  textarea, set it to one line, and never ran again, because the only other trigger is an `input` event.
+  Measured at `height: 42px` on content needing 58, with a synthetic `input` taking it straight to 58. The
+  directive's own comment had named `ngModel` as the thing that fires no input event and then left it in
+  place, which is the trap: the right observation with the wrong conclusion. `[value]` + `(input)` is applied
+  during the same synchronous pass, so there is nothing to race. **cookta-rework records the same cause**
+  under a different symptom — an ingredient adder whose field would not clear — so treat `ngModel` as
+  unsuitable anywhere a directive or a sibling reads the DOM in the same pass.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts, and a `build` block carrying the

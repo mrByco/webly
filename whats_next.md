@@ -850,6 +850,35 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     the running app.
 
 
+62. **The composer still did not grow, and the directive written to make it grow said why in its own comment.**
+    Found by uploading two photographs through the chat in a browser, which is the case `appAutoGrow` exists
+    for: the paths landed in the box, the second one was cut off by the bottom edge, and the box stayed one
+    line high. Exactly the defect finding 46 fixed, still there.
+
+    Measured rather than guessed, which is what made it a five-minute diagnosis instead of an afternoon:
+    `{"value":"/images/shopfront-2.png /images/workshop-2.png ","styleHeight":"42px","scrollHeight":58}` —
+    a height computed for an *empty* box on content needing 58. Dispatching a synthetic `input` event took it
+    straight to 58px, which says the value was in the DOM by then and the measurement had simply happened
+    before it.
+
+    `ngModel` is why. It writes the model into the DOM on a **promise scheduled from `ngOnChanges`**, so the
+    order inside one change-detection pass is: binding updates → directive effect runs and measures an empty
+    textarea → microtask runs and puts the text in. Nothing re-measures afterwards, because the only other
+    trigger is an `input` event and a programmatic write fires none.
+
+    The directive's own doc comment had named `ngModel` as the thing that fires no `input` event — the right
+    observation, followed by the wrong conclusion. Binding the *value* does not help if the value arrives
+    late. `[value]` + `(input)` is applied during the same synchronous pass, so there is nothing left to race.
+
+    **cookta-rework had already learned this**, in its `CLAUDE.md`, about an ingredient adder whose field
+    stopped clearing: "`ngModel` writes the model to the DOM on a promise scheduled from `ngOnChanges`". Two
+    different symptoms, one cause, and the note was sitting in a sibling project's notes the whole time.
+
+    Re-driven afterwards: the box opens at 58px with both paths visible and a synthetic input changes nothing;
+    typing still enables Send; Shift+Enter makes a second line and grows it to 100px; Enter sends and it
+    returns to 42px.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
