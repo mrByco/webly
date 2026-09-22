@@ -703,6 +703,46 @@ try {
     }
   });
 
+  // -- 13b. The one thing a visitor can do ------------------------------------------------------
+  await step('The published contact form can be sent without scripts, and says so afterwards', async () => {
+    // The product's only inbound path, and the one whose failures are silent: a form that posts nowhere, or
+    // posts and then says nothing, loses a small business an enquiry it never learns about. Asserted against
+    // the real export rather than the source, because everything that could go wrong here goes wrong between
+    // the two — a `basePath` that does not reach the action, a client component the export drops.
+    const published = join(workspaceRoot, 'published');
+    const contact = join(published, 'contact', 'index.html');
+
+    check(existsSync(contact), 'the contact page is in the export');
+
+    const html = readFileSync(contact, 'utf8');
+
+    // An ordinary form posting to Webly, in the HTML itself. A visitor whose scripts failed to load still
+    // reaches the owner, which is the whole reason it is not a fetch.
+    check(/<form[^>]+method="post"/i.test(html), 'it is a real form with a real method');
+    check(html.includes('/api/public/forms/'), 'that posts to Webly');
+    check(html.includes('name="_ignore"'), 'the honeypot is in the markup');
+    check(html.includes('name="_next"'), 'and so is where the visitor comes back to');
+
+    // The confirmation lives in a client component, so it is in a chunk rather than in this page — which is
+    // exactly why its absence was invisible. The visitor pressed Send, the message arrived, the owner was
+    // emailed, and they were returned to an empty form with nothing saying any of it had happened.
+    const chunks = [];
+    const walk = directory => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const full = join(directory, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith('.js')) chunks.push(readFileSync(full, 'utf8'));
+      }
+    };
+
+    walk(published);
+
+    check(chunks.length > 0, `${chunks.length} scripts in the export`);
+    check(
+      chunks.some(chunk => chunk.includes('your message has been sent')),
+      'and one of them is the confirmation the visitor reads afterwards');
+  });
+
   // -- 14. Leaving with the history --------------------------------------------------------------
   await step('The site exports as a git bundle that clones into a working project', async () => {
     // The same arguments GitSiteRepositoryStore.CreateBundleAsync runs, to a file rather than to stdout.

@@ -157,6 +157,18 @@ build — are all exercised for real. What is mocked is the part written in the 
   `DeploymentJobRunner` already used a fresh sandbox for reasons that were reasoning rather than evidence;
   this is the evidence, and step 12 now does the same thing.
 
+- **A sent enquiry told the visitor nothing.** Not caught here — caught by filling in the form on a published
+  site as a stranger, which is what step 14 now exists to stop happening again. The form posted, Webly stored
+  the message and emailed the owner, and the visitor was returned to an *empty form* with nothing on the page
+  saying any of it had worked: indistinguishable from a failed send, so the next thing they do is send it
+  twice or ring somebody else. It fell between two decisions that were each right — the endpoint returns the
+  visitor to the page they came from rather than landing a shop's customer on Webly's website, and a static
+  export has no server to read `?sent=1` at request time — and the sentence joining them, that Webly's own
+  thank-you page covers it, was only true in the fallback case nobody takes. The browser can read a query
+  string when no server can, so `SentNotice` does. The step asserts the form is still in the *HTML* (a visitor
+  with no scripts must still reach the owner) and that the confirmation is in the export's chunks, which is
+  the half that was missing and the half nothing can see by reading a page.
+
 ## The fixture
 
 `fixtures/claude-stream-json.ndjson` is a real recorded turn, sanitised of the recorder's session id, tool
@@ -167,6 +179,6 @@ is not, the CLI's output shape changed and the parser needs looking at.
 ## When to delete this
 
 When `dotnet test` runs, most of it is redundant: `GitSiteRepositoryStoreTests` covers the versioning from the
-side that ships, and the real orchestration can be driven through the running app. Keep steps 3–6 and 13–15 in
+side that ships, and the real orchestration can be driven through the running app. Keep steps 3–6 and 13–16 in
 some form even then — they cover the sandbox contract and the build, which no C# test touches — and delete
 `git-store.mjs`, which is the only file here that duplicates logic and can therefore drift.

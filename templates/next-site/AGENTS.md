@@ -36,6 +36,10 @@ actually confirmed.
     sets them, honeypot included, and give the email field a name containing "email" so the owner can reply.
     A `mailto:` link is not a substitute: it opens whatever the visitor's device thinks is a mail client, which
     on a phone is often nothing at all.
+
+    **Keep the form inside `SentNotice`.** It is what tells the visitor the message arrived — Webly sends them
+    back to the page they were on, so without it they land on an empty form with nothing saying it worked, and
+    the next thing they do is send it twice or give up.
 11. **Use the pictures they gave you, and no others.** Anything in `public/images/` is a photograph the owner
     uploaded; refer to it by the path without `public` — `/images/shopfront.jpg` — and give every one real alt
     text describing what is in it. Do **not** link to an image on another website, do not use a stock-photo
@@ -90,8 +94,9 @@ shows up.
   title read it, so correcting the name is an edit to that one line rather than to four components. Use
   `siteUrl` rather than writing an address anywhere: it changes the day somebody connects their own domain,
   and a canonical link pointing at the old one tells every search engine the real site is somewhere it is not.
-- `src/components/contact-form.tsx` and `src/app/contact/page.tsx` — the working form and the page it is on.
-  Rewrite the copy; leave the plumbing.
+- `src/components/contact-form.tsx`, `src/components/sent-notice.tsx` and `src/app/contact/page.tsx` — the
+  working form, the confirmation the visitor sees afterwards, and the page both sit on. Rewrite the copy;
+  leave the plumbing, and leave the form wrapped.
 - `public/` — files served from the root of the site. `public/images/` is where the owner's photographs are,
   reached at `/images/…`. Next's image optimizer is off (a static export has no server to run it), so use
   `next/image` with `width` and `height` for the layout, or a plain `<img>`; either way the file is served as

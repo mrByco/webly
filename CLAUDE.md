@@ -33,7 +33,7 @@ prerenders against.
 Two harnesses drive it, and they answer different questions:
 
 - **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
-  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in seventeen steps from "a
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in eighteen steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
@@ -905,6 +905,17 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   `Referer`. A scheme, a leading slash or a `..` is refused rather than cleaned up. It is not a useful open
   redirect: the target can only be reached by *posting* from a page that already had the visitor, and a link in
   an email cannot produce a POST. With no usable Referer the answer is Webly's own small thank-you page.
+- **And the page they come back to has to say so**, which for a long time nothing did: the visitor pressed Send,
+  the message was stored and the owner emailed, and they were returned to an **empty form** with nothing saying
+  any of it had worked — so the obvious next move is to send it twice or ring a competitor. It fell between two
+  correct decisions: the 303 above, and a static export having no server to read `?sent=1` at request time. The
+  sentence joining them said Webly's own thank-you page covered it, and that is only true in the fallback case
+  almost nobody takes. The **browser** can read a query string when no server can, so the template's
+  `SentNotice` wraps the form, reads it after mounting (same markup server-side and on first paint, and a
+  visitor with scripts off still gets the plain form that still posts), and replaces the form with a
+  confirmation. `AGENTS.md` asks the agent to keep the form wrapped; `tools/e2e/run.mjs` step 14 asserts the
+  form is in the published HTML *and* the confirmation is in its chunks. Found by filling in the form on a
+  published site as a stranger.
 - **`ISiteRepository.FindForSubmissionAsync` is the one lookup in the repository with no ownership check.** It
   says so at length, because the rule everywhere else is that a use case starts from `FindForOwnerAsync`. What
   makes it safe is that the operation cannot read anything back: it appends a row and sends one email.

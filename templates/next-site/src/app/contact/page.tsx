@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { ContactForm } from '@/components/contact-form';
+import { SentNotice } from '@/components/sent-notice';
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -15,9 +16,13 @@ export const metadata: Metadata = {
  * answered by writing a form that posts nowhere. Rewrite the copy freely; keep the form's hidden fields as
  * `ContactForm` sets them.
  *
- * `searchParams` is deliberately not read here. A static export has no server to read a query string at
- * request time, so "?sent=1" cannot change what this page renders — the confirmation the visitor sees is the
- * one Webly's endpoint shows them on the way back. Reading it would compile and then quietly do nothing.
+ * `searchParams` is deliberately not read here, and that is still true: a static export has no server to read
+ * a query string at request time, so reading it in this component would compile and then quietly do nothing.
+ * What was wrong was the sentence that used to follow it — that the confirmation is the one Webly's endpoint
+ * shows on the way back. It is not: the endpoint returns the visitor to *this* page, and only falls back to
+ * its own thank-you page when there is no usable `Referer`. So the visitor pressed Send and got an empty form
+ * with nothing saying it had worked. `SentNotice` is the missing half, and it reads the query in the browser,
+ * which can, rather than on a server, which is not there.
  */
 export default function Contact() {
   return (
@@ -30,7 +35,9 @@ export default function Contact() {
       </p>
 
       <div className="mt-10">
-        <ContactForm />
+        <SentNotice>
+          <ContactForm />
+        </SentNotice>
       </div>
     </section>
   );

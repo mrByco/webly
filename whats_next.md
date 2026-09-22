@@ -561,6 +561,32 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     is not offered — which would leave the button on "Publishing" for ever.
 
 
+50. **A visitor who sent an enquiry was told nothing at all.** The form posted, Webly stored the message and
+    emailed the owner with the visitor's address in the reply-to — and the visitor was returned to an **empty
+    contact form** with nothing on the page saying any of that had happened. Which is indistinguishable from a
+    failed send, so the next thing they do is fill it in and send it again, or give up and ring somebody else.
+    On the one path a small business's website exists for.
+
+    It fell between two decisions that were each right on their own. The endpoint sends the visitor back to the
+    page they came from, because a shop's customer should not land on Webly's website; and the contact page
+    could not read `?sent=1` itself, because a static export has no server to read a query string at request
+    time. The sentence that joined them — that the confirmation is the one Webly's endpoint shows on the way
+    back — was only ever true in the *fallback* case, when there is no usable `Referer`, which is the case
+    almost nobody takes. `returnTo = '?sent=1'` had been in the component all along with nothing reading it.
+
+    The browser can read a query string even when no server can, so `SentNotice` is a client component that
+    reads it **after mounting**: same markup on the server and the first paint, no hydration mismatch, and a
+    visitor with scripts off gets the form exactly as before — which matters, because the form working without
+    JavaScript is the whole reason it is an ordinary HTML post. Found by filling in the form on a published site
+    as a stranger; `tools/e2e/run.mjs` step 14 is the guard, and it checks both halves — the form is in the
+    HTML, and the confirmation is in the export's chunks, which is the part no amount of reading a page shows.
+
+    **Existing sites keep the silent form**, and that is the honest note: `contact-form.tsx` and its page are
+    the agent's to rewrite, so they are not on the `SyncWeblyOwnedFiles` list and a template fix reaches new
+    sites only. Making them owned would undo an agent's restyling of a form it is explicitly allowed to
+    restyle. Worth revisiting the day there are sites somebody would mind.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
