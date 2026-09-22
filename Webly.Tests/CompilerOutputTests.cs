@@ -195,4 +195,110 @@ public class CompilerOutputTests
             Assert.That(readable, Does.EndWith("…and 11 more lines."), "and the count includes the trailing newline");
         });
     }
+
+    /// <summary>
+    /// One mistake reads as one mistake, however many times the dev server logged it.
+    ///
+    /// `next dev` compiles on demand and writes the failure out again for **every request** — and the turn's own
+    /// check asks for the page and then retries for fifteen seconds while the server warms up, so the slice of
+    /// log a broken page produces holds the same twelve-line error two or three times over. Watched on screen
+    /// after asking the mock agent to break the build: "Your site is not compiling" followed by one syntax error
+    /// written out three times, with a `GET / 500 in 9212ms` under it. Three copies read as three mistakes and
+    /// bury the one line naming the file and the row, which is exactly what this class exists to prevent.
+    /// </summary>
+    [Test]
+    public void The_same_complaint_logged_three_times_reaches_the_chat_once()
+    {
+        const string once = """
+            ⨯ ./src/app/page.tsx
+            Error:   x Unexpected eof
+                ,-[src/app/page.tsx:43:25]
+             43 | export const broken = (
+                `----
+            Caused by:
+                Syntax Error
+            Import trace for requested module:
+            ./src/app/page.tsx
+            """;
+
+        var log = $"""
+            ▲ Next.js 15.5.4
+            - Local: http://localhost:3000
+            ✓ Ready in 1269ms
+            {once}
+             x ./src/app/page.tsx
+            Error:   x Unexpected eof
+                ,-[src/app/page.tsx:43:25]
+             43 | export const broken = (
+                `----
+            Caused by:
+                Syntax Error
+            Import trace for requested module:
+            ./src/app/page.tsx
+             x ./src/app/page.tsx
+            Error:   x Unexpected eof
+                ,-[src/app/page.tsx:43:25]
+             43 | export const broken = (
+                `----
+            Caused by:
+                Syntax Error
+            Import trace for requested module:
+            ./src/app/page.tsx
+             GET / 500 in 9212ms
+            """;
+
+        var readable = CompilerOutput.Readable(log);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Occurrences(readable, "Unexpected eof"), Is.EqualTo(1), readable);
+
+            // The one line somebody can act on is still there, and still first.
+            Assert.That(readable, Does.StartWith("⨯ ./src/app/page.tsx"));
+            Assert.That(readable, Does.Contain("page.tsx:43:25"));
+
+            // And the startup chatter and the access log are both gone.
+            Assert.That(readable, Does.Not.Contain("Ready in"));
+            Assert.That(readable, Does.Not.Contain("GET / 500"));
+        });
+    }
+
+    /// <summary>
+    /// Two different errors are two errors. The rule is "the same text twice", not "one complaint at a time" —
+    /// a page that will not compile for two reasons has to say both, or fixing the first reveals the second one
+    /// message later.
+    /// </summary>
+    [Test]
+    public void Two_different_complaints_both_survive()
+    {
+        var log = """
+            ⨯ ./src/app/page.tsx
+            Error:   x Unexpected eof
+            Caused by:
+                Syntax Error
+             x ./src/app/contact/page.tsx
+            Error:   x Expression expected
+            Caused by:
+                Syntax Error
+            """;
+
+        var readable = CompilerOutput.Readable(log);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(readable, Does.Contain("Unexpected eof"));
+            Assert.That(readable, Does.Contain("Expression expected"));
+        });
+    }
+
+    private static int Occurrences(string text, string needle)
+    {
+        var count = 0;
+
+        for (var at = text.IndexOf(needle, StringComparison.Ordinal); at >= 0;
+             at = text.IndexOf(needle, at + needle.Length, StringComparison.Ordinal))
+            count++;
+
+        return count;
+    }
 }

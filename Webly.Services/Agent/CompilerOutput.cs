@@ -81,10 +81,65 @@ public static partial class CompilerOutput
                 continue;
 
             inBacktrace = false;
+
+            // A request's own log line is not a compiler complaint. `GET / 500 in 9212ms` is the dev server
+            // saying it served the error page, which the person can see for themselves in the pane beside the
+            // chat, and it arrives at the end of the block looking like part of the diagnosis.
+            if (RequestLine().IsMatch(line)) continue;
+
             kept.Add(line);
         }
 
-        return string.Join('\n', kept).Trim();
+        return string.Join('\n', Deduplicate(kept)).Trim();
+    }
+
+    /// <summary>
+    /// One copy of each complaint, in the order they first appeared.
+    ///
+    /// <c>next dev</c> compiles on demand and logs the failure **again for every request**, and the turn's own
+    /// check asks for the page and then retries for fifteen seconds while the dev server warms up — so the
+    /// slice of log a broken page produces holds the same twelve-line error two or three times over. Watched on
+    /// screen: "Your site is not compiling" followed by one mistake written out three times, which reads like
+    /// three mistakes and buries the one line naming the file and the row. That is the same failure this whole
+    /// class exists to prevent — npm's banner above the error was the first version of it.
+    ///
+    /// A block starts where the dev server starts one: a line whose first characters are <c>⨯ ./</c> or
+    /// <c>x ./</c>, the two forms it prefixes an uncompilable file with. Deliberately not any marker — <c>Syntax
+    /// Error</c> appears *inside* a block, under <c>Caused by:</c>, and splitting there would cut every error in
+    /// half and then call the halves distinct. Two genuinely different errors differ in their text and both
+    /// survive.
+    /// </summary>
+    private static List<string> Deduplicate(List<string> lines)
+    {
+        var blocks = new List<List<string>>();
+
+        foreach (var line in lines)
+        {
+            var starts = line.TrimStart().StartsWith("⨯ ./", StringComparison.Ordinal)
+                || line.TrimStart().StartsWith("x ./", StringComparison.Ordinal);
+
+            if (starts || blocks.Count == 0) blocks.Add([]);
+
+            blocks[^1].Add(line);
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var kept = new List<string>();
+
+        foreach (var block in blocks)
+        {
+            // Compared by its body, not by the glyph in front of it. `next dev` writes the first occurrence
+            // with `⨯` and every repeat with `x`, so two reports of one mistake are never the same string —
+            // which is how the first version of this let a duplicate through and only collapsed the rest.
+            var text = string.Join('\n', block.Select(line => line.TrimEnd())).Trim();
+            var key = Marker().Replace(text, "./", 1);
+
+            if (text.Length > 0 && !seen.Add(key)) continue;
+
+            kept.AddRange(block);
+        }
+
+        return kept;
     }
 
     /// <summary>
@@ -136,6 +191,14 @@ public static partial class CompilerOutput
 
     [GeneratedRegex("\u001b\\[[0-9;]*m")]
     private static partial Regex AnsiCodes();
+
+    /// <summary>The <c>⨯ ./</c> or <c>x ./</c> a complaint opens with, so two of them can be compared by body.</summary>
+    [GeneratedRegex(@"^\s*(⨯|x)\s+\./")]
+    private static partial Regex Marker();
+
+    /// <summary>The dev server's own access log — <c>GET / 500 in 9212ms</c> — which is not a complaint.</summary>
+    [GeneratedRegex(@"^\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+\S+\s+\d{3}\s+in\s+\d+ms\s*$")]
+    private static partial Regex RequestLine();
 
     [GeneratedRegex(@"^\s*\d+: ")]
     private static partial Regex StackFrame();

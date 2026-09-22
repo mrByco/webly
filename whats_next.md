@@ -728,6 +728,30 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     step correct.
 
 
+57. **"Your site is not compiling" said it three times.** Asked the mock agent to break the build — the path
+    the documentation says exists for exactly this — and read the block it puts in the chat. One syntax error,
+    written out **three times**, with `GET / 500 in 9212ms` underneath it.
+
+    `next dev` compiles on demand and logs the failure again for **every request**, and the turn's own check
+    asks for the page and then retries for fifteen seconds while the server warms up — so the slice of log a
+    broken page produces holds the same twelve-line error two or three times over. Three copies read as three
+    mistakes and bury the one line naming the file and the row, which is precisely what `CompilerOutput` exists
+    to prevent: npm's banner above the error was the first version of the same failure, and this is the second.
+
+    `Readable` now keeps one copy of each complaint, in the order they first appeared, and drops the dev
+    server's own access log. Two details, each found by the test failing:
+
+    - A block starts at `⨯ ./` or `x ./`, **not at any marker** — `Syntax Error` appears *inside* a block under
+      `Caused by:`, and splitting there would cut every error in half and then call the halves distinct.
+    - Blocks are compared **by their body, not by the glyph in front of them**: `next dev` writes the first
+      occurrence with `⨯` and every repeat with `x`, so the two are never the same string. The first version of
+      the fix collapsed the repeats and let the original through — two copies instead of three.
+
+    Two genuinely different errors both survive, which is its own test: a page that will not compile for two
+    reasons has to say both, or fixing the first reveals the second one message later. Re-driven afterwards on
+    the running app — one copy, no access log — and then "fix the build", which brought the preview back to 200.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 174-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 176-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -636,7 +636,13 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   what a syntax error produces, and the three obvious phrases do not appear for one; and what reaches the chat
   has the terminal's ANSI codes, SWC's seventeen-frame Rust backtrace, the workspace's absolute path and every
   line before the complaint stripped out of it — a block that opens with npm's banner and `Ready in 1269ms` buries
-  the one line somebody can act on. The publish path does not depend on any of this: `vercel build` runs there and
+  the one line somebody can act on. **And the same complaint logged three times buries it the same way**, which
+  is what it did: `next dev` recompiles per request and the turn's check retries for fifteen seconds, so one
+  syntax error reached the chat in triplicate with `GET / 500 in 9212ms` under it. `Readable` keeps one copy of
+  each, splitting blocks at `⨯ ./` or `x ./` only — `Syntax Error` appears *inside* a block, so splitting on any
+  marker halves every error — and comparing them by body, because the first occurrence is prefixed `⨯` and every
+  repeat `x`, so two reports of one mistake are never the same string. Found by asking the mock agent to break
+  the build and reading the block. The publish path does not depend on any of this: `vercel build` runs there and
   a failure blocks the deployment.
 - **The check is only as good as the request that provokes it, and that is where it was broken.** `next dev`
   compiles on demand, so the turn asks for a page before it reads the log — and on a cold workspace that request
