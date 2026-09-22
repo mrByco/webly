@@ -1,5 +1,18 @@
 import type { ReactNode } from 'react';
 
+export interface SentNoticeProps {
+  children: ReactNode;
+
+  /** The first line, for a business that would rather say it differently. */
+  heading?: string;
+
+  /** The line under it. Say nothing here that nobody has promised — see `AGENTS.md`. */
+  body?: string;
+
+  /** What the way back to an empty form is called. */
+  againLabel?: string;
+}
+
 /**
  * What a visitor sees after they press Send.
  *
@@ -26,29 +39,51 @@ import type { ReactNode } from 'react';
  * it travels with this component: anywhere `SentNotice` wraps a `ContactForm` the confirmation works, which a
  * separate thank-you page would not — `ContactForm` can be dropped on any page, and a `_next` pointing at a
  * page somebody forgot to write is a 404 on a real business's website at the worst possible moment.
+ *
+ * **The rule is in this file rather than in `globals.css`, and that is load-bearing.** This component and
+ * `contact-form.tsx` are two of the handful Webly keeps current in every site, including sites made before
+ * they changed — so this file arrives in a repository whose stylesheet Webly does not own and must not edit.
+ * A component whose `display: none` lived in that stylesheet would arrive without it and draw the thank-you
+ * permanently, above a form nobody had used: worse than the silence it replaced. Everything it needs is here.
+ * For the same reason the wording is **props with defaults** rather than text to edit in place: a site that
+ * wants to say something else says it from its own contact page, and stays current.
  */
-export function SentNotice({ children }: { children: ReactNode }) {
+export function SentNotice({
+  children,
+  heading = 'Thank you — your message has been sent.',
+  body = 'We have it, and we will get back to you.',
+  againLabel = 'Send another message',
+}: SentNoticeProps) {
   return (
     <div>
+      {/*
+        `precedence` is what lets React hoist this into the document head and write it once however many
+        forms a page has. Deliberately three rules and no more: everything that decides how the notice
+        *looks* is a class like the rest of the site, and only what decides whether it is on screen is here.
+      */}
+      <style href="sent-notice" precedence="default">{
+        '#sent{display:none}'
+        + '#sent:target{display:block}'
+        + '#sent:target~.sent-form{display:none}'
+      }</style>
+
       <div
         id="sent"
         // Focusable so that following the fragment moves the reading position here; it is ordinary page
         // content by the time anybody sees it, so it is not a live region and must not announce itself as one.
         tabIndex={-1}
-        className="sent-notice rounded-card border border-edge bg-brand-soft px-5 py-6"
+        className="rounded-card border border-edge bg-brand-soft px-5 py-6"
       >
-        <p className="text-lg font-semibold">Thank you — your message has been sent.</p>
+        <p className="text-lg font-semibold">{heading}</p>
 
-        {/* No promise about when: nobody has told this site how quickly its owner replies, and inventing one
-            is the thing the editing rules exist to prevent. */}
-        <p className="mt-2 text-ink-muted">We have it, and we will get back to you.</p>
+        <p className="mt-2 text-ink-muted">{body}</p>
 
         {/* Targeting the form is what un-targets the notice, so this needs no script either. */}
         <a
           href="#form"
           className="mt-4 inline-block font-semibold text-brand underline underline-offset-4 hover:text-brand-strong"
         >
-          Send another message
+          {againLabel}
         </a>
       </div>
 

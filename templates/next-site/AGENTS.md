@@ -98,9 +98,9 @@ shows up.
   title read it, so correcting the name is an edit to that one line rather than to four components. Use
   `siteUrl` rather than writing an address anywhere: it changes the day somebody connects their own domain,
   and a canonical link pointing at the old one tells every search engine the real site is somewhere it is not.
-- `src/components/contact-form.tsx`, `src/components/sent-notice.tsx` and `src/app/contact/page.tsx` — the
-  working form, the confirmation the visitor sees afterwards, and the page both sit on. Rewrite the copy;
-  leave the plumbing, and leave the form wrapped.
+- `src/app/contact/page.tsx` — the page the form sits on. Yours: rewrite the copy, and keep the form wrapped
+  in `SentNotice`. Both components it uses take what they say as **props**, so a different heading, different
+  fields or different wording for the thank-you is an argument passed from this page.
 - `public/` — files served from the root of the site. `public/images/` is where the owner's photographs are,
   reached at `/images/…`. Next's image optimizer is off (a static export has no server to run it), so use
   `next/image` with `width` and `height` for the layout, or a plain `<img>`; either way the file is served as
@@ -109,5 +109,11 @@ shows up.
 ## What you must not touch
 
 - `package.json` scripts, `next.config.ts`, `tsconfig.json` — the build contract Webly deploys with.
+- `src/components/contact-form.tsx` and `src/components/sent-notice.tsx` — the working form and the
+  acknowledgement the visitor reads after sending. A published site is a static export with no server of its
+  own, so this form posting to Webly is the only way an enquiry reaches anybody, and its hidden fields are an
+  agreement with Webly rather than markup. **Webly keeps both files current in every site**, so an edit here
+  is replaced the next time somebody sends a message. Everything you would want to change — the fields, the
+  labels, the submit label, the thank-you's wording — is a prop you pass from the page.
 - `.env*` — there are no secrets in this project and it must stay that way.
 - Anything outside this directory. There is nothing else there.

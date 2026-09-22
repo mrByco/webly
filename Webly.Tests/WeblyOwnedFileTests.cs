@@ -30,12 +30,17 @@ public class WeblyOwnedFileTests : PostgresTestBase
 
     private static readonly CommitAuthor Author = new("Anna Kovacs", "anna@example.com");
 
-    private static WorkspaceTree TemplateWith(string rules, string config = "export default { output: 'export' };\n") =>
+    private static WorkspaceTree TemplateWith(
+        string rules,
+        string config = "export default { output: 'export' };\n",
+        string sentNotice = "export const SentNotice = () => null;\n") =>
         new(
         [
             WorkspaceFile.Text("AGENTS.md", rules),
             WorkspaceFile.Text("CLAUDE.md", "See AGENTS.md.\n"),
             WorkspaceFile.Text("next.config.ts", config),
+            WorkspaceFile.Text("src/components/contact-form.tsx", "export const ContactForm = () => null;\n"),
+            WorkspaceFile.Text("src/components/sent-notice.tsx", sentNotice),
             WorkspaceFile.Text("src/app/page.tsx", "export default () => null;\n"),
         ]);
 
@@ -150,5 +155,60 @@ public class WeblyOwnedFileTests : PostgresTestBase
         var updated = await _store.ReadTreeAsync(site.Nanoid, settings!.CommitSha);
 
         Assert.That(updated.Find("next.config.ts")!.AsText(), Does.Contain("devIndicators"));
+
+        // And so does the contact form, which is the reason this list has a third entry. The acknowledgement
+        // a visitor reads after sending an enquiry was fixed twice, and both times the fix reached new sites
+        // only — a form that silently swallows a message is not a smaller defect on an older site.
+        template.Tree = TemplateWith(
+            "1. The old rule.\n2. The new rule.\n",
+            "export default { output: 'export', devIndicators: false };\n",
+            "export const SentNotice = () => 'thank you';\n");
+
+        var form = await sync.ExecuteAsync(site, Author, user.Id);
+
+        Assert.That(form, Is.Not.Null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(form!.Summary, Is.EqualTo("Updated the contact form"));
+            Assert.That(form.Origin, Is.EqualTo(SiteVersionOrigin.Template));
+            Assert.That(form.ChangedFileCount, Is.EqualTo(1));
+        });
+
+        Assert.That(
+            (await _store.ReadTreeAsync(site.Nanoid, form!.CommitSha)).Find("src/components/sent-notice.tsx")!.AsText(),
+            Does.Contain("thank you"));
+    }
+
+    /// <summary>
+    /// Every path on the list is a file the template really has. A typo here is not a test failure anywhere
+    /// else: <see cref="SyncWeblyOwnedFiles"/> skips a path the template does not carry, so a misspelt entry
+    /// is simply a file that silently stops being kept current in anybody's site.
+    /// </summary>
+    [Test]
+    public async Task Every_owned_path_is_a_file_the_real_template_ships()
+    {
+        var template = await new DirectorySiteTemplateSource(
+            Options.Create(new TemplateOptions { SitePath = TemplateRoot() }),
+            NullLogger<DirectorySiteTemplateSource>.Instance).ReadAsync();
+
+        Assert.Multiple(() =>
+        {
+            foreach (var path in SyncWeblyOwnedFiles.Paths)
+                Assert.That(template.Find(path), Is.Not.Null, $"the template has no {path}");
+        });
+    }
+
+    /// <summary>The repository's own `templates/next-site`, found by walking up to the solution file.</summary>
+    private static string TemplateRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Webly.slnx")))
+            directory = directory.Parent;
+
+        Assert.That(directory, Is.Not.Null, "the solution file was not found above the test binary");
+
+        return Path.Combine(directory!.FullName, "templates", "next-site");
     }
 }

@@ -21,6 +21,11 @@ namespace Webly.Services.UseCases.Sites;
 /// ours. A fix there — the static export's settings, or turning off the dev badge that Next drew on top of
 /// every customer's preview of their own site — would otherwise reach new sites only, for ever.
 ///
+/// <b>The contact form's two components are here for that exact reason</b>, twice over: the acknowledgement a
+/// visitor reads after sending an enquiry was missing, then fixed in a way that needed JavaScript on a form
+/// whose whole shape is about not needing it, and both times the honest note was that existing sites keep the
+/// silent one. See <see cref="ContactForm"/>.
+///
 /// So they are refreshed before a turn, and <b>as their own version</b>. The obvious cheaper thing
 /// — letting the update ride along in the turn's own commit — is the mistake this codebase has already made
 /// once: <c>npm install</c> rewrote <c>package-lock.json</c> during seeding and a turn's diff became the
@@ -52,8 +57,32 @@ public class SyncWeblyOwnedFiles(
     /// </summary>
     public static readonly string[] BuildContract = ["next.config.ts"];
 
+    /// <summary>
+    /// The contact form's plumbing: the component that posts to Webly and the acknowledgement the visitor
+    /// reads afterwards.
+    ///
+    /// The same argument as the build contract, and the case that made it. A published site is a static
+    /// export with no server of its own, so `ContactForm` posting cross-origin to Webly is the only way an
+    /// enquiry can reach anybody — its hidden fields are a contract with `PublicFormController`, not markup
+    /// somebody styles. `AGENTS.md` has said "leave the plumbing" about both files all along.
+    ///
+    /// What put them on this list is that a fix to them had twice been shipped to new sites only. The
+    /// acknowledgement was missing entirely, then present but needing JavaScript on a form whose whole shape
+    /// is about not needing it — and each time the honest note was that existing sites keep the silent form.
+    /// A contact form that says nothing is the worst defect this product can ship, and leaving it in place on
+    /// every site made before the fix is not a smaller version of it.
+    ///
+    /// Both files are safe to rewrite because each is configured rather than edited: `ContactForm` takes its
+    /// fields, labels and submit label as props, and `SentNotice` takes its wording the same way, so a site
+    /// that says something else says it from its own contact page — which is not on this list.
+    /// `sent-notice.tsx` also carries its own CSS, deliberately, so that arriving in a repository whose
+    /// stylesheet Webly does not own cannot leave it drawing a thank-you over a form nobody has used.
+    /// </summary>
+    public static readonly string[] ContactForm =
+        ["src/components/contact-form.tsx", "src/components/sent-notice.tsx"];
+
     /// <summary>Everything above, which is the whole of what Webly owns inside a site.</summary>
-    public static readonly string[] Paths = [.. Instructions, .. BuildContract];
+    public static readonly string[] Paths = [.. Instructions, .. BuildContract, .. ContactForm];
 
     /// <summary>
     /// Commits the current instructions if this site's differ. Returns the version it wrote, or null — the
@@ -130,14 +159,21 @@ public class SyncWeblyOwnedFiles(
     private static string SummaryFor(IEnumerable<WorkspaceFile> stale)
     {
         var paths = stale.Select(x => x.Path).ToList();
-        var rules = paths.Any(Instructions.Contains);
-        var build = paths.Any(BuildContract.Contains);
 
-        return (rules, build) switch
+        var parts = new List<string>();
+
+        if (paths.Any(Instructions.Contains)) parts.Add("the editing instructions");
+        if (paths.Any(BuildContract.Contains)) parts.Add("this site's build settings");
+        if (paths.Any(ContactForm.Contains)) parts.Add("the contact form");
+
+        // "Updated the editing instructions and the contact form" reads as one sentence about one commit,
+        // which is what it is. A switch over every combination was fine at two categories and is six at
+        // three; the list is what the summary is really describing.
+        return parts.Count switch
         {
-            (true, true) => "Updated the editing instructions and the build settings",
-            (false, true) => "Updated this site's build settings",
-            _ => "Updated the editing instructions"
+            0 => "Updated the files Webly keeps current",
+            1 => $"Updated {parts[0]}",
+            _ => $"Updated {string.Join(", ", parts.Take(parts.Count - 1))} and {parts[^1]}"
         };
     }
 }

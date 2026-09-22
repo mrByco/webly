@@ -937,6 +937,48 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     file being diffed is prose.
 
 
+65. **"Existing sites keep the silent form" was written down twice, and the second time was one too many.**
+    The contact form's acknowledgement had been fixed twice — once because it did not exist, once because the
+    fix needed JavaScript on a form whose whole shape is about not needing it — and both times the honest note
+    was that the fix reached new sites only, because `contact-form.tsx` and `sent-notice.tsx` live in each
+    site's own repository. A form that silently swallows an enquiry is the worst thing this product can do,
+    and it is not a smaller version of itself on a site made last month.
+
+    They are on `SyncWeblyOwnedFiles.Paths` now, beside `AGENTS.md` and `next.config.ts`, and the argument is
+    the one already written in that class: a published site is a static export with no server, so this form
+    posting cross-origin to Webly is the only way an enquiry reaches anybody, and its hidden fields are an
+    agreement with `PublicFormController` rather than markup somebody styles. `AGENTS.md` had said "leave the
+    plumbing" about both files all along; it now says plainly that Webly keeps them current and that
+    everything worth changing is a prop.
+
+    **Two changes made them safe to sync, and both are the point rather than housekeeping.**
+
+    - **The CSS moved into the component.** The `:target` rules were in `globals.css`, which is the site's and
+      not Webly's — so a synced `sent-notice.tsx` would have arrived in an old repository *without them*, with
+      `display: none` never applied, and drawn a permanent thank-you above a form nobody had used. Worse than
+      the silence it replaced, and it would have shipped. They are a `<style precedence>` in the component
+      now, which React hoists into the head and writes once however many forms a page has.
+    - **The wording is props with defaults.** `AGENTS.md` invites rewriting the copy, and a file that is
+      overwritten every turn cannot be somewhere to write copy. `heading`, `body` and `againLabel` default to
+      Webly's sentences, so a business that wants to say something else says it from its own contact page —
+      which is deliberately *not* on the list.
+
+    The summary switch became a list while it was open: three categories are six combinations, and what the
+    sentence is really describing is which of them changed. "Updated the editing instructions and the contact
+    form" is what a real site's history says.
+
+    Driven end to end, which is the only part that proves it. A site created before any of this, holding
+    `returnTo = '?sent=1'` and a `'use client'` notice: one ordinary message put "Updated the editing
+    instructions and the contact form" in its history as its own `Template` version, and a publish
+    afterwards answered an enquiry sent **with JavaScript switched off** with "Thank you — your message has
+    been sent."
+
+    One cost, stated rather than hidden: a site whose agent had edited either file loses that edit, visibly,
+    as a version it can be brought back from. `WeblyOwnedFileTests` gained the contact-form case and a second
+    test that every path on the list is a file the real template actually ships — a misspelt entry is not a
+    failure anywhere else, it is a file that quietly stops being kept current in anybody's site.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

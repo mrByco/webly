@@ -735,21 +735,16 @@ try {
 
     // And the rule that reveals it, which is the other half and can go missing on its own: the markup would
     // still be there, permanently hidden, and the page would look exactly as it did before this was fixed.
-    const styles = [];
-    const walk = directory => {
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const full = join(directory, entry.name);
-        if (entry.isDirectory()) walk(full);
-        else if (entry.name.endsWith('.css')) styles.push(readFileSync(full, 'utf8'));
-      }
-    };
-
-    walk(published);
-
-    check(styles.length > 0, `${styles.length} stylesheet(s) in the export`);
+    //
+    // In this page rather than in the site's stylesheet, deliberately. `sent-notice.tsx` is one of the files
+    // Webly keeps current in every site, so it arrives in repositories whose `globals.css` Webly does not own
+    // — a component whose `display: none` lived there would land without it and draw a permanent thank-you
+    // over a form nobody had used. React hoists the `<style precedence>` into the head and writes it once.
+    check(html.includes('#sent:target'), 'by a rule in the page itself, so no script and no stylesheet is involved');
+    check(html.includes('#sent{display:none}'), 'which hides it until the endpoint sends somebody to it');
     check(
-      styles.some(sheet => sheet.includes('.sent-notice:target')),
-      'and one of them carries the rule that shows it, so no script is involved');
+      html.indexOf('#sent:target') < html.indexOf('</head>'),
+      'and React hoisted it into the head rather than leaving a <style> in the body');
   });
 
   // -- 14. Leaving with the history --------------------------------------------------------------

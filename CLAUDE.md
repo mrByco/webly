@@ -581,7 +581,15 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   that put eighty-four lines of lockfile into somebody's headline change. Two `cat-file`s decide the usual
   case, so the whole tree is only read when something really changed; and `CommitSiteVersion` now updates
   `Site.HeadVersion` as well as the id, or the workspace would be seeded with the tree that commit replaced.
-  **`next.config.ts` travels the same way**, with its own summary ("Updated this site's build settings"). It
+  **`next.config.ts` travels the same way**, with its own summary ("Updated this site's build settings"), and
+  so do **the contact form's two components**, which is the case that proved the mechanism was worth having:
+  the acknowledgement a visitor reads after sending an enquiry was fixed twice and both times reached new
+  sites only, and "existing sites keep the silent form" is not a smaller defect than the one being fixed. Two
+  things made them safe to overwrite. `sent-notice.tsx` carries its own `:target` rules as a
+  `<style precedence>` rather than leaning on `globals.css`, which is the *site's* — a synced component
+  arriving without them would draw a permanent thank-you over a form nobody had used, which is worse than the
+  silence. And its wording is props with defaults, so a business that wants to say something else says it
+  from its own contact page, which is deliberately not on the list. It
   is the build contract, and what makes rewriting it safe is that the template's own rules put it on the list
   the agent must not touch — so the only copy that can exist is ours. Without it a fix there reaches new sites
   only, for ever: turning off Next's floating dev badge, which `next dev` drew on top of every customer's
@@ -969,9 +977,11 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   `:target` rule travels with the component. `AGENTS.md` asks the agent to keep the form wrapped;
   `FormSubmissionTests` pins the `…/contact/#sent` Location, because the fragment has to survive .NET's
   relative-URI resolution; and `tools/e2e/run.mjs` step 14 checks both halves — the acknowledgement in the
-  page's own HTML, and the rule that reveals it in the export's stylesheet, without which the markup would be
-  there and permanently hidden. Found both times by sending the form on a published site as a stranger, the
-  second time with scripts switched off.
+  page's own HTML, and the rule that reveals it in the head of that same page, without which the markup would
+  be there and permanently hidden. The rule is in the **component**, as a `<style precedence>` React hoists,
+  rather than in `globals.css`: that file belongs to the site, and `sent-notice.tsx` is one Webly keeps
+  current in every site, so a rule left behind in a stylesheet Webly does not own would arrive nowhere. Found
+  both times by sending the form on a published site as a stranger, the second time with scripts switched off.
 - **`ISiteRepository.FindForSubmissionAsync` is the one lookup in the repository with no ownership check.** It
   says so at length, because the rule everywhere else is that a use case starts from `FindForOwnerAsync`. What
   makes it safe is that the operation cannot read anything back: it appends a row and sends one email.
