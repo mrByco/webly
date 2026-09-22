@@ -905,6 +905,38 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     the way its owner would.
 
 
+64. **Four things driven end to end and found already right**, recorded here so nobody spends an afternoon
+    re-checking them. None produced a change; each was a described behaviour with no evidence behind it.
+
+    - **A new customer's first five minutes.** Register, the six-digit code out of the sent mail, the
+      verification screen submitting on the sixth digit by itself, the name-your-site screen, one turn, and a
+      publish — driven as a genuinely new account in a browser. No page error, no 5xx, and the published page
+      is the site.
+    - **The domains round trip.** Add a hostname; it comes back pending with a TXT record whose name and value
+      are both shown in full; "Check again" verifies it; "Make this the main address" moves the header link and
+      the settings line onto it; "Remove" asks first, **names the address it falls back to**, and puts the site
+      back on its Webly address with the header link following. That last step is the one CLAUDE.md records as
+      previously impossible — a domain somebody added could never be taken away — and it is genuinely gone.
+    - **Closing an account that has a published site.** Registered, published, closed. The published page
+      answers **404**, the bare repository is gone from disk, the export directory is gone, signing in with
+      the same password answers 401, and the browser lands on the login screen. `DeleteSite`'s
+      `DeleteProjectAsync` half is doing its job through the filesystem target.
+    - **`SyncSiteInstructions`, proven with a real template change.** Changing `AGENTS.md` in
+      `templates/next-site` and then sending an ordinary message on an existing site put **two** commits in
+      that site's history: "Updated the editing instructions" with origin `Template` and one file, and the
+      person's own version above it. The history pane names it "Files Webly keeps up to date in every site:
+      AGENTS.md" and its diff is the rule that was added. The whole reason that mechanism exists — a rule
+      written today reaching a site made last month — is now something that has been watched happening rather
+      than reasoned about.
+
+    Two things were also confirmed on the way. The hub's sentences reach the screen: `messageOf` already has a
+    `hubMessageOf` half that strips SignalR's `"An unexpected error occurred invoking 'X' on the server.
+    HubException: "` prefix, so "You have made a lot of changes in the last hour" is not lost. And the diff
+    pane's long lines are **reachable** rather than clipped — the `<pre>` carries `overflow-x-auto`, measured
+    at 764px of content in a 350px box with a scrollbar, which is the right answer for a diff even when the
+    file being diffed is prose.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
