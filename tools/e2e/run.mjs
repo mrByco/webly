@@ -723,24 +723,33 @@ try {
     check(html.includes('name="_ignore"'), 'the honeypot is in the markup');
     check(html.includes('name="_next"'), 'and so is where the visitor comes back to');
 
-    // The confirmation lives in a client component, so it is in a chunk rather than in this page — which is
-    // exactly why its absence was invisible. The visitor pressed Send, the message arrived, the owner was
-    // emailed, and they were returned to an empty form with nothing saying any of it had happened.
-    const chunks = [];
+    check(html.includes('value="#sent"'), 'which is the fragment the acknowledgement is shown on');
+
+    // The acknowledgement is in this page's own HTML, and that is the assertion rather than an incidental
+    // detail: it used to be a client component reading `?sent=1` after mounting, so it lived in a chunk, and
+    // a visitor with no scripts pressed Send and watched their message disappear — an empty form, no notice,
+    // nothing saying the enquiry had arrived. Which is the one visitor this form is an ordinary cross-origin
+    // POST for in the first place.
+    check(html.includes('your message has been sent'), 'and the acknowledgement is in the page, not in a chunk');
+    check(/id="sent"/.test(html), 'on the element the endpoint returns them to');
+
+    // And the rule that reveals it, which is the other half and can go missing on its own: the markup would
+    // still be there, permanently hidden, and the page would look exactly as it did before this was fixed.
+    const styles = [];
     const walk = directory => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         const full = join(directory, entry.name);
         if (entry.isDirectory()) walk(full);
-        else if (entry.name.endsWith('.js')) chunks.push(readFileSync(full, 'utf8'));
+        else if (entry.name.endsWith('.css')) styles.push(readFileSync(full, 'utf8'));
       }
     };
 
     walk(published);
 
-    check(chunks.length > 0, `${chunks.length} scripts in the export`);
+    check(styles.length > 0, `${styles.length} stylesheet(s) in the export`);
     check(
-      chunks.some(chunk => chunk.includes('your message has been sent')),
-      'and one of them is the confirmation the visitor reads afterwards');
+      styles.some(sheet => sheet.includes('.sent-notice:target')),
+      'and one of them carries the rule that shows it, so no script is involved');
   });
 
   // -- 14. Leaving with the history --------------------------------------------------------------

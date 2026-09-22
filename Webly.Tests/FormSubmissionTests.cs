@@ -83,7 +83,7 @@ public class FormSubmissionTests : AuthEndpointTestBase
         var response = await PostAsync(site,
         [
             new("_form", "contact"),
-            new("_next", "?sent=1"),
+            new("_next", "#sent"),
             new("_ignore", string.Empty),
             new("Your name", "Jasper de Wit"),
             new("Your email", "jasper@example.com"),
@@ -92,9 +92,12 @@ public class FormSubmissionTests : AuthEndpointTestBase
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.SeeOther), await response.Content.ReadAsStringAsync());
 
-        // Back to the page the form was on, with the form's own query appended — resolved against the Referer,
-        // which is the only thing this endpoint knows about where the visitor was.
-        Assert.That(response.Headers.Location?.ToString(), Is.EqualTo($"{SiteOrigin}/contact/?sent=1"));
+        // Back to the page the form was on, with the form's own `_next` resolved against the Referer — which
+        // is the only thing this endpoint knows about where the visitor was. The fragment is the template's
+        // default and has to survive that resolution intact: it is what the site's `:target` rule shows the
+        // acknowledgement on, and a confirmation that needed a script would miss exactly the visitor this
+        // form is a plain cross-origin POST for.
+        Assert.That(response.Headers.Location?.ToString(), Is.EqualTo($"{SiteOrigin}/contact/#sent"));
 
         var submissions = await SubmissionsAsync(owner, site);
 
@@ -165,7 +168,7 @@ public class FormSubmissionTests : AuthEndpointTestBase
 
         // Only the form's own hidden fields: a mis-wired form, or a bot probing the endpoint. Either way the
         // owner's list must not fill up with rows that say nothing.
-        var response = await PostAsync(site, [new("_form", "contact"), new("_next", "?sent=1")]);
+        var response = await PostAsync(site, [new("_form", "contact"), new("_next", "#sent")]);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         Assert.That((await SubmissionsAsync(owner, site)).GetArrayLength(), Is.Zero);

@@ -7,7 +7,10 @@ export interface ContactFormProps {
    */
   name?: string;
 
-  /** The page to return to after sending, relative to this one. Must stay relative: see below. */
+  /**
+   * Where to return the visitor after sending, relative to this page. Must stay relative: see below. The
+   * default is the fragment `SentNotice` listens on, so leaving it alone is what makes the thank-you appear.
+   */
   returnTo?: string;
 
   fields?: FormField[];
@@ -46,7 +49,9 @@ const DEFAULT_FIELDS: FormField[] = [
  *
  * - `_form` is the name shown above the message in the owner's list.
  * - `_next` is where the visitor lands afterwards, resolved **relative to this page**. It must stay relative —
- *   an absolute URL is refused and the visitor gets Webly's own plain thank-you page instead of yours.
+ *   an absolute URL is refused and the visitor gets Webly's own plain thank-you page instead of yours. It
+ *   defaults to `#sent`, which is the fragment `SentNotice` shows its acknowledgement on; change it only
+ *   together with that.
  * - `_ignore` is a honeypot: a field nobody can see and no person fills in, so anything in it means the sender
  *   was a bot and the submission is dropped. Keep it, keep it hidden, and do not give it a friendly label or a
  *   real-sounding name — a bot reading the markup will fill in anything that looks like a field it should.
@@ -56,7 +61,7 @@ const DEFAULT_FIELDS: FormField[] = [
  */
 export function ContactForm({
   name = 'contact',
-  returnTo = '?sent=1',
+  returnTo = '#sent',
   fields = DEFAULT_FIELDS,
   submitLabel = 'Send',
 }: ContactFormProps) {

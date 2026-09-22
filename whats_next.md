@@ -815,6 +815,41 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     first load is an empty one. Re-measured afterwards at both widths: `gap: 0`.
 
 
+61. **The confirmation needed a script, on the one form built not to need one.** Found by driving the
+    onboarding a real customer takes — register, verify, name a site, one turn, publish — and then sending the
+    published contact form twice in a browser: once normally, and once with JavaScript switched off, which is
+    the visitor `ContactForm` is an ordinary cross-origin HTML POST *for*.
+
+    With scripts, "Thank you — your message has been sent." With scripts off, the enquiry arrived, the owner
+    was emailed, and the page came back showing the empty form and nothing else. Exactly the defect finding 47
+    fixed, still present for the one visitor whose form had been designed around it — because the fix put the
+    acknowledgement in a `useEffect` reading `?sent=1`, and a `useEffect` is the one thing that visitor does
+    not have. The comment I wrote there called the confirmation "an enhancement that can afford to be one".
+    It cannot: for somebody who cannot run scripts, the acknowledgement is the whole of the feedback, and its
+    absence is indistinguishable from a failed send.
+
+    The answer is a **fragment and a CSS rule**. `_next` is `#sent`, the notice carries that id, and
+    `.sent-notice:target` shows it while `.sent-notice:target ~ .sent-form` hides the form. No server, no
+    script, no hydration, and "Send another message" is a link to `#form`, which un-targets the notice and
+    brings the form back — a full round trip with JavaScript disabled, driven and screenshotted.
+
+    A separate `/contact/sent/` page was the other candidate and is worse where it counts: `ContactForm` can
+    be dropped on any page, so a `_next` pointing at a thank-you page nobody remembered to write is a 404 on a
+    real business's website at the worst possible moment. A `:target` rule travels with the component.
+
+    Two things are now pinned rather than trusted. `FormSubmissionTests` asserts the Location is
+    `…/contact/#sent`, because the fragment has to survive .NET's relative-URI resolution against the
+    `Referer` for any of this to work. And `tools/e2e/run.mjs` step 14 checks **both halves**: the
+    acknowledgement is in the page's own HTML, and the rule that reveals it is in the export's stylesheet —
+    without the second, the markup would be there and permanently hidden, and the page would look exactly as
+    it did before the fix.
+
+    **Existing sites keep the silent form**, the same honest note as last time and for the same reason:
+    `contact-form.tsx`, `sent-notice.tsx` and the contact page are the agent's to rewrite, so they are not on
+    the `SyncWeblyOwnedFiles` list. Verified on a site created after the template changed, published through
+    the running app.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

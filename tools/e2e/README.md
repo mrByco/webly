@@ -164,10 +164,15 @@ build — are all exercised for real. What is mocked is the part written in the 
   twice or ring somebody else. It fell between two decisions that were each right — the endpoint returns the
   visitor to the page they came from rather than landing a shop's customer on Webly's website, and a static
   export has no server to read `?sent=1` at request time — and the sentence joining them, that Webly's own
-  thank-you page covers it, was only true in the fallback case nobody takes. The browser can read a query
-  string when no server can, so `SentNotice` does. The step asserts the form is still in the *HTML* (a visitor
-  with no scripts must still reach the owner) and that the confirmation is in the export's chunks, which is
-  the half that was missing and the half nothing can see by reading a page.
+  thank-you page covers it, was only true in the fallback case nobody takes.
+
+  **And the first fix for it was a script**, which this step's first version happily asserted: it looked for
+  the confirmation in the export's JavaScript chunks, and found it. With JavaScript switched off the enquiry
+  still arrived and the page still said nothing — the original defect, intact, for the one visitor the form is
+  an ordinary cross-origin POST *for*. It is a fragment and a CSS rule now, so the step checks the
+  acknowledgement is in the page's own **HTML** and that the rule revealing it (`.sent-notice:target`) is in
+  the export's **stylesheet**. Both halves, because without the second the markup is there and permanently
+  hidden, and the page looks exactly as it did when it was broken.
 
 ## The fixture
 

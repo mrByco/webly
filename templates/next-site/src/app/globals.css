@@ -55,3 +55,28 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * The contact form's acknowledgement, done with a fragment instead of a script.
+ *
+ * Webly's form endpoint sends the visitor back to `#sent`, so `:target` is what decides which of the two is on
+ * screen — the thank-you, or the form. It is here rather than in a utility class because the pair of rules is
+ * one behaviour and splitting them across two elements' class lists is how one of them gets dropped.
+ *
+ * Why not JavaScript: `ContactForm` is an ordinary HTML form posting cross-origin so that it keeps working
+ * when scripts are blocked or switched off, and a confirmation that needs them leaves exactly that visitor
+ * watching their message vanish. This has no such gap — it is a selector.
+ */
+@layer components {
+  .sent-notice {
+    display: none;
+  }
+
+  .sent-notice:target {
+    display: block;
+  }
+
+  .sent-notice:target ~ .sent-form {
+    display: none;
+  }
+}

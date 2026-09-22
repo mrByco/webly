@@ -955,12 +955,23 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   any of it had worked — so the obvious next move is to send it twice or ring a competitor. It fell between two
   correct decisions: the 303 above, and a static export having no server to read `?sent=1` at request time. The
   sentence joining them said Webly's own thank-you page covered it, and that is only true in the fallback case
-  almost nobody takes. The **browser** can read a query string when no server can, so the template's
-  `SentNotice` wraps the form, reads it after mounting (same markup server-side and on first paint, and a
-  visitor with scripts off still gets the plain form that still posts), and replaces the form with a
-  confirmation. `AGENTS.md` asks the agent to keep the form wrapped; `tools/e2e/run.mjs` step 14 asserts the
-  form is in the published HTML *and* the confirmation is in its chunks. Found by filling in the form on a
-  published site as a stranger.
+  almost nobody takes.
+- **It is a fragment and a CSS rule, and the first fix for it was a script**, which is worth its own line
+  because the script version looked right and missed the only visitor the form's whole shape is for. It read
+  `?sent=1` in a `useEffect`, so with JavaScript off the enquiry arrived, the owner was emailed, and the page
+  came back showing the empty form — the original defect, still there, for the person `ContactForm` is an
+  ordinary cross-origin HTML POST *for*. An acknowledgement is not an enhancement to somebody who cannot run
+  scripts; it is the whole of the feedback. So `_next` is `#sent`, `SentNotice` carries that id, and
+  `.sent-notice:target` shows it while `.sent-notice:target ~ .sent-form` hides the form — no server, no
+  script, and "Send another message" is a link to `#form`, which un-targets the notice. A separate
+  `/contact/sent/` page was the alternative and is worse: `ContactForm` can be dropped on any page, and a
+  `_next` aimed at a thank-you page nobody wrote is a 404 on a real business's site at the worst moment; a
+  `:target` rule travels with the component. `AGENTS.md` asks the agent to keep the form wrapped;
+  `FormSubmissionTests` pins the `…/contact/#sent` Location, because the fragment has to survive .NET's
+  relative-URI resolution; and `tools/e2e/run.mjs` step 14 checks both halves — the acknowledgement in the
+  page's own HTML, and the rule that reveals it in the export's stylesheet, without which the markup would be
+  there and permanently hidden. Found both times by sending the form on a published site as a stranger, the
+  second time with scripts switched off.
 - **`ISiteRepository.FindForSubmissionAsync` is the one lookup in the repository with no ownership check.** It
   says so at length, because the rule everywhere else is that a use case starts from `FindForOwnerAsync`. What
   makes it safe is that the operation cannot read anything back: it appends a row and sends one email.

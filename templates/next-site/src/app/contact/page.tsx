@@ -21,8 +21,8 @@ export const metadata: Metadata = {
  * What was wrong was the sentence that used to follow it — that the confirmation is the one Webly's endpoint
  * shows on the way back. It is not: the endpoint returns the visitor to *this* page, and only falls back to
  * its own thank-you page when there is no usable `Referer`. So the visitor pressed Send and got an empty form
- * with nothing saying it had worked. `SentNotice` is the missing half, and it reads the query in the browser,
- * which can, rather than on a server, which is not there.
+ * with nothing saying it had worked. `SentNotice` is the missing half, and it needs neither a server nor a
+ * script: the endpoint returns to `#sent` and a `:target` rule decides which of the two is on screen.
  */
 export default function Contact() {
   return (
