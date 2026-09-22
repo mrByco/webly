@@ -439,7 +439,13 @@ structured-document model it replaced was better at.
   published, linked to, indexed, and printed on a van. **It is customer
   input reaching a source file that gets compiled**, so it is escaped for a single-quoted TypeScript literal —
   "Joe's Garage" is an ordinary business name and an unescaped apostrophe is a site that does not build, in a
-  sandbox, reported as a chat message nobody can act on. `TemplateFile.Rewritten` is the one rule both this
+  sandbox, reported as a chat message nobody can act on. **And the pattern that finds the constant has to match
+  a value this class already escaped**, which for a long time it did not: `'[^']*'` stops at the `\'`, so a site
+  whose name had an apostrophe could be written once and never rewritten. Renaming it answered 204, wrote a
+  version called "Renamed the site to …", changed the dashboard and `content/brand.md` — and left every page,
+  the header, the footer and the share card on the old name for ever, since the next rename would miss the same
+  way. Those are the names most likely to have one, so it was never an edge. `'(?:[^'\\]|\\.)*'` is the fix;
+  the test renamed *into* an apostrophe, which worked, and now renames out of one too. `TemplateFile.Rewritten` is the one rule both this
   and `SiteLooks` share: a file that has moved or been reshaped is left exactly as it is.
 - **One template, five looks.** `SiteLooks` rewrites three numbers in `src/app/look.css` — an OKLCH hue, a
   chroma and a card radius — in the template's tree on the way to a site's first commit, at random. **And the

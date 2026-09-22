@@ -152,5 +152,31 @@ public class SiteRenameTests : AuthEndpointTestBase
         // This is customer input reaching a file that gets compiled, by a build whose failure is ours to
         // explain. Unescaped, the literal ends early and the site does not build at all.
         Assert.That(await SourceAsync(owner, site), Does.Contain(@"siteName = 'Joe\'s Kitchens'"));
+
+        // And out of it again, which is the half this test did not have and the half that was broken.
+        //
+        // The pattern that finds the constant was `'[^']*'`, which cannot match a value this class has already
+        // escaped a quote into: it stops at the `\'`, the `';` that has to follow is not there, and nothing
+        // matches. So a site whose name had an apostrophe could be written once and never rewritten. The rename
+        // answered 204, the history gained "Renamed the site to …", the dashboard and `content/brand.md` both
+        // changed — and every page, the header, the footer and the share card went on saying the old name for
+        // ever, because the next rename would miss in the same way. The commit's diff touched `brand.md` alone.
+        //
+        // It is the names most likely to have one — O'Brien, Joe's, Sainsbury's — so this was never an edge.
+        await RenameAsync(owner, site, "Ridgeway Motors", applyToSite: true);
+
+        Assert.That(await SourceAsync(owner, site), Does.Contain("siteName = 'Ridgeway Motors'"));
+
+        // Twice more, to prove it is not one-in-one-out: an apostrophe going in, and then coming out again.
+        await RenameAsync(owner, site, "O'Brien Plumbing", applyToSite: true);
+
+        Assert.That(await SourceAsync(owner, site), Does.Contain(@"siteName = 'O\'Brien Plumbing'"));
+
+        await RenameAsync(owner, site, "Hexham Joinery", applyToSite: true);
+
+        Assert.That(await SourceAsync(owner, site), Does.Contain("siteName = 'Hexham Joinery'"));
+
+        // And nothing of the old name is left anywhere in the file, which is what the person asked for.
+        Assert.That(await SourceAsync(owner, site), Does.Not.Contain("Brien"));
     }
 }

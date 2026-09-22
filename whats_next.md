@@ -629,6 +629,29 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     answer 401).
 
 
+53. **A site called "Joe's Garage" could be named once and never renamed again.** The pattern that finds the
+    constant in `src/site.ts` was `'[^']*'`, which cannot match a value this same class has already escaped a
+    quote into: it stops at the `\'`, the `';` that has to follow is not there, and nothing matches. The
+    escaping that makes the first write safe is exactly what makes every later one miss.
+
+    What that looked like from the outside, driven in the running app: rename it to "Ridgeway Motors" with the
+    checkbox ticked, get a **204**, a version in the history called *"Renamed the site to Ridgeway Motors"*, a
+    dashboard saying Ridgeway Motors and `content/brand.md` saying it too — while the header, the footer, every
+    page's title and the share card went on saying Joe's Garage. For ever, because the next rename would miss
+    in the same way. The commit's own diff touched `brand.md` and nothing else. Nothing failed, nothing was
+    logged, and the only thing that would ever have admitted it is the settings screen's "the site calls itself
+    something else" notice — which says the two disagree, not that the rename did not work.
+
+    It is the names most likely to have one — O'Brien, Joe's, Sainsbury's — so this was never an edge case; it
+    is a large share of the small businesses this product is for.
+
+    `'(?:[^'\\]|\\.)*'` is the whole fix. The existing apostrophe test renamed *into* one, which is the half
+    that worked; it now renames out, back in and out again, and is red on the old pattern. Re-driven afterwards
+    on the site that was already stuck — a second rename recovers it, so nothing is permanently wrong — and
+    then all the way through a real `next build` and publish, because "customer input reaching a file that gets
+    compiled" is only proved by compiling it: the published page's title is `O&#x27;Brien Plumbing`.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

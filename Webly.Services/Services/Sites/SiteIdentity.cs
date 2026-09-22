@@ -62,7 +62,24 @@ public static partial class SiteIdentity
     /// </summary>
     private static string ForMarkdown(string name) => Control().Replace(name, " ").Trim();
 
-    [GeneratedRegex(@"export const siteName = '[^']*';")]
+    /// <summary>
+    /// The constant, <b>including a value this class has already escaped a quote into</b>.
+    ///
+    /// `'[^']*'` was the obvious pattern and it is wrong in one specific, common case: once the value is
+    /// `'Joe\'s Garage'`, the character class stops at the escaped quote, the `';` that has to follow is not
+    /// there, and nothing matches. So a site whose name has an apostrophe could be written **once** and never
+    /// rewritten — the escaping that makes the first write safe is exactly what makes every later one miss.
+    ///
+    /// What that looked like: rename "Joe's Garage" to "Ridgeway Motors" with the checkbox ticked, get a 204, a
+    /// version in the history called "Renamed the site to Ridgeway Motors", a dashboard saying Ridgeway Motors
+    /// and `content/brand.md` saying it too — while every page, the header, the footer, each page's title and
+    /// the share card went on saying Joe's Garage, for ever, because the next rename would miss in the same
+    /// way. The commit's own diff touched `brand.md` and nothing else. Found by renaming a site called
+    /// "Joe's Garage" in the running app and reading its source afterwards.
+    ///
+    /// It is the names most likely to have one — O'Brien, Joe's, Sainsbury's — so this was not an edge.
+    /// </summary>
+    [GeneratedRegex(@"export const siteName = '(?:[^'\\]|\\.)*';")]
     private static partial Regex Constant();
 
     [GeneratedRegex(@"- \*\*Name:\*\* .*")]
