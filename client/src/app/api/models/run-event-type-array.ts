@@ -14,6 +14,7 @@ export const RUN_EVENT_TYPE: RunEventType[] = [
   'WorkspaceProgress',
   'VersionCommitted',
   'BuildFailed',
+  'TypesFailed',
   'DeploymentProgress',
   'Completed',
   'Failed'

@@ -40,6 +40,21 @@ public enum RunEventType
     /// </summary>
     BuildFailed,
 
+    /// <summary>
+    /// The turn's code does not typecheck. <c>Detail</c> is <c>tsc</c>'s complaint.
+    ///
+    /// Its own value rather than <see cref="BuildFailed"/>'s, because the two are true of different things and
+    /// the screen has to say which. <c>next dev</c> compiles with SWC, which strips types without checking
+    /// them, so a type error leaves the page **rendering perfectly** — and the chat said "Your site is not
+    /// compiling" beside a preview that plainly was. What a type error really costs is the publish, where
+    /// <c>next build</c> runs <c>tsc</c> and refuses. Telling somebody their site is broken when they can see it
+    /// working is how a product teaches people to disbelieve it.
+    ///
+    /// Safe to add because these cross the wire as **names**: a string union the client switches on, so a new
+    /// value is a case it does not yet handle rather than a silent renumbering of the ones it does.
+    /// </summary>
+    TypesFailed,
+
     /// <summary>A deployment changed status. <c>Detail</c> is the status name.</summary>
     DeploymentProgress,
 

@@ -98,7 +98,7 @@
             <div class="flex flex-col gap-1.5 rounded-field bg-warning/10 px-3 py-2 text-warning">
               <p class="flex items-center gap-2 text-xs font-semibold">
                 <app-icon class="size-3.5" name="circle-alert" />
-                Your site is not compiling
+                {{ entry.heading ?? 'Your site is not compiling' }}
               </p>
               <pre class="overflow-x-auto text-[0.7rem] leading-snug whitespace-pre-wrap">{{ entry.text }}</pre>
             </div>

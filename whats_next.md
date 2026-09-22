@@ -752,6 +752,34 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     the running app — one copy, no access log — and then "fix the build", which brought the preview back to 200.
 
 
+58. **"Your site is not compiling" was printed over a preview that plainly was.** The other half of the
+    breakage check: `next dev` compiles with SWC, which strips types without checking them, so a **type error
+    leaves the page rendering perfectly** — and the chat said the site was not compiling next to a pane showing
+    it working. What a type error really costs is the *publish*, where `next build` runs `tsc` and refuses.
+    Telling somebody their site is broken when they can see it working is how a product teaches people to
+    disbelieve it — the same standard this codebase already applies to reporting a sandbox failure as a site
+    failure.
+
+    `RunEventType.TypesFailed` is its own value, which these enums are string unions precisely to allow: a new
+    value is a case a client does not yet handle rather than a silent renumbering of the ones it does. The
+    headings are now "Your site is not compiling" and "This will stop your site publishing", and both are true
+    of what produced them. Driven both ways in the browser afterwards.
+
+    **Three things in a row made this hard to see, and each is worth remembering:**
+
+    - The mock agent breaking an already-broken site **commits nothing**, so the typecheck is skipped — which is
+      correct ("a turn that changed nothing cannot have broken anything") and means a probe has to clean the
+      site before breaking it. Two runs were spent re-breaking.
+    - `tools/e2e/turn.mjs` printed **nothing** for the new event, because its switch did not know it. A harness
+      silent about what it does not recognise reports a working feature as missing; it knows `TypesFailed` now.
+    - And the browser showed nothing at all until `ng serve` was restarted — the **stale lazy chunk** this
+      file and `CLAUDE.md` both warn about, costing its third diagnosis. The remedy is written down; following
+      it sooner would have saved twenty minutes.
+
+    What settled it was a probe that dumps **every** event type rather than the ones it expects. That is the
+    lesson: an observer that filters by what it already knows cannot see something new arrive.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

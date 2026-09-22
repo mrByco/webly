@@ -16,6 +16,14 @@ import { ChatMessageResponse } from '../../api/models/chat-message-response';
 export interface ChatEntry {
   kind: 'user' | 'assistant' | 'notice' | 'activity' | 'files' | 'waking' | 'version' | 'build' | 'error';
   text: string;
+  /**
+   * The line above a `build` block. Two compilers fail at different things and the screen has to say which: a
+   * dev-server error means the page is broken *now*, which the preview beside the chat is already showing;
+   * a type error means the page renders and the **publish** will refuse. One heading for both said "Your site
+   * is not compiling" over a preview that plainly was.
+   */
+  heading?: string;
+
   /** `files` entries collect the paths the turn has written so far, rather than one chip per write. */
   paths?: string[];
   versionNanoid?: string;
@@ -340,7 +348,21 @@ export class SiteChat {
       case 'BuildFailed':
         // Shown, not swallowed. The person's next message is what fixes it, and they can only write that
         // message if they can see what broke.
-        this.append({ kind: 'build', text: event.detail ?? 'The site is not compiling.' });
+        this.append({
+          kind: 'build',
+          heading: 'Your site is not compiling',
+          text: event.detail ?? 'The site is not compiling.',
+        });
+        break;
+
+      case 'TypesFailed':
+        // The page renders — `next dev` strips types without checking them — so this is about what happens when
+        // they press Publish, which is where `next build` runs `tsc` and refuses.
+        this.append({
+          kind: 'build',
+          heading: 'This will stop your site publishing',
+          text: event.detail ?? 'The types do not check.',
+        });
         break;
 
       case 'Failed':

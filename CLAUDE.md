@@ -717,7 +717,15 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   **names a type error** — a missing `node_modules` or an absent script also exits non-zero, and telling a
   customer their site is broken when our sandbox is what is broken is worse than silence. `AGENTS.md` still asks
   the agent to run it, and that is not redundant: its run is what fixes the error before finishing, ours is what
-  makes the report true when it did not. Ask the mock agent to "break the types" to see the path without a key.
+  makes the report true when it did not. Ask the mock agent to "break the types" to see the path without a key —
+  and **clean the site first**, because breaking an already-broken one commits nothing and the check is skipped
+  by design.
+- **A type error is its own event, because it is true of something else.** `next dev` strips types without
+  checking them, so the page renders — and the chat used to say "Your site is not compiling" beside a preview
+  that plainly was. What a type error costs is the publish. `RunEventType.TypesFailed` carries it and the
+  heading reads "This will stop your site publishing"; `BuildFailed` keeps the other. Adding the value was safe
+  because these cross the wire as **names**: a new one is a case a client has not handled yet rather than a
+  silent renumbering of the ones it has.
 - **`tsc --incremental` writes a cache, and it must not reach a commit.** It defaults to sitting beside
   `tsconfig.json`, so every turn that ran the typecheck — which `AGENTS.md` has asked for all along — would have
   committed a machine-readable dump of the project into the customer's history and shown it in their diff. Two

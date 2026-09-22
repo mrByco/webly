@@ -103,6 +103,13 @@ connection.on('RunEvent', envelope => {
         case 'BuildFailed':
             console.log(`\n  ! build failed:\n${detail}`);
             break;
+        // Its own event, because the two are true of different things: the dev server not compiling means the
+        // page is broken now, a type error means it renders and the publish will refuse. A harness that prints
+        // nothing for an event it does not know is a harness that reports a working feature as missing — which
+        // is exactly what this one did for twenty minutes.
+        case 'TypesFailed':
+            console.log(`\n  ! the types do not check:\n${detail}`);
+            break;
         case 'Completed':
         case 'Failed':
             console.log(`\n  ${type === 'Completed' ? '✓' : '✗'} ${type}${event.error ?? event.Error ? `: ${event.error ?? event.Error}` : ''}`);

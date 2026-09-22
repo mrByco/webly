@@ -401,7 +401,10 @@ public class AgentTurnService(
         {
             var detail = CompilerOutput.Readable(log.Text);
 
-            await ReportAsync(detail.Length <= DetailLimit ? detail : detail[^DetailLimit..], cancellationToken);
+            await ReportAsync(
+                RunEventType.BuildFailed,
+                detail.Length <= DetailLimit ? detail : detail[^DetailLimit..],
+                cancellationToken);
 
             // One block, not two. A file the compiler could not parse is a file tsc cannot check either, so it
             // would report the same breakage in its own words — and two warning blocks about one mistake reads as
@@ -445,11 +448,19 @@ public class AgentTurnService(
             return;
         }
 
-        await ReportAsync(CompilerOutput.TypeErrors(check.Output), cancellationToken);
+        await ReportAsync(RunEventType.TypesFailed, CompilerOutput.TypeErrors(check.Output), cancellationToken);
     }
 
-    private Task ReportAsync(string detail, CancellationToken cancellationToken) =>
-        writer.WriteAsync(new RunEvent { Type = RunEventType.BuildFailed, Detail = detail }, cancellationToken);
+    /// <summary>
+    /// Puts a compiler's complaint on screen, saying which compiler it was.
+    ///
+    /// The two are true of different things and the screen has to say which. A dev-server failure means the page
+    /// is broken *now*, and the preview beside the chat is showing it; a type error means the page renders and
+    /// the **publish** will refuse, because `next dev` strips types without checking them while `next build`
+    /// runs `tsc`. One heading for both said "Your site is not compiling" over a preview that plainly was.
+    /// </summary>
+    private Task ReportAsync(RunEventType type, string detail, CancellationToken cancellationToken) =>
+        writer.WriteAsync(new RunEvent { Type = type, Detail = detail }, cancellationToken);
 
     private static string Describe(ConversationMessage message) =>
         $"{(message.Role == MessageRole.User ? "They asked" : "You replied")}: {message.Text}";
