@@ -86,7 +86,9 @@ shows up.
   `border-field-edge`, which is darker on purpose. A card is identified by what is in it, so a faint rule is
   enough; an empty field's border is the only thing saying where to click, and the accessibility standard asks
   for more contrast on exactly that. Use `border-field-edge` on every input, textarea and select you add.
-- `content/brand.md` — the confirmed facts. Your source of truth for copy.
+- `content/brand.md` — the confirmed facts. Your source of truth for copy. **The owner reads this file**, on
+  their settings screen, under "What Webly knows about your business" — so write it for them, not for you.
+  Its **Name** is the same fact as `siteName` in `src/site.ts`: if they correct it, change both.
 - `src/app/sitemap.ts` — `/sitemap.xml`. It reads the folders under `src/app` at build time, so a page you
   add is in it without you doing anything. Leave it alone.
 - `src/site.ts` — the business's name, where this site lives as the build was told, and where its forms post.

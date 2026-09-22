@@ -1075,7 +1075,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   which makes it the most consequential text in the site and, until this panel, the only one nobody could
   see. A fact recorded wrongly shapes every page written afterwards, and the person it belongs to had no way
   of knowing. Read from the head commit through the existing file endpoint, folded away, and read-only for
-  the Code tab's reason: correcting it is a sentence in the chat, which is how it got there.
+  the Code tab's reason: correcting it is a sentence in the chat, which is how it got there. **It renders the
+  file verbatim, so the file has to be written for the person** — the template's copy shipped with an HTML
+  comment under the Name fact, explaining to the agent that it is also `siteName` in `src/site.ts` and that a
+  correction means changing both. True, useful, and addressed to the wrong reader: somebody looking at their own
+  facts in a product that promises they never touch code was reading a note about a TypeScript constant. The
+  same class as the comments that were travelling inside every email, except rendered in full rather than
+  invisible. It lives in `AGENTS.md` now, which also tells the agent that the owner reads that file.
 - **Enter sends; Shift+Enter writes a second line.** Bound explicitly, because a `<textarea>` does not submit
   its form on Enter and an `<input>` does — so the composer's growing to fit a message silently took away the
   only way to send one with the keyboard, in a product whose entire interface is a box you type a sentence

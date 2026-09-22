@@ -701,6 +701,33 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     space, and a space before a comma is how a sentence looks unfinished. It did, the first time.)
 
 
+56. **The panel showing a customer "what Webly knows about your business" was showing them a note addressed to
+    a coding agent.** `content/brand.md` shipped with an HTML comment under the Name fact — that it comes from
+    what the owner typed, that it is also `siteName` in `src/site.ts`, and that a correction means changing
+    both. All true, all useful, and all written for the wrong reader.
+
+    The settings panel renders that file verbatim, which is its contract — it is "the assistant's memory, shown
+    to the person it is about", and it says *"Tell it in the chat if something here is wrong."* So somebody
+    reading their own facts, in a product whose promise is that they never touch code, was reading an
+    instruction about a TypeScript constant in a file path. This is the same class as the HTML comments that
+    were travelling inside every email, with one difference: those were invisible, and this one is rendered in
+    full, in a monospaced block, on a screen built for them.
+
+    The instruction moved to `AGENTS.md`, which is where instructions for the agent go and which the customer
+    does not see — and it gained the sentence it was missing: **the owner reads `content/brand.md`, so write it
+    for them.** Verified by creating a site and reading its first commit.
+
+    Existing sites keep the comment, for the contact form's reason: `brand.md` is the agent's memory and the
+    customer's facts, so it is deliberately not on the owned-file list — Webly only ever rewrites the one Name
+    line. A turn that reworks the file will drop it.
+
+    Also walked on the way and found clean, so nobody re-checks it: **forgetting a password**. The non-
+    disclosing answer ("if there is an account with that address…"), the mail, the link, setting a new one,
+    landing signed in, the old password answering 401 and the new one 200, the link refusing a second use with
+    a sentence, a session open in another browser signed out, and a "your password changed" notice sent. Every
+    step correct.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
