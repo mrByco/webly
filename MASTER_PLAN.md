@@ -128,7 +128,8 @@ paragraphs are kept because each one names a thing to check again after a change
 - **The cost dial.** A warm sandbox per open editor is the product's real unit cost; `Sandbox:IdleTimeout` is
   still a guess. One side is measured — a cold turn is 16 s and a warm one 3.8 s with the local provider — and
   the part that decides the timeout is what a real container adds to that. Measure it before P7 prices
-  anything.
+  anything — and the usage report now records every sandbox's running time, so the measuring is a query once a
+  real provider runs.
 
 ## P3 — Make the agent good at this
 
@@ -217,9 +218,10 @@ point at which a blob store becomes the right answer after all.
 
 ## P7 — Money
 
-Plans, Stripe, the site limit enforced by a plan rather than a constant, and metering that now has two lines
-rather than one: model usage per turn and sandbox seconds. The "you have reached your plan's limit" paths are
-currently one conflict response.
+Plans, Stripe, and the site limit enforced by a plan rather than a constant. ~~Metering~~ is done: model usage
+per turn and sandbox seconds are recorded as they are spent (`UsageRecord`, `whats_next.md` 75) and administrators
+see them at `/admin/usage`. What is left is turning that cost into a price — plans, limits, and whether a customer
+sees a budget. The "you have reached your plan's limit" paths are currently one conflict response.
 
 ---
 

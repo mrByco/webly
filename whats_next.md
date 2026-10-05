@@ -1136,6 +1136,31 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     that change with a real Claude turn, and Debian's `chromium` in the image.
 
 
+75. **Cost tracking: what every turn and every sandbox cost, recorded as it is spent.** `UsageRecord` holds one
+    row per agent turn (agent, model, input/output/cache tokens, dollars, duration, outcome, what was asked) and
+    per sandbox (editing or publishing, running time, priced by `Sandbox:CostPerHour`); `/admin/usage` shows the
+    period's total, the model's and the machine's lines, a column per day, and the spend by site, by person and
+    turn by turn, to administrators only.
+
+    The numbers are the agents' own. OpenCode moved to `--format json` for it — which also fixed 70: the reply is
+    the last step's text, the narration still streams live, tools are chips, and a session is resumed by id — and
+    its per-step cost summed to exactly what OpenCode's own database said for three real turns. Usage arrives as
+    an event while the agent runs, so a stopped turn recorded the $0.087 it had spent before the stop. Sandbox time
+    is measured in one wrapper around the provider rather than at the six places a sandbox can stop.
+
+    Found on the way: declaring only `ProducesResponseType(403)` on an `ActionResult<T>` action stops Swagger
+    inferring the 200's body, and the generated client typed the report as `void` — the trap `CLAUDE.md`
+    describes for `IActionResult`, from the other side. And `screens.mjs`'s clipped-text rule measured text in a
+    deliberately scrolling table against the window, because it skipped scroll containers on its way up to the
+    first clipping one; it now stops at an ancestor whose class says it scrolls sideways, the intent its
+    sideways-scroll rule already reads.
+
+    **Unverified**: Claude Code's usage fields (from its documented result message, not yet a recording — the
+    fixture's sanitiser deleted them; it keeps them now), and whether a resumed Claude session reports the turn's
+    cost or the session's. **Not done**: a rate for real sandboxes (zero until somebody sets one from the
+    provider's price list), and anything customer-facing — that is P7's plans.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

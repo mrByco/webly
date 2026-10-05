@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 187-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 200-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -601,7 +601,7 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 `docs/agent-plan.md` is the full write-up. What matters when touching it:
 
 - **The agent is another product's CLI**, run inside the sandbox: `claude -p --output-format stream-json`,
-  or `opencode run`. `ICodingAgent` has two implementations and `CodingAgentRegistry` picks one. Do not
+  or `opencode run --format json`. `ICodingAgent` has two implementations and `CodingAgentRegistry` picks one. Do not
   reach for a model SDK — §1 of the plan is why, and it is the decision most likely to be re-derived
   wrongly.
 - **The permission model is where it runs, not a tool list.** The sandbox has the site's files, node, git,
@@ -847,6 +847,32 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **No agent key means the agent is absent, not broken**: `/api/sites/{nanoid}/chat/status` reports
   `enabled: false`, the client hides the chat, and the tests need no secrets. Same discipline as Google
   sign-in and publishing.
+
+### What things cost
+
+**Every turn's model calls and every sandbox's running time are recorded as they are spent**, in
+`UsageRecord`, and `/admin/usage` adds them up for the people in `Administrators:Emails`. The product's unit cost
+has two lines — the model and the machine — and "what does this site cost us" is a query rather than an estimate.
+
+- **The agent's own CLI says what it spent.** Claude Code's `result` event carries `total_cost_usd` and per-model
+  token counts; OpenCode's `--format json` carries `tokens` and `cost` on every `step_finish`. Both price at the
+  provider's list price. They arrive as `CodingAgentEvent.Usage` **while the agent runs**, and `AgentTurnService`
+  sums them into a meter that is recorded in a `finally` — so a turn that failed or was stopped records what it
+  had already spent, which is exactly the turn most worth knowing about. Checked against OpenCode's own session
+  database: equal to the millionth of a dollar. **Claude Code's fields are unverified against a recording** — the
+  fixture was sanitised before they were kept — and so is whether a `--resume`d session reports this turn's cost
+  or the session's; compare two turns the first time it runs with a key.
+- **A sandbox is timed where every sandbox passes**: `MeteredSandboxProvider` wraps whichever provider is
+  configured and records on `DisposeAsync`, so the editing workspace and the publish build — six ways to stop
+  between them — are one place. Priced by `Sandbox:CostPerHour`, zero by default (true of `local`, a
+  placeholder for the rest); the time is kept regardless, so a rate set later prices the hours already there.
+  A sandbox's time is counted when it stops, and a process that is killed records nothing for the ones it had open.
+- **Recording is best-effort by design**: `UsageRecorder` swallows and logs its own failure, because a turn that
+  edited somebody's site is not undone by an unreachable usage table. Wrong in the direction of under-reporting.
+- **Deleting a site keeps what it cost** (`SiteId` set null, `SiteName` kept for the report); closing an account
+  removes it with everything else. The canary test covers both actions in one statement.
+- **Administrators only, and a cost rather than a price.** What a customer is charged is a plan, not the model's
+  bill — and showing them that bill would say which model edits their site, which the product never does.
 
 ### Publishing
 
