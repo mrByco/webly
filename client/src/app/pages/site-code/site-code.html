@@ -69,10 +69,14 @@
         } @else if (text() !== undefined) {
           <!-- Line numbers in a gutter rather than a highlighter: this is a reading surface, and a syntax
                highlighter is a dependency, a theme to keep in step with two colour schemes, and a parser per
-               language for a set of files that is mostly one language. -->
+               language for a set of files that is mostly one language.
+
+               And every line wraps, long tokens included (`wrap-anywhere`): a lockfile's integrity hashes and a
+               long URL are single words, and they were the only lines that did not wrap — so the pane scrolled
+               sideways for one line in a thousand while the rest wrapped beneath it. -->
           <pre class="font-mono text-[0.7rem] leading-relaxed"><code>@for (line of lines(); track $index) {<span class="flex"><span
             class="mr-3 w-8 shrink-0 select-none text-right text-muted">{{ $index + 1 }}</span><span
-            class="whitespace-pre-wrap">{{ line }}</span></span>}</code></pre>
+            class="whitespace-pre-wrap wrap-anywhere">{{ line }}</span></span>}</code></pre>
         } @else if (imageUrl(); as source) {
           <!--
             A photograph is not text and is not "nothing to show" either: it is the owner's own picture, and

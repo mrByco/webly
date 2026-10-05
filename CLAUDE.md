@@ -1252,6 +1252,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   to give way. **`clippedText` in the sweep is the guard**, because nothing else can be: a child overflowing a
   clipping ancestor never changes the page's `scrollWidth`. It measures leaf text against the nearest clipping
   ancestor and ignores anything wearing its own ellipsis.
+- **Text a person, a visitor or the agent wrote wraps anywhere** (`wrap-anywhere`): the chat's transcript (once,
+  on the scroller — `overflow-wrap` is inherited), an enquiry's values, and the Code view's lines. A pasted link or
+  a lockfile hash is one unbroken word, and each of those surfaces scrolled sideways for it — the chat 1,674px on a
+  phone, Messages 2,320px. Not the History diff, whose per-file `overflow-x-auto` is deliberate: wrapping would
+  break the alignment of the added and removed lines. The sweep cannot find these, because the content it walks
+  has no such word; a stranger's form did.
 - **Sweep the account with real content.** The sideways-scroll rule found the grid defect the first time it ran
   against an account whose sites have realistic names; the sparse one had walked clean over it for weeks.
 - **The editor shell owns the site.** One load, one signal (`SiteService.current`), so the header, the chat,

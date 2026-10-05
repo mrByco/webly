@@ -89,7 +89,9 @@
                   <a class="link link-primary break-all" [href]="href">{{ field.value }}</a>
                 </dd>
               } @else {
-                <dd class="text-sm whitespace-pre-line">{{ field.value }}</dd>
+                <!-- `wrap-anywhere`: a pasted link is one unbroken word, and without a place to break it ran past the
+                     card and scrolled the whole pane sideways — on a phone, 2,300px of it. -->
+                <dd class="text-sm whitespace-pre-line wrap-anywhere">{{ field.value }}</dd>
               }
             </div>
           }

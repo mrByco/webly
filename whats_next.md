@@ -1360,6 +1360,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     walk account administers: two daisyUI defaults under 4.5:1 on the usage report (a table header, and a soft
     warning badge at 1.9:1), overridden for every table and badge.
 
+92. **One unbroken word scrolled three screens sideways.** An enquiry carrying a pasted link stretched the
+    Messages pane to 2,320px on a phone, the same link in a chat message did it to the transcript (1,674px), and a
+    lockfile's integrity hashes did it to the Code view. `wrap-anywhere` on all three, checked at both widths;
+    the History diff keeps its deliberate per-file sideways scroll. Also on Messages: dates in the app's one
+    format rather than Angular's US `medium`.
+
 
 ## What is still intent
 

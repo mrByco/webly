@@ -6,7 +6,9 @@
       publish it.
     </div>
   } @else {
-    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4" #scroller>
+    <!-- `wrap-anywhere` once, here, because `overflow-wrap` is inherited: a pasted link is one unbroken word, and
+         without a place to break it ran out of its bubble and scrolled the transcript sideways — 1,674px on a phone. -->
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 wrap-anywhere" #scroller>
       @for (entry of entries(); track $index) {
         @switch (entry.kind) {
           @case ('user') {
