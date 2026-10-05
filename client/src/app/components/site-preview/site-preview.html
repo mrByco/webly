@@ -2,7 +2,7 @@
   <!-- From `md` up. Below it the editor's own Chat/Preview switch already says what this is, and the width
        buttons have nothing to change on a screen that is already a phone's. -->
   <div class="flex items-center justify-between gap-2 border-b border-base-300 px-3 py-2 max-md:hidden">
-    <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
+    <p class="flex items-center gap-2 text-xs font-semibold text-muted">
       <app-icon class="size-3.5" name="eye" />
       Preview
     </p>
@@ -66,13 +66,13 @@
         @if (progress()) {
           <span class="loading loading-spinner loading-md text-primary"></span>
           <p class="text-sm font-semibold">{{ progress() }}</p>
-          <p class="max-w-xs text-xs text-base-content/60">
+          <p class="max-w-xs text-xs text-muted">
             Your site runs on its own machine. Starting one takes a moment; it stays warm while you work.
           </p>
         } @else {
           <app-icon class="size-7 text-base-content/40" name="eye" />
           <p class="text-sm font-semibold">Your preview is asleep</p>
-          <p class="max-w-xs text-xs text-base-content/60">
+          <p class="max-w-xs text-xs text-muted">
             It runs on its own machine, and one starts when you ask for a change — or now, if you only want a
             look.
           </p>

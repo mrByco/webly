@@ -63,6 +63,30 @@
   --color-control-edge: oklch(59% 0.02 265);
 }
 
+/*
+ * Text that is meant to be quieter than the rest — a description under a heading, a date, a hint under a field —
+ * at the quietest it can be and still be read: 4.5:1, WCAG 1.4.3, on every surface of both themes.
+ *
+ * It replaced four shades written straight into the templates (`text-base-content/50`, `/55`, `/60`, `/65`) and
+ * every one of them was under the line: 3.1:1 to 4.1:1 in the light theme, on the sign-in screen, the history,
+ * the account page — which is a hundred lines of text, most of the product's words that are not headings. 68% is
+ * measured rather than chosen: it is where the light theme's darkest surface, `base-300`, clears 4.5:1 (4.8:1);
+ * 65% does not. The dark theme clears it from 60%, so one number serves both.
+ *
+ * `inline`, so the mix is resolved where the text is rather than once on the root.
+ */
+@theme inline {
+  --color-muted: color-mix(in oklab, var(--color-base-content) 68%, transparent);
+
+  /*
+   * Warning, as words rather than as a fill. A warning fill is a light amber behind dark text and has to stay
+   * one; the same amber *as* text is 1.7:1 on white, which is how the compiler's own words in the chat's
+   * "your site is not compiling" block were drawn — the one sentence in that block somebody needs to read.
+   * The dark theme's amber reads as text already, so this is that colour there.
+   */
+  --color-warning-ink: light-dark(oklch(49% 0.1 75), var(--color-warning));
+}
+
 @plugin 'daisyui' {
   themes: webly --default, webly-dark --prefersdark;
 }
@@ -93,20 +117,25 @@
      lightness band a mark needs against the dark surface — checked with the dataviz palette validator, not by eye. */
   --color-chart: oklch(52% 0.19 268);
   --color-primary-content: oklch(98.5% 0.008 268);
-  --color-secondary: oklch(58% 0.12 200);
+  --color-secondary: oklch(48% 0.12 200);
   --color-secondary-content: oklch(98% 0.01 200);
   --color-accent: oklch(62% 0.15 300);
   --color-accent-content: oklch(98% 0.01 300);
   --color-neutral: oklch(32% 0.018 265);
   --color-neutral-content: oklch(96% 0.006 265);
 
-  --color-info: oklch(62% 0.11 235);
+  /* Each of these is text as often as it is a fill — "see what changed", a diff's added lines, the danger zone —
+     and each was a light theme's pastel that failed both ways: 2.9:1 to 3.7:1 as text, and white on the green
+     "Live" badge at 3.5:1. Darkened (and the secondary with them) to where the colour clears 4.5:1 as text on
+     the panels and on its own 10% tint, which is also where white on it clears 5.5:1. Warning is the exception,
+     because a warning fill is light by nature: it keeps its amber, and its words use `--color-warning-ink`. */
+  --color-info: oklch(50% 0.11 235);
   --color-info-content: oklch(98% 0.01 235);
-  --color-success: oklch(60% 0.13 150);
+  --color-success: oklch(49% 0.13 150);
   --color-success-content: oklch(98% 0.01 150);
   --color-warning: oklch(78% 0.15 80);
   --color-warning-content: oklch(26% 0.04 80);
-  --color-error: oklch(58% 0.2 27);
+  --color-error: oklch(52% 0.2 27);
   --color-error-content: oklch(98% 0.01 27);
 
   --radius-selector: 0.75rem;
@@ -152,7 +181,7 @@
   --color-success-content: oklch(18% 0.03 150);
   --color-warning: oklch(82% 0.14 80);
   --color-warning-content: oklch(22% 0.04 80);
-  --color-error: oklch(68% 0.17 27);
+  --color-error: oklch(69% 0.17 27);
   --color-error-content: oklch(18% 0.03 27);
 
   --radius-selector: 0.75rem;
@@ -179,7 +208,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+  color: var(--color-muted);
 }
 
 @utility surface {

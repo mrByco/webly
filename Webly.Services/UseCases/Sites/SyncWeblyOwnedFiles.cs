@@ -136,7 +136,7 @@ public class SyncWeblyOwnedFiles(
             new WorkspaceTree(files),
             author,
             userId,
-            SiteVersionOrigin.Template,
+            SiteVersionOrigin.Webly,
             SummaryFor(stale),
             details: "Files Webly keeps up to date in every site: "
                 + string.Join(", ", stale.Select(x => x.Path)) + ".",

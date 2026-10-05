@@ -31,7 +31,7 @@
           -->
           @if (detail.summary.liveUrl) {
             <a
-              class="flex items-center gap-1 text-xs text-base-content/60 hover:text-base-content"
+              class="flex items-center gap-1 text-xs text-muted hover:text-base-content"
               target="_blank"
               rel="noopener"
               [href]="detail.summary.liveUrl">
@@ -39,7 +39,7 @@
               <app-icon class="size-3 shrink-0" name="external" />
             </a>
           } @else {
-            <p class="flex items-center gap-1.5 text-xs text-base-content/50">
+            <p class="flex items-center gap-1.5 text-xs text-muted">
               <span class="truncate">{{ detail.summary.url }}</span>
               <span class="badge badge-ghost badge-xs shrink-0">
                 @if (detail.summary.publishedAt) { published }
@@ -241,7 +241,7 @@
     </div>
   } @else {
     <div class="flex flex-1 items-center justify-center">
-      <p class="text-sm text-base-content/60">Loading your site…</p>
+      <p class="text-sm text-muted">Loading your site…</p>
     </div>
   }
 </app-shell>

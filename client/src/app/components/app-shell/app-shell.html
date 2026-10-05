@@ -53,7 +53,7 @@
           }
         </a>
       } @empty {
-        <p class="px-2.5 py-2 text-sm text-base-content/55">No sites yet.</p>
+        <p class="px-2.5 py-2 text-sm text-muted">No sites yet.</p>
       }
     </nav>
 
@@ -73,12 +73,12 @@
 
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold">{{ me().displayName }}</p>
-          <p class="truncate text-xs text-base-content/60">{{ me().email }}</p>
+          <p class="truncate text-xs text-muted">{{ me().email }}</p>
         </div>
       </a>
 
       <button
-        class="grid size-8 shrink-0 place-items-center rounded-field text-base-content/55 transition-colors hover:bg-base-300/70 hover:text-base-content"
+        class="grid size-8 shrink-0 place-items-center rounded-field text-muted transition-colors hover:bg-base-300/70 hover:text-base-content"
         type="button"
         aria-label="Sign out"
         (click)="logout()">
@@ -99,7 +99,7 @@
   <nav
     class="fixed inset-x-0 bottom-0 z-30 flex border-t border-base-300 bg-base-100 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:hidden">
     <a
-      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-base-content/60"
+      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-muted"
       routerLinkActive="text-primary!"
       [routerLinkActiveOptions]="{ exact: true }"
       [routerLink]="routes.home.build()">
@@ -108,7 +108,7 @@
     </a>
 
     <a
-      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-base-content/60"
+      class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-muted"
       routerLinkActive="text-primary!"
       [routerLink]="routes.account.build()">
       <app-icon class="size-6" name="user" />

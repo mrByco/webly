@@ -1272,6 +1272,20 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     - **A photograph's upload line was drawn below the fold** on any thread longer than the pane; the chat
       scrolls to it.
 
+81. **The app's quiet text was too quiet to read, and the sweep now measures text.** A probe of every visible
+    piece of text against its composited background found 184 failures of WCAG 1.4.3 in the light theme and 46 in
+    the dark: the four muted opacities in the templates (3.1–4.1:1), section labels, the green "see what changed",
+    the danger zone's red, soft badges, the avatar's initial, the sign-in screen's left column, and the compiler's
+    words in the amber of a warning fill (1.7:1). One `text-muted` token at 68% replaces the four shades; info,
+    success, error and secondary are darkened in the light theme until they pass as text and as fills; warning's
+    words get their own ink. Both themes then measured zero, and the sweep's new text rule was red in 38 places
+    with the change stashed and green with it back.
+
+    And the history's origin words: "Updated the editing instructions" and a rename both said **created**, the word
+    for a site's first commit, because the owned-file sync wrote the first commit's origin. It writes a new `Webly`
+    origin now ("by Webly"), a rename says "by you", and a data migration moved the eleven existing rows here —
+    "Template with a parent" is exactly the misfiled set, since only a first commit has none.
+
 
 ## What is still intent
 

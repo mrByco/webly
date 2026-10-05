@@ -26,15 +26,17 @@
       <h2 class="max-w-[16ch] text-[2.5rem] leading-[1.1] font-bold tracking-tight text-pretty 2xl:text-[3.25rem]">
         A website you build by talking.
       </h2>
-      <p class="mt-4 max-w-[38ch] text-lg leading-relaxed text-primary-content/80 text-pretty">
+      <p class="mt-4 max-w-[38ch] text-lg leading-relaxed text-pretty">
         Say what your business does. Get a real site, versioned and live on your own domain.
       </p>
     </div>
 
-    <ul class="relative flex flex-col gap-3 text-primary-content/85">
+    <ul class="relative flex flex-col gap-3">
       @for (feature of features; track feature) {
       <li class="flex items-start gap-3">
-        <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary-content/15 text-[0.65rem]">
+        <span
+          class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary-content/15 text-[0.65rem]"
+          aria-hidden="true">
           ✓
         </span>
         <span class="text-sm">{{ feature }}</span>
@@ -54,7 +56,7 @@
 
       <h1 class="text-3xl font-bold tracking-tight">{{ heading() }}</h1>
       @if (subheading()) {
-      <p class="mt-1.5 text-base-content/60">{{ subheading() }}</p>
+      <p class="mt-1.5 text-muted">{{ subheading() }}</p>
       }
 
       <div class="mt-8">

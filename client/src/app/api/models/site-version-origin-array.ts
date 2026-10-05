@@ -11,5 +11,6 @@ export const SITE_VERSION_ORIGIN: SiteVersionOrigin[] = [
   'Agent',
   'Manual',
   'Restore',
-  'Upload'
+  'Upload',
+  'Webly'
 ];

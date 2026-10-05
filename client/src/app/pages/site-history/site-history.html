@@ -17,7 +17,7 @@
     }
 
     @if (loading()) {
-      <p class="text-sm text-base-content/60">Loading…</p>
+      <p class="text-sm text-muted">Loading…</p>
     } @else {
       <ul class="flex flex-col gap-2">
         @for (version of versions(); track version.nanoid) {
@@ -37,12 +37,15 @@
                 }
               </span>
 
-              <span class="mt-1 block text-xs text-base-content/55">
+              <span class="mt-1 block text-xs text-muted">
                 {{ version.createdAt | date: 'd MMM, HH:mm' }} ·
+                <!-- How it came to exist, in the reader's terms: they asked, they did it, or Webly did. -->
                 @switch (version.origin) {
                   @case ('Agent') { asked for }
                   @case ('Restore') { restored }
                   @case ('Upload') { uploaded }
+                  @case ('Manual') { by you }
+                  @case ('Webly') { by Webly }
                   @default { created }
                 }
                 ·
@@ -84,24 +87,24 @@
         </button>
 
         <p class="flex items-center gap-2 text-sm font-semibold">
-          <app-icon class="size-4 shrink-0 text-base-content/55 max-lg:hidden" name="code" />
+          <app-icon class="size-4 shrink-0 text-muted max-lg:hidden" name="code" />
           <span class="min-w-0 truncate">{{ version.summary }}</span>
         </p>
 
         @if (version.details) {
-          <p class="text-xs whitespace-pre-wrap text-base-content/65">{{ version.details }}</p>
+          <p class="text-xs whitespace-pre-wrap text-muted">{{ version.details }}</p>
         }
       </div>
 
       <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
         @if (loadingDiff()) {
-          <p class="text-sm text-base-content/60">Loading what changed…</p>
+          <p class="text-sm text-muted">Loading what changed…</p>
         } @else if (hasDiff()) {
           <div class="flex flex-col gap-3">
             @for (file of diffFiles(); track file.path) {
               <details class="surface overflow-hidden" [open]="expandByDefault()">
                 <summary class="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-xs">
-                  <app-icon class="size-3.5 shrink-0 text-base-content/50" name="code" />
+                  <app-icon class="size-3.5 shrink-0 text-muted" name="code" />
                   <span class="min-w-0 flex-1 truncate font-mono font-semibold">{{ file.path }}</span>
 
                   @switch (file.change) {
@@ -127,7 +130,7 @@
                       class="max-h-64 rounded-box border border-base-300 bg-base-200 object-contain" />
                   </div>
                 } @else if (file.binary) {
-                  <p class="border-t border-base-300 px-3 py-2 text-xs text-base-content/60">
+                  <p class="border-t border-base-300 px-3 py-2 text-xs text-muted">
                     A binary file. There is nothing to show line by line.
                   </p>
                 } @else if (file.lines.length) {
@@ -138,7 +141,7 @@
             }
           </div>
         } @else if (diff() !== undefined) {
-          <p class="text-sm text-base-content/60">This is where the site started.</p>
+          <p class="text-sm text-muted">This is where the site started.</p>
         }
       </div>
     }

@@ -118,7 +118,7 @@ public class WeblyOwnedFileTests : PostgresTestBase
             // Its own version, saying what it is. Folding it into the person's next turn is the package-lock
             // mistake again: their diff would be the change they asked for plus one they did not.
             Assert.That(version!.Summary, Is.EqualTo("Updated the editing instructions"));
-            Assert.That(version.Origin, Is.EqualTo(SiteVersionOrigin.Template));
+            Assert.That(version.Origin, Is.EqualTo(SiteVersionOrigin.Webly));
             Assert.That(version.ChangedFileCount, Is.EqualTo(1), "only the file that changed");
         });
 
@@ -171,7 +171,7 @@ public class WeblyOwnedFileTests : PostgresTestBase
         Assert.Multiple(() =>
         {
             Assert.That(form!.Summary, Is.EqualTo("Updated the contact form"));
-            Assert.That(form.Origin, Is.EqualTo(SiteVersionOrigin.Template));
+            Assert.That(form.Origin, Is.EqualTo(SiteVersionOrigin.Webly));
             Assert.That(form.ChangedFileCount, Is.EqualTo(1));
         });
 

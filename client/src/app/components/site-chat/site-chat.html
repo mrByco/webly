@@ -1,7 +1,7 @@
 <div class="flex h-full min-h-0 flex-col">
   @if (!enabled()) {
     <!-- No agent CLI or API key in this deployment. Absent rather than broken — see CodingAgentRegistry. -->
-    <div class="flex flex-1 items-center justify-center p-6 text-center text-sm text-base-content/60">
+    <div class="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted">
       The editing assistant is not set up in this environment. You can still read your site's source and
       publish it.
     </div>
@@ -38,16 +38,16 @@
           @case ('notice') {
             <!-- The app's own voice, not the agent's: what happened to the site when no reply did.
                  Quiet and centred so it reads as the thread's stage direction rather than a turn. -->
-            <p class="px-3 text-center text-xs font-semibold text-base-content/55">{{ entry.text }}</p>
+            <p class="px-3 text-center text-xs font-semibold text-muted">{{ entry.text }}</p>
           }
           @case ('waking') {
-            <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
+            <p class="flex items-center gap-2 text-xs font-semibold text-muted">
               <span class="loading loading-spinner loading-xs"></span>
               {{ entry.text }}
             </p>
           }
           @case ('activity') {
-            <p class="flex items-center gap-2 text-xs font-semibold text-base-content/55">
+            <p class="flex items-center gap-2 text-xs font-semibold text-muted">
               <app-icon class="size-3.5" name="sparkles" />
               {{ entry.text }}
             </p>
@@ -60,9 +60,9 @@
                  introduced them, while an upload has no sentence of its own — the chips would otherwise appear
                  with nothing saying where they came from. -->
             <div class="flex flex-wrap items-center gap-1.5">
-              <app-icon class="size-3.5 text-base-content/55" name="file" />
+              <app-icon class="size-3.5 text-muted" name="file" />
               @if (entry.text) {
-                <span class="text-xs text-base-content/55">{{ entry.text }}</span>
+                <span class="text-xs text-muted">{{ entry.text }}</span>
               }
               @for (path of entry.paths ?? []; track path) {
                 <span class="badge badge-ghost badge-sm font-mono text-[0.7rem]">{{ path }}</span>
@@ -95,7 +95,7 @@
           @case ('build') {
             <!-- Shown rather than logged: the next message is what fixes it, and nobody can write that
                  message without seeing what broke. -->
-            <div class="flex flex-col gap-1.5 rounded-field bg-warning/10 px-3 py-2 text-warning">
+            <div class="flex flex-col gap-1.5 rounded-field bg-warning/10 px-3 py-2 text-warning-ink">
               <p class="flex items-center gap-2 text-xs font-semibold">
                 <app-icon class="size-3.5" name="circle-alert" />
                 {{ entry.heading ?? 'Your site is not compiling' }}
@@ -114,7 +114,7 @@
         <div class="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
           <app-icon class="size-7 text-primary" name="sparkles" />
           <p class="text-sm font-semibold">Tell me about your business</p>
-          <p class="max-w-xs text-xs text-base-content/60">
+          <p class="max-w-xs text-xs text-muted">
             What you do, who for, and how people reach you. I will write the pages and ask when I need a
             fact I cannot guess.
           </p>
@@ -145,7 +145,7 @@
            holds no socket — so `connected()` is false on every freshly opened site, and the banner sat there
            permanently telling people about changes that were not running. -->
       @if (running() && !connected()) {
-        <p class="mb-2 text-xs font-semibold text-warning">Reconnecting… your changes are still running.</p>
+        <p class="mb-2 text-xs font-semibold text-warning-ink">Reconnecting… your changes are still running.</p>
       }
 
       <div class="flex items-end gap-2">

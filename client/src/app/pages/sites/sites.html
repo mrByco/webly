@@ -3,7 +3,7 @@
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">Your sites</h1>
-        <p class="text-sm text-base-content/60">Describe what you want and Webly builds it.</p>
+        <p class="text-sm text-muted">Describe what you want and Webly builds it.</p>
       </div>
 
       <a class="btn btn-primary" [routerLink]="routes.newSite.build()">
@@ -21,13 +21,13 @@
     }
 
     @if (loading()) {
-      <p class="text-sm text-base-content/60">Loading…</p>
+      <p class="text-sm text-muted">Loading…</p>
     } @else if (list().length === 0) {
       <!-- The empty state is the onboarding step. See the component's comment for why it is not a guard. -->
       <div class="surface flex flex-col items-center gap-3 px-6 py-14 text-center">
         <app-icon class="size-8 text-primary" name="sparkles" />
         <h2 class="text-lg font-bold">Let's build your first site</h2>
-        <p class="max-w-md text-sm text-base-content/65">
+        <p class="max-w-md text-sm text-muted">
           Tell Webly what your business does, in a sentence or two. You will have a page to look at
           before you finish reading this.
         </p>
@@ -49,7 +49,7 @@
             <div class="flex items-start justify-between gap-3">
               <button class="min-w-0 text-left" type="button" (click)="open(site)">
                 <h2 class="truncate text-lg font-bold">{{ site.name }}</h2>
-                <p class="truncate text-sm text-base-content/60">{{ site.url }}</p>
+                <p class="truncate text-sm text-muted">{{ site.url }}</p>
               </button>
 
               <!-- `liveUrl`, which is null until there is something to open: the card shows the address and the
@@ -70,9 +70,9 @@
                  is it live, is what is live current, and have I not published it at all. -->
             <p class="text-xs font-semibold">
               @if (!site.publishedAt) {
-                <span class="text-base-content/55">Not published yet</span>
+                <span class="text-muted">Not published yet</span>
               } @else if (site.hasUnpublishedChanges) {
-                <span class="text-warning">Live, with newer changes</span>
+                <span class="text-warning-ink">Live, with newer changes</span>
               } @else {
                 <span class="text-success">Live and up to date</span>
               }

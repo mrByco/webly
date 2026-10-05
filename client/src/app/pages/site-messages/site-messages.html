@@ -3,7 +3,7 @@
     <div class="flex items-start gap-3">
       <div class="flex-1">
         <h2 class="text-base font-bold">Messages</h2>
-        <p class="text-sm text-base-content/60">
+        <p class="text-sm text-muted">
           What people have sent from the contact form on your published site. Every one of these is also emailed
           to you.
         </p>
@@ -35,7 +35,7 @@
       <div class="surface flex flex-col items-center gap-2 p-8 text-center">
         <app-icon class="size-7 text-base-content/30" name="mail" />
         <p class="text-sm font-semibold">Nothing yet</p>
-        <p class="max-w-sm text-xs text-base-content/60">
+        <p class="max-w-sm text-xs text-muted">
           When somebody fills in the form on your contact page, it arrives here and in your inbox. Publish your
           site first — a form on a preview nobody can visit has nobody to fill it in.
         </p>
@@ -44,7 +44,7 @@
 
     @for (submission of list(); track submission.nanoid) {
       <article class="surface flex flex-col gap-3 p-4">
-        <header class="flex items-center gap-2 text-xs text-base-content/55">
+        <header class="flex items-center gap-2 text-xs text-muted">
           <app-icon class="size-4" name="mail" />
           <time>{{ submission.createdAt | date: 'medium' }}</time>
 
@@ -78,7 +78,7 @@
         <dl class="flex flex-col gap-2.5">
           @for (field of submission.fields; track $index) {
             <div class="flex flex-col gap-0.5">
-              <dt class="text-xs font-semibold text-base-content/55">{{ fieldLabel(field.name) }}</dt>
+              <dt class="text-xs font-semibold text-muted">{{ fieldLabel(field.name) }}</dt>
 
               <!--
                 An address or a number is a link, because answering is what somebody opened this for and the

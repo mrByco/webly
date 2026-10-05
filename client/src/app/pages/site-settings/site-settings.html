@@ -2,7 +2,7 @@
   <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
     <div>
       <h2 class="text-base font-bold">Settings</h2>
-      <p class="text-sm text-base-content/60">
+      <p class="text-sm text-muted">
         The name is yours to change, on the site as well if you want it there; the web address is not.
       </p>
     </div>
@@ -41,7 +41,7 @@
         <input class="checkbox checkbox-primary checkbox-sm mt-0.5" name="applyToSite" type="checkbox" [(ngModel)]="applyToSite" />
         <span>
           Say this on the site too
-          <span class="block text-xs text-base-content/60">
+          <span class="block text-xs text-muted">
             Writes it into the pages as a new version. Leave it off to rename only what this dashboard calls
             it.
           </span>
@@ -60,7 +60,7 @@
         <p>
           Your pages say <span class="font-semibold">{{ pagesName() }}</span>, which is what visitors see.
         </p>
-        <p class="mt-1 text-xs text-base-content/60">
+        <p class="mt-1 text-xs text-muted">
           Save the name above with “Say this on the site too” ticked to change it, or ask the assistant for
           something more specific.
         </p>
@@ -78,7 +78,7 @@
              reachable at its deployment's own URL until its address is serving, and the difference between the
              two is not something anybody should have to infer from a 404. -->
         @if (detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.url) {
-          <p class="mt-2 text-xs text-base-content/60">
+          <p class="mt-2 text-xs text-muted">
             This address is still being set up. Your site is live at
             <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>
             in the meantime.
@@ -92,7 +92,7 @@
     <div class="surface flex flex-wrap items-center gap-3 p-4">
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-bold">Take your site with you</h3>
-        <p class="text-sm text-base-content/65">
+        <p class="text-sm text-muted">
           It is a real Next.js project in a git repository. Download it and every version comes too.
         </p>
       </div>
@@ -127,7 +127,7 @@
 
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{{ image.fileName }}</p>
-                <p class="font-mono text-xs text-base-content/55">{{ image.url }} · {{ image.bytes / 1024 | number: '1.0-0' }} KB</p>
+                <p class="font-mono text-xs text-muted">{{ image.url }} · {{ image.bytes / 1024 | number: '1.0-0' }} KB</p>
               </div>
 
               <button
@@ -164,12 +164,12 @@
         <summary class="flex cursor-pointer list-none items-start gap-3">
           <span class="min-w-0 flex-1">
             <span class="text-sm font-bold">What Webly knows about your business</span>
-            <span class="block text-sm text-base-content/65">
+            <span class="block text-sm text-muted">
               The assistant reads this before it writes anything. Tell it in the chat if something here is
               wrong.
             </span>
           </span>
-          <app-icon class="mt-0.5 size-4 text-base-content/55 transition-transform group-open:rotate-90" name="chevron-right" />
+          <app-icon class="mt-0.5 size-4 text-muted transition-transform group-open:rotate-90" name="chevron-right" />
         </summary>
 
         <!--
@@ -240,7 +240,7 @@
       </div>
 
       @if (history().length === 0) {
-        <p class="text-sm text-base-content/60">Nothing published yet.</p>
+        <p class="text-sm text-muted">Nothing published yet.</p>
       } @else {
         <ul class="flex flex-col gap-2">
           @for (deployment of history(); track deployment.nanoid) {
@@ -249,14 +249,14 @@
                 @switch (deployment.status) {
                   @case ('Ready') { <app-icon class="size-4 text-success" name="check" /> }
                   @case ('Failed') { <app-icon class="size-4 text-error" name="circle-alert" /> }
-                  @default { <app-icon class="size-4 text-base-content/50" name="clock" /> }
+                  @default { <app-icon class="size-4 text-muted" name="clock" /> }
                 }
 
                 <span class="min-w-0 flex-1 truncate">{{ deployment.siteVersionSummary }}</span>
 
                 <!-- When, because a list of publishes with no times is not a history. The finish, or the start
                      for one that is still going. -->
-                <span class="shrink-0 text-xs text-base-content/55">
+                <span class="shrink-0 text-xs text-muted">
                   {{ (deployment.finishedAt ?? deployment.createdAt) | date: 'd MMM, HH:mm' }}
                 </span>
 
@@ -292,7 +292,7 @@
               -->
               @if (deployment.errorDetail) {
                 <details class="text-xs">
-                  <summary class="cursor-pointer font-semibold text-base-content/60">Build log</summary>
+                  <summary class="cursor-pointer font-semibold text-muted">Build log</summary>
                   <pre class="mt-1 overflow-x-auto rounded-field bg-base-300 p-2 font-mono text-[0.7rem] leading-snug whitespace-pre-wrap">{{ deployment.errorDetail }}</pre>
                 </details>
               }
@@ -306,7 +306,7 @@
          setting. -->
     <div class="rounded-box border border-error/40 p-4">
       <h3 class="text-sm font-bold text-error">Delete this site</h3>
-      <p class="mb-3 text-sm text-base-content/65">
+      <p class="mb-3 text-sm text-muted">
         The site, its history and its domains go. If it is published, it stops being reachable. This cannot
         be undone.
       </p>

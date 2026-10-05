@@ -2,14 +2,14 @@
   <main class="flex w-full max-w-2xl flex-col px-5 pt-6 pb-10 sm:px-8 xl:px-10 xl:pt-10">
     <header>
       <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Account</h1>
-      <p class="mt-0.5 text-base-content/60">{{ me().email }}</p>
+      <p class="mt-0.5 text-muted">{{ me().email }}</p>
     </header>
 
     <!-- The way to the usage report on a phone, where the sidebar that carries it is not drawn. -->
     @if (isAdmin()) {
       <a class="surface mt-6 flex items-center justify-between gap-3 p-4 font-semibold" [routerLink]="routes.usage.build()">
         Usage and costs
-        <span class="text-base-content/50" aria-hidden="true">→</span>
+        <span class="text-muted" aria-hidden="true">→</span>
       </a>
     }
 
@@ -36,7 +36,7 @@
     <section class="surface p-5">
       <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
         @if (settingFirstPassword()) {
-          <p class="text-sm text-base-content/65">
+          <p class="text-sm text-muted">
             Your account has no password — you sign in with Google. Set one and you will be able to
             sign in either way.
           </p>
@@ -76,7 +76,7 @@
                 autocomplete="new-password"
                 required />
             </label>
-            <p class="mt-1.5 text-xs text-base-content/55">At least 8 characters.</p>
+            <p class="mt-1.5 text-xs text-muted">At least 8 characters.</p>
           </div>
         </div>
 
@@ -98,7 +98,7 @@
     -->
     <section class="mt-8 rounded-box border border-error/40 p-4">
       <h2 class="text-sm font-bold text-error">Close your account</h2>
-      <p class="mb-3 max-w-xl text-sm text-base-content/65">
+      <p class="mb-3 max-w-xl text-sm text-muted">
         Your sites go with it — the pages, every version of them, the domains you connected and anything
         published. Take a copy first if you want one: each site's settings has a Download.
       </p>

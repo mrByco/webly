@@ -40,7 +40,8 @@ Two harnesses drive it, and they answer different questions:
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
   error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, **an obvious accessibility
   mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
-  field whose border is under 3:1 against what is behind it, a page with no `h1` or several), or **a 404 on
+  field whose border is under 3:1 against what is behind it, text under 4.5:1 against what is behind it, a page
+  with no `h1` or several), **the editor scrolling as a whole**, or **a 404 on
   anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
   that was perfect. It **presses one thing** on the screens that have something the default selection does not
@@ -655,7 +656,8 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   ("never write a server for one; this site is a static export") would have reached no existing site at all,
   and a stale rule is the agent confidently doing the thing the rule exists to prevent. `SyncSiteInstructions`
   compares the site's copy with the template's before the workspace is acquired and commits the difference as
-  **"Updated the editing instructions"**, origin `Template`. Its own version rather than folded into the
+  **"Updated the editing instructions"**, origin `Webly` — the history says "by Webly", where it used to say
+  "created", the word for a site's first commit, because these shared its origin. Its own version rather than folded into the
   turn's, because a person's version has to say what they asked for — the same lesson as the `npm install`
   that put eighty-four lines of lockfile into somebody's headline change. Two `cat-file`s decide the usual
   case, so the whole tree is only read when something really changed; and `CommitSiteVersion` now updates
@@ -1332,6 +1334,17 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   ago, which on a first load is an empty one.
 - **The app's own colours are quiet on purpose.** This app is a frame around somebody else's website, and
   the accents on screen should be the preview's.
+- **Quiet is `text-muted`, and quiet stops at 4.5:1.** The app's secondary text was four opacities written into
+  the templates (`text-base-content/50` to `/65`) and every one was under WCAG 1.4.3's line in the light theme —
+  3.1:1 to 4.1:1, on about a hundred lines of descriptions, dates and hints. `--color-muted` is the content colour
+  at 68%, which is measured: where the light theme's darkest surface clears 4.5:1, while 65% does not. Use it
+  for anything meant to recede; a shade below it is a decision to argue with the sweep about. The status colours
+  went with it: info, success, error and secondary were pastels in the light theme that failed as text *and* as
+  fills (white on the green "Live" badge was 3.5:1), and are darkened to where both pass. Warning cannot be both
+  — a warning fill is light by nature — so its words use `text-warning-ink`, a `light-dark()` pair; the
+  compiler's output in the chat's "not compiling" block was drawn in the fill's amber, at 1.7:1.
+  `tools/e2e/screens.mjs` measures every piece of text now, with the same canvas compositing as the border rule,
+  and was red in 38 places before this and green after.
 - **Below `lg` the editor shows the chat or the preview, with a switch, never both.** Stacked, a phone had about
   290px of chat and 180px of website — three lines of conversation and the top of a hero. Each is a screen's job;
   the switch says "updated" when the preview has changed behind it, and the header gives Publish the title's row

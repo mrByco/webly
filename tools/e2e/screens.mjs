@@ -369,6 +369,59 @@ async function accessibility(page) {
       }
     }
 
+    /*
+     * WCAG 1.4.3: text at 4.5:1 against what is really behind it, or 3:1 when it is large (24px, or 18.66px bold).
+     *
+     * The app's quiet text was four opacities of the content colour written into the templates, and every one of
+     * them was under the line in the light theme — 3.1:1 to 4.1:1, on a hundred lines of descriptions, dates and
+     * hints — along with the green of "see what changed" and the amber the compiler's own words were drawn in, at
+     * 1.7:1. None of it looked wrong in a screenshot, for the reason the border rule above exists: faint reads as
+     * a design decision. So it is measured, the same way: the backgrounds behind the text composited from the
+     * page down, because a sidebar at 55% of a grey over another grey is a colour no computed style will name.
+     *
+     * Skipped: anything `aria-hidden` (a decorative tick), anything disabled (WCAG exempts an inactive control),
+     * and text with nothing but whitespace in it. One report per colour pair, since a muted shade that fails
+     * fails in fifty places at once and the fix is in one.
+     */
+    const backdrop = element => {
+      const layers = [];
+
+      for (let node = element; node; node = node.parentElement) layers.unshift(getComputedStyle(node).backgroundColor);
+
+      return layers.reduce(
+        (under, layer) => (transparent(layer) ? under : `rgb(${srgb(layer, under).join(', ')})`),
+        'rgb(255, 255, 255)');
+    };
+
+    const seen = new Set();
+
+    for (const element of document.querySelectorAll('body *')) {
+      if (element.closest('[aria-hidden="true"], svg, :disabled, [disabled], .btn-disabled')) continue;
+
+      const own = [...element.childNodes]
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent.trim())
+        .join(' ')
+        .trim();
+
+      if (!own || !visible(element)) continue;
+
+      const style = getComputedStyle(element);
+      const behind = backdrop(element);
+      const ratio = contrast(srgb(style.color, behind), srgb(behind, 'white'));
+      const size = parseFloat(style.fontSize);
+      const large = size >= 24 || (size >= 18.66 && parseInt(style.fontWeight, 10) >= 700);
+
+      if (ratio >= (large ? 3 : 4.5)) continue;
+
+      const pair = `${style.color} on ${behind}`;
+
+      if (seen.has(pair)) continue;
+
+      seen.add(pair);
+      problems.push(`"${own.slice(0, 40)}" (${describe(element)}) is ${ratio.toFixed(2)}:1, under ${large ? 3 : 4.5}:1`);
+    }
+
     const headings = [...document.querySelectorAll('h1')].filter(visible);
 
     if (headings.length === 0) problems.push('no h1 on the page');

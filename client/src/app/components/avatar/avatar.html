@@ -1,5 +1,9 @@
+<!--
+  Solid rather than a 10% tint of the primary with the primary as its letter, which was the look and measured
+  4.2:1 — under the 4.5:1 a letter this size needs, on the sidebar where it is always drawn.
+-->
 <div
-  class="grid shrink-0 place-items-center rounded-full bg-primary/10 font-bold text-primary"
+  class="grid shrink-0 place-items-center rounded-full bg-primary font-bold text-primary-content"
   [class]="size()"
   [title]="title() ?? ''">
   {{ initial() }}

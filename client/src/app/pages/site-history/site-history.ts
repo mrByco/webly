@@ -200,7 +200,7 @@ export class SiteHistoryPage {
     switch (kind) {
       case 'added': return 'bg-success/10 text-success';
       case 'removed': return 'bg-error/10 text-error';
-      case 'hunk': return 'mt-2 text-info/80';
+      case 'hunk': return 'mt-2 text-info';
       default: return 'text-base-content/70';
     }
   }
