@@ -1,13 +1,21 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
 import { siteName, siteUrl } from '@/site';
 import './globals.css';
 
-// Self-hosted at build time by next/font, so a published page makes no request to a font CDN — one less
-// third party between a visitor and the site.
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+// Inter, from a file in this project (`fonts/`, with its licence), so a published page makes no request to a font
+// CDN — one less third party between a visitor and the site — and neither does the build. It used to come from
+// `next/font/google`, which downloads the font while building: with no route to Google the preview quietly drew a
+// fallback face, and `next build` — the publish — failed outright. A file cannot be unreachable. The Latin subset,
+// as before, and variable, so every weight is this one file.
+const inter = localFont({
+  src: './fonts/inter-latin.woff2',
+  weight: '100 900',
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 const title = siteName;
 

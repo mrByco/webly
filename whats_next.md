@@ -1339,6 +1339,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     no way in at all: the bottom bar offers Sites and Account, and Usage was a sidebar entry only. Administrators
     get it in the bottom bar too.
 
+89. **The template's font is a file now.** `next/font/google` was the open item from 77: a sandbox with no route
+    to Google drew the preview in a fallback face — and, measured now rather than assumed, the production build does
+    not fall back at all: `next build` exits 1 on `getaddrinfo EAI_AGAIN fonts.googleapis.com`, so the publish
+    itself failed. Inter's Latin variable subset is committed in the template (`src/app/fonts/`, 48 KB, OFL) and
+    loaded with `next/font/local`; built inside `unshare -n`, the old template fails and the new one exports Inter
+    and its fallback. `tools/e2e/run.mjs` passes all 20 steps on it. Existing sites keep their own layout.
+
 
 ## What is still intent
 

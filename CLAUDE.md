@@ -857,13 +857,14 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   run. And it had no first-use sweep, so every restart of the API left one container per open site running
   with a `next dev` inside it, for ever; `LocalSandboxProvider` has had that sweep since sixteen orphaned dev
   servers wedged a machine.
-- **`next/font/google` needs egress at build time**, which the sandbox is exactly the place not to have. Seen
-  in a container with no route out: `next dev` logs "Failed to download Inter from Google Fonts. Using
-  fallback font instead" and carries on, so the site builds and publishes in a font nobody chose. The
-  template's comment — "self-hosted at build time by next/font, so a published page makes no request to a font
-  CDN" — is true of the *published page* and not of the build. Either the sandbox gets that one host, or the
-  template moves to `next/font/local` with the file committed, which is the stronger answer and needs the
-  `.woff2` in the repository.
+- **The template's typeface is a file, so building a site needs no network for it.** `src/app/layout.tsx` loads
+  Inter with `next/font/local` from `src/app/fonts/` (48 KB, the Latin variable subset, with its licence). It used
+  `next/font/google`, which fetches while building — and with no route to Google, `next dev` drew a fallback face
+  with a warning nobody reads while `next build`, which is the publish, **failed outright** (`getaddrinfo
+  EAI_AGAIN fonts.googleapis.com`). Measured by building both versions inside `unshare -n`: the old one exits 1,
+  the new one exports Inter and its metric-matched fallback. Sites created before the change keep their own
+  `layout.tsx` — it is theirs, not an owned file — so the font hosts stay on the egress allow-list for them, and for
+  an agent that chooses another Google typeface.
 - **The sandbox contract is ours** (`tools/sandbox-agent`, zero dependencies, baked into the image). A
   provider's job is "start this image, give me a URL"; files, exec and preview all go through one HTTP
   contract we can test. That is what makes E2B → Fly → Daytona a class nobody else has to know about.
