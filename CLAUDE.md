@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 183-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 185-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -113,12 +113,12 @@ The client needs **Node ≥ 22.22.3** (Angular 22's own floor) — `nvm use 24` 
 
 ### Running it with nothing installed
 
-The development defaults are chosen so that a fresh clone works with **node, git and a Postgres**, and
-nothing else — no Docker, no model key, no hosting account:
+The development defaults are chosen so that a fresh clone works with **node, git, bubblewrap and a Postgres**,
+and nothing else — no Docker, no model key, no hosting account:
 
 | Piece | Default | What it means |
 |---|---|---|
-| `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process. **Not isolation**, and refused outside Development. |
+| `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process, **confined to its workspace by bubblewrap** and refused without it (Linux; elsewhere use `docker`). Refused outside Development. |
 | `Agent:Mock:Enabled` | `true` | `MockCodingAgent` makes one real, deterministic edit. A real key takes over without a settings change. |
 | `Deployment:Provider` | `filesystem` | The real `next build` as the publish gate, then the export written to `.run/published/{nanoid}` and served at `/published/{nanoid}/`. |
 
@@ -208,19 +208,29 @@ more than one restating what the line does.
   `LocalSandboxProvider`'s first-use sweep kills what it finds before deleting the directories, in that order,
   because a dev server whose workspace has just been deleted does not exit — it spins at 100% of a core for
   ever. Sixteen of them is what a wedged development machine looks like, and nothing says why.
-- **Editing a site needs `node` and `git` on PATH**, and by default nothing else. `Sandbox:Provider` is
-  `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace under
-  `{temp}/webly-workspaces-{checkout}`; set it to `docker` for real isolation (build the image first — see the
-  table above) or the first message fails with "the sandbox container never became reachable". Idle sandboxes
-  are reaped after ten minutes either way.
+- **Editing a site needs `node`, `git` and `bwrap` on PATH**, and by default nothing else. `Sandbox:Provider`
+  is `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace under
+  `{temp}/webly-workspaces-{checkout}`; set it to `docker` for a container instead (build the image first — see
+  the table above) or the first message fails with "the sandbox container never became reachable". Idle
+  sandboxes are reaped after ten minutes either way.
+- **The agent can reach nothing outside its working directory.** Every command a sandbox runs — the agent CLI,
+  `npm ci` and its install scripts, the dev server running the site's own code — runs under bubblewrap: the
+  workspace and a private home beside it are writable, the system directories and the toolchain are read-only,
+  and nothing else of the machine exists. No checkout, no `.run/repositories`, no other site's workspace, and an
+  allow-listed environment, so the backend's connection string and keys are not inherited either. The local
+  provider **refuses to start** when bubblewrap is missing or cannot create a sandbox, with a sentence naming
+  the remedies — install it, or use `docker` — rather than quietly running unconfined;
+  `Sandbox:Local:Confinement = none` is the deliberate way back. `tools/e2e/run.mjs --confine` runs the whole
+  loop confined and asserts the checkout and the starter's environment are unreachable. Not filtered: the
+  network, which the model call and `npm ci` need — an egress allow-list is the next step.
 - **A local workspace must not be inside a git repository, and a command's `PWD` must be its workspace.** Both
   were wrong, and the first real agent through the app took the whole Webly checkout for the site: it searched
   `.run`, and on its second turn checked a site's bare repository out by itself and committed to its branch, with
   no version row behind the commit. OpenCode believes `PWD` over its real directory, and anything that walks up
   for a `.git` (OpenCode's project root, Claude Code's `CLAUDE.md` loading) found Webly's from
   `.run/workspaces`. The sandbox agent sets `PWD` per command, the default root is outside the checkout, and
-  `whats_next.md` 67 is the whole story. Still not isolation: an agent that goes looking can reach
-  `.run/repositories` by absolute path, which is what the `docker` provider is for.
+  `whats_next.md` 67 is the whole story, and the confinement above is what made "it could still go looking"
+  untrue.
 - **A site's repository is `.run/repositories/{nanoid}.git`** locally, which is gitignored: a developer's
   test sites are their own, and they are not backed up. `git --git-dir … log --stat` is how to see what a
   turn actually did.
@@ -612,7 +622,10 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   person's next message. (The old blocking `AskUser` tool is gone — a CLI in a sandbox cannot wait on this
   app. The MCP bridge that would bring it back is in the plan, §1.3.)
 - **A turn is one version.** `AgentTurnService` runs the agent, then commits once from the tree the sandbox
-  hands back: atomic, readable in the history, and free to cancel.
+  hands back: atomic, readable in the history, and free to cancel. **And a turn that does not commit leaves
+  nothing behind**: a failed or stopped one re-seeds the workspace from the branch head
+  (`ISiteWorkspaceRegistry.DiscardAsync`), because "Nothing was changed" used to be true of the history and not
+  of the workspace — the half-written edits stayed in the preview and went into the next turn's commit.
 - **Two turns on one site at the same moment is a real case**, and it broke three things, each found by
   starting two turns a millisecond apart against the running app. Both turns see no open thread and both
   insert one — the partial unique index refuses the loser, so `FindOrCreateActiveAsync` returns the thread the

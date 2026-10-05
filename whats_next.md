@@ -1026,9 +1026,7 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     can still reach `.run/repositories` by absolute path; the fix removes every reason it had to, not the
     ability. A cold turn's history is also the last eight messages verbatim, so a thread whose earlier reply
     narrates a hunt through `.run` primes the next one to repeat it — the contaminated test site was left as it
-    was and the clean run used a new one. Isolation is the Docker and E2B providers' job, and this is the
-    clearest argument yet for running the development default under an OS-level sandbox (bubblewrap) when one
-    is available.
+    was and the clean run used a new one. **71 is what closed the ability as well.**
 
 68. **The rest of a refresh batch answered 500.** `RotateRefreshToken.ReuseGrace` answers a sibling request
     with an access token and deliberately no refresh token, and the use-case test says so — but the middleware
@@ -1055,6 +1053,53 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     the fix — chips, a last-message reply and a real `--session` instead of "the last one in this directory" —
     and a recorded transcript is in hand. Left until it is decided whether OpenAI models should run under
     OpenCode at all, or under Codex, the harness they were trained against.
+
+
+71. **The agent now reaches nothing outside its working directory, and that is enforced rather than hoped
+    for.** Every command a sandbox runs — the agent CLI, `npm ci` and its packages' install scripts, the dev
+    server running the site's own code — runs under bubblewrap. The workspace and a private home beside it (where
+    the CLI keeps the sessions a warm workspace resumes, so one site's agent cannot read another's conversation)
+    are writable; `/usr`, the few parts of `/etc` that name resolution and certificates need, and the toolchain
+    (node, git, the agent CLIs, found on PATH and mounted at their install root) are read-only; nothing else of
+    the machine exists. The environment is an allow-list as well: PATH, locale, proxy and certificate variables,
+    and what the command was given — so the backend's connection string and every key it holds, which each
+    child used to inherit, are gone. Its own process table, so killing the sandbox takes the dev server's
+    grandchildren with it.
+
+    Proved four ways. A probe through `/exec`: the checkout, its `CLAUDE.md`, `.run/repositories` and other
+    workspaces "No such file or directory", `/usr` read-only, no secret in `env`, while node, git, npm, opencode
+    and the network all work. `tools/e2e/run.mjs --confine`: all eighteen steps, including the dev server, hot
+    reload, the publish build and the typecheck, with two new assertions (the checkout and the starter's
+    environment are unreachable). Real turns: four sites built and published through the app confined, three in
+    parallel, none of whose replies mentioned anything outside its workspace. And OpenCode's own database,
+    which now lives in each workspace's private home rather than in a home directory every site shared.
+
+    The local provider **refuses to start** without it — bubblewrap missing, or present on a machine that forbids
+    the user namespaces it needs, which is why it is probed by running one rather than by finding the binary —
+    with a sentence naming the remedies: install it, or use `docker`. `Sandbox:Local:Confinement = none` is the
+    deliberate way back. That is a real cost on macOS and Windows, where bubblewrap does not exist: the local
+    provider now needs a container there, or the explicit opt-out. The container providers leave it off, because
+    the container is already this boundary; the same flag would confine inside an E2B microVM, unverified.
+    Not done: **network egress** is not filtered — the model call and `npm ci` need the network, and an
+    allow-list (the model API, the npm registry) is the next step. CI still runs the harness unconfined, because
+    whether a GitHub runner allows bubblewrap's namespaces is unverified and a red CI nobody can fix from here
+    is worse than the gap.
+
+72. **A turn that failed halfway was committed as a success, and a stopped one left its edits behind.** The
+    OpenAI account ran out of credit while three sites were being built at once. OpenCode got a 429 and exited
+    1; `OpenCodeAgent` only failed a turn whose exit was bad *and* silent, and these had already narrated half
+    their work — so each was committed as a successful version, under the owner's own message because there was
+    no `SUMMARY:` line, with a reply that stopped at "I'm applying the content and page changes now." Any failed
+    exit fails the turn now (`OpenCodeAgentTests`, red first).
+
+    That found the general one, which is not OpenCode's: a failed or stopped turn says "Nothing was changed",
+    and the history agreed, but the workspace kept whatever the agent had written — on screen in the preview,
+    and committed by the next turn under that turn's message. `AgentTurnService` now calls
+    `ISiteWorkspaceRegistry.DiscardAsync` on every unsuccessful ending, which re-seeds the workspace from the
+    branch head behind the same gate a turn takes. Driven in the app with `turn.mjs --stop-after 12`: at eleven
+    seconds the agent had edited `content/brand.md` and the contact page; after the stop the branch had not
+    moved, the workspace was byte-for-byte the head, and the thread said "Stopped. Nothing was changed." — which
+    is now true.
 
 
 ## What is still intent
