@@ -1346,6 +1346,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     loaded with `next/font/local`; built inside `unshare -n`, the old template fails and the new one exports Inter
     and its fallback. `tools/e2e/run.mjs` passes all 20 steps on it. Existing sites keep their own layout.
 
+90. **Publishing the starter page asks first.** Seen on the site that proved the font: a site published before
+    anybody chats goes live saying "Tell Webly what this site is about, and this page will be rewritten for you" to
+    its visitors. The first publish of a site with no version from the assistant now asks — "Publish the starter
+    page?" — with Keep editing as the easy way out.
+
 
 ## What is still intent
 

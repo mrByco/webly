@@ -7,6 +7,7 @@ import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { SiteChat } from '../../components/site-chat/site-chat';
 import { SitePreview } from '../../components/site-preview/site-preview';
+import { Modal } from '../../components/modal/modal';
 import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
@@ -27,7 +28,7 @@ import { messageOf } from '../../models/problem-details';
  */
 @Component({
   selector: 'app-site-editor',
-  imports: [AppShell, Icon, RouterLink, RouterLinkActive, RouterOutlet, SiteChat, SitePreview],
+  imports: [AppShell, Icon, Modal, RouterLink, RouterLinkActive, RouterOutlet, SiteChat, SitePreview],
   templateUrl: './site-editor.html',
 })
 export class SiteEditorPage {
@@ -325,12 +326,37 @@ export class SiteEditorPage {
    * arrives as a `Deploy` run whose id is the deployment's nanoid — which is what lets a reloaded page
    * re-attach to a publish that is still going.
    */
-  protected async publish(): Promise<void> {
+  /** The site is about to go live for the first time as Webly's starter page. See `publish`. */
+  protected readonly confirmingStarter = signal(false);
+
+  /**
+   * Publishes — unless this would be the first publish of a site nothing has been written for, in which case it asks.
+   *
+   * A new site's pages speak to its owner ("tell Webly what this site is about, and this page will be rewritten for
+   * you"), because that is who reads them in the preview. Publish is in the header from the first second, so
+   * pressing it before describing the business put that sentence on the public web, at an address the owner may
+   * already have handed out. Asked rather than refused: publishing early is theirs to choose, and only the first
+   * time — after that the site has been seen by the world either way. "Nothing has been written" is no version from
+   * the assistant, read from the history only when it can matter.
+   */
+  protected async publish(confirmed = false): Promise<void> {
     const nanoid = this.nanoid();
 
     if (!nanoid || this.publishing()) {
       return;
     }
+
+    if (!confirmed && !this.site()?.summary.publishedAt) {
+      const versions = await this.sites.versions(nanoid).catch(() => []);
+
+      if (!versions.some(version => version.origin === 'Agent')) {
+        this.confirmingStarter.set(true);
+
+        return;
+      }
+    }
+
+    this.confirmingStarter.set(false);
 
     // Set before the request, not after it: the round trip is long enough for a second click, and `canPublish`
     // reads this. Two publishes are refused by the index anyway, but a button that stays pressable is how

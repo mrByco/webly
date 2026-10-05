@@ -244,4 +244,18 @@
       <p class="text-sm text-muted">Loading your site…</p>
     </div>
   }
+
+  <app-modal [open]="confirmingStarter()" (close)="confirmingStarter.set(false)">
+    <h3 class="text-lg font-bold">Publish the starter page?</h3>
+    <p class="py-3 text-sm text-base-content/70">
+      Nothing has been written for {{ site()?.summary?.name }} yet, so what would go live is Webly's starter page — and
+      it speaks to you ("tell Webly what this site is about"), not to your visitors. Describe your business in the chat
+      first, or publish it as it is.
+    </p>
+
+    <div class="flex justify-end gap-2">
+      <button class="btn btn-ghost" type="button" (click)="confirmingStarter.set(false)">Keep editing</button>
+      <button class="btn btn-primary" type="button" (click)="publish(true)">Publish anyway</button>
+    </div>
+  </app-modal>
 </app-shell>

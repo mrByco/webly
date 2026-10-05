@@ -1381,6 +1381,10 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   tabs promise arrow-key movement and a panel each one labels, and a choice between two panes needs neither. The chat watches its own size (`ResizeObserver` on the host) and returns to the
   newest entry when it is shown again, because a transcript that was `display: none` while a turn wrote into it
   comes back scrolled to its top.
+- **The first publish of a site nothing has been written for asks first.** A new site's pages speak to its owner
+  ("tell Webly what this site is about"), and Publish is in the header from the first second, so pressing it before
+  describing the business put that sentence on the public web. Asked rather than refused, once, and decided from
+  the history at the moment it matters: no version from the assistant means nothing has been written.
 - **A publish shows that it is working and says when it has worked.** The button stays primary with a spinner
   and the status word rather than going disabled-grey, which read as a control nobody could use; and a publish
   this page watched finish ends with "Your site is live" and a link, once. Before, a minute's wait on the
