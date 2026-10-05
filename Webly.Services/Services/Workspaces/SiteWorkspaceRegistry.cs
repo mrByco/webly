@@ -68,7 +68,17 @@ public class SiteWorkspaceRegistry(
         var starting = _starting.GetOrAdd(site.Nanoid, _ => new SemaphoreSlim(1, 1));
         SiteWorkspace workspace;
 
-        await starting.WaitAsync(cancellationToken);
+        // Something else holds this site's start lock. When there is no workspace yet, that something is starting
+        // one — the editor waking the site while its owner types, or another turn — and this waits the same tens of
+        // seconds a start takes, so it says so: a turn that goes quiet for that long after somebody pressed Send reads
+        // as one that is not happening. When there is one, the holder is only checking it is alive, which is a
+        // moment, and "waking up" over a site that is awake would not be true.
+        if (!starting.Wait(0))
+        {
+            if (onProgress is not null && !_workspaces.ContainsKey(site.Nanoid)) await onProgress("Waking up your site");
+
+            await starting.WaitAsync(cancellationToken);
+        }
 
         try
         {

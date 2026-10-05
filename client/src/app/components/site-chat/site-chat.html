@@ -189,7 +189,7 @@
           placeholder="Ask for a change…"
           [appAutoGrow]="message"
           [value]="message"
-          (input)="message = $any($event.target).value"
+          (input)="onInput($any($event.target).value)"
           (keydown.enter)="onEnter($event)"></textarea>
 
         @if (running()) {

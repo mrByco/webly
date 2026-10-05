@@ -183,6 +183,15 @@ export class SiteEditorPage {
   }
 
   /**
+   * Somebody has started writing a message. A cold site is woken now, so the sandbox boots while they type and the
+   * turn they are about to start finds it warm — rather than spending its first quarter-minute on a spinner after
+   * Send. Costs, at worst, a sandbox for a message nobody sent, which the reaper closes after its idle time.
+   */
+  protected onComposing(): void {
+    if (!this.workspaceReady() && !this.workspaceProgress()) void this.wakePreview();
+  }
+
+  /**
    * Starts the workspace because somebody wants to look at their site, not because they changed it.
    *
    * The endpoint answers immediately and the workspace takes tens of seconds, so this polls the site — the same
@@ -212,6 +221,10 @@ export class SiteEditorPage {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         const site = await this.sites.load(nanoid);
+
+        // A turn sent meanwhile says so itself, with `WorkspaceReady` — possibly while this request was out — and
+        // reloading the frame a second time for the same news is a flicker.
+        if (this.workspaceReady()) return;
 
         if (site.workspaceReady) {
           this.workspaceReady.set(true);

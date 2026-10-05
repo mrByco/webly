@@ -99,6 +99,12 @@ export class SiteChat {
   readonly workspaceReady = output<void>();
 
   /**
+   * Raised when a message starts being written — the first character in an empty box — so the editor can wake the
+   * site while it is typed rather than after it is sent. Not raised during a turn, which has a workspace already.
+   */
+  readonly composing = output<void>();
+
+  /**
    * Raised when a turn ends, however it ended. The editor re-reads the site on it — a turn that wrote
    * nothing still left a warm workspace behind, and that is what the preview needs to know.
    */
@@ -200,6 +206,17 @@ export class SiteChat {
   }
 
   /**
+   * What the composer reports as it is typed into. The first character of a message is the earliest anybody can
+   * know a turn is coming, and a cold site takes as long to wake as a sentence takes to write — so the waking can
+   * happen during the writing instead of after Send, where it was a quarter of a minute of watching a spinner.
+   */
+  protected onInput(value: string): void {
+    if (!this.message && value && !this.running()) this.composing.emit();
+
+    this.message = value;
+  }
+
+  /**
    * Puts a suggestion in the box rather than sending it, and focuses so the caret is where the next word goes.
    *
    * The textarea is found in the DOM rather than with a `viewChild`: it lives inside an `@if` on whether this
@@ -207,6 +224,8 @@ export class SiteChat {
    * the same shape and the same comment.
    */
   protected suggest(text: string): void {
+    if (!this.message && text && !this.running()) this.composing.emit();
+
     this.message = text;
 
     const composer = (this.host.nativeElement as HTMLElement).querySelector('textarea');

@@ -875,6 +875,13 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   half had that from the start and the stop half did not, so pressing Stop ended with the spinner gone and a
   status line frozen mid-sentence: the "Stopped. Nothing was changed." note was in the database and only
   appeared if the person reloaded the page.
+- **A sandbox failure has two readers, and the log is the one that gets the cause.** `SandboxException`'s message
+  is the sentence for the chat and names no cause; its `Detail` is the CLI's own error or the tail of the command
+  that failed, and `ToString()` appends it, so every place that logs one — a turn, a wake, a publish — records
+  why. Nothing read `Detail` but the publish path, so an OpenAI account out of credit halfway through a turn said
+  "The editing agent could not finish" in the log as well as on screen, and the reason survived only in
+  OpenCode's own log inside a sandbox the reaper deletes. The customer still gets the plain sentence: whose bill
+  ran out is not their problem to read about.
 - **What the screen is told the agent said is what the thread stores.** `RunWriter.CompleteMessageAsync` takes
   the agent's own reply and sends that as `MessageCompleted`; it used to send the streamed text while the turn
   stored the reply, and for an agent that narrates as it works those differ by every "I'm checking the page now"
@@ -1224,6 +1231,14 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   (`POST /api/sites/{nanoid}/workspace`, 202, then the client polls `workspaceReady`): before it, the only way to
   see a preview was to send a message, which costs a model call and writes a version — so looking at your own site
   and editing it were the same button.
+- **And a cold site wakes when somebody starts typing**, not when they press Send. The first character in an empty
+  composer is the earliest anybody can know a turn is coming, and a cold start (about thirteen seconds here) is
+  as long as a sentence takes to write — so `SiteChat`'s `composing` output calls the same wake as the button.
+  Measured on two cold sites: a message typed over twelve seconds had the agent editing **2.0s** after Send, one
+  sent at once **12.9s**. The turn that arrives mid-wake waits on the start lock rather than starting a second
+  sandbox, and says "Waking up your site" while it does — but only when there is no workspace yet, because the
+  lock is also held for the moment it takes to check a warm one, and "waking up" over a site that is awake is not
+  true. The cost is a sandbox for a message nobody sent, which the reaper closes after its idle time.
 - **The chat's hard part is disagreement between the page and the run.** A turn is started, then watched, as
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on
@@ -1307,7 +1322,8 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
 - **Below `lg` the editor shows the chat or the preview, with a switch, never both.** Stacked, a phone had about
   290px of chat and 180px of website — three lines of conversation and the top of a hero. Each is a screen's job;
   the switch says "updated" when the preview has changed behind it, and the header gives Publish the title's row
-  instead of one of its own. The chat watches its own size (`ResizeObserver` on the host) and returns to the
+  instead of one of its own. The switch is two buttons with `aria-pressed` in a labelled group, not ARIA tabs:
+  tabs promise arrow-key movement and a panel each one labels, and a choice between two panes needs neither. The chat watches its own size (`ResizeObserver` on the host) and returns to the
   newest entry when it is shown again, because a transcript that was `display: none` while a turn wrote into it
   comes back scrolled to its top.
 - **A publish shows that it is working and says when it has worked.** The button stays primary with a spinner

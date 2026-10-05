@@ -1238,6 +1238,24 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     **Not changed, worth knowing**: a turn's first reload of the preview logs a 502 in the console — that is the
     "your site is compiling" page doing its job while `next dev` starts.
 
+79. **A cold site wakes while its first message is written.** The first character typed into an empty composer
+    starts the workspace — the same wake as the preview's button — so the thirteen seconds a cold start takes
+    overlap the writing instead of following Send. Measured on two cold sites with the mock agent: a message typed
+    over twelve seconds had its edit **2.0s** after Send; one sent at once, **12.9s**. A turn that arrives while
+    the wake is still going waits on the registry's start lock and says "Waking up your site" in the chat, which it
+    did not — it went quiet for the rest of the start. Only when nothing is warm yet, since the lock is also held
+    for the instant it takes to check a warm workspace is alive.
+
+    **Found on the way: why a turn failed was logged nowhere.** The first measurement was a real OpenCode turn,
+    and it died two minutes in with "Something went wrong" on screen and "The editing agent could not finish" in
+    the log. The reason — **the OpenAI account has run out of credit**, mid-turn, after the agent had already
+    started replying — was only in OpenCode's own log inside the sandbox. `SandboxException.ToString()` now
+    carries the detail, so every log line that records one says why. The real-agent half of this entry needs the
+    account topped up; the mock drove the rest.
+
+    Also: the phone's chat/preview switch is a labelled group of `aria-pressed` buttons rather than ARIA tabs it
+    did not behave like.
+
 
 ## What is still intent
 

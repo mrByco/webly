@@ -66,6 +66,19 @@ public record SandboxMeter(Webly.Data.Models.Usage.UsageKind Kind, int UserId, i
 public class SandboxException(string message, string? detail = null) : Exception(message)
 {
     public string? Detail { get; } = detail;
+
+    /// <summary>
+    /// What a log records, which is this rather than the message alone. The message is the sentence for the person
+    /// on the screen and deliberately names no cause; the cause — the CLI's own error, the tail of a command that
+    /// failed — is the detail, and every place that logs one of these logs the exception rather than reaching for
+    /// it. So the detail went nowhere: an OpenAI account out of credit halfway through a turn read "The editing
+    /// agent could not finish" in the log as well as in the chat, and the reason survived only in the agent's own
+    /// log, inside a sandbox the reaper deletes. Here once, rather than in each of the places that catch one.
+    /// </summary>
+    public override string ToString() =>
+        Detail is { Length: > 0 } detail
+            ? $"{base.ToString()}{Environment.NewLine}Detail: {(detail.Length <= 2000 ? detail : "…" + detail[^2000..])}"
+            : base.ToString();
 }
 
 /// <summary>

@@ -157,13 +157,16 @@
       -->
       <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
         @if (!outlet.isActivated) {
-          <div class="flex shrink-0 gap-1 border-b border-base-300 bg-base-100 px-4 py-2 lg:hidden" role="tablist">
+          <!--
+            Two pressed-or-not buttons rather than ARIA tabs: tabs promise arrow-key movement and a panel each is
+            labelled by, and a switch between two panes needs neither — `aria-pressed` says which is showing.
+          -->
+          <div class="flex shrink-0 gap-1 border-b border-base-300 bg-base-100 px-4 py-2 lg:hidden" role="group" aria-label="Show">
             <button
               class="btn btn-ghost btn-sm flex-1"
               type="button"
-              role="tab"
               [class.btn-active]="pane() === 'chat'"
-              [attr.aria-selected]="pane() === 'chat'"
+              [attr.aria-pressed]="pane() === 'chat'"
               (click)="showPane('chat')">
               <app-icon class="size-4" name="sparkles" />
               Chat
@@ -171,9 +174,8 @@
             <button
               class="btn btn-ghost btn-sm flex-1"
               type="button"
-              role="tab"
               [class.btn-active]="pane() === 'preview'"
-              [attr.aria-selected]="pane() === 'preview'"
+              [attr.aria-pressed]="pane() === 'preview'"
               (click)="showPane('preview')">
               <app-icon class="size-4" name="eye" />
               Preview
@@ -201,6 +203,7 @@
             (versionCommitted)="onVersionCommitted()"
             (workspaceProgress)="onWorkspaceProgress($event)"
             (workspaceReady)="onWorkspaceReady()"
+            (composing)="onComposing()"
             (turnFinished)="onTurnFinished()" />
         </section>
 
