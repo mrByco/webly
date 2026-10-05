@@ -37,6 +37,38 @@ public abstract record CodingAgentEvent
 
     /// <summary>A file was written. The editor lists these under the turn.</summary>
     public record FileChanged(string Path) : CodingAgentEvent;
+
+    /// <summary>
+    /// Model calls were paid for. Reported as the agent learns it — once at the end by Claude Code, after every
+    /// step by OpenCode — and summed by the turn, so that a turn which fails or is stopped halfway still records
+    /// what it had already spent. Never shown to the person.
+    /// </summary>
+    public record Usage(AgentUsage Value) : CodingAgentEvent;
+}
+
+/// <summary>
+/// What a turn's model calls cost, as the agent's own CLI reported it. Both CLIs price their calls at the
+/// provider's list price, so this is what the provider will bill, before any discount Webly negotiates.
+/// </summary>
+/// <param name="InputTokens">Input tokens not read from the cache — how both providers count them.</param>
+/// <param name="OutputTokens">Output tokens, reasoning included.</param>
+public record AgentUsage(
+    string? Model,
+    long InputTokens,
+    long OutputTokens,
+    long CacheReadTokens,
+    long CacheWriteTokens,
+    decimal CostUsd)
+{
+    public static readonly AgentUsage None = new(null, 0, 0, 0, 0, 0m);
+
+    public AgentUsage Add(AgentUsage other) => new(
+        other.Model ?? Model,
+        InputTokens + other.InputTokens,
+        OutputTokens + other.OutputTokens,
+        CacheReadTokens + other.CacheReadTokens,
+        CacheWriteTokens + other.CacheWriteTokens,
+        CostUsd + other.CostUsd);
 }
 
 /// <summary>

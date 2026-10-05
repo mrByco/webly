@@ -7,6 +7,7 @@ using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Forms;
+using Webly.Data.Models.Usage;
 using Webly.Data.Models.Interfaces;
 using Webly.Data.Models.Sites;
 
@@ -25,6 +26,7 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
     public DbSet<FormSubmission> FormSubmissions => Set<FormSubmission>();
+    public DbSet<UsageRecord> UsageRecords => Set<UsageRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -306,6 +308,34 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
             // screen lists pairs and the email prints them — and a child table would buy an index nobody uses
             // in exchange for a join on every read.
             submission.OwnsMany(x => x.Fields, fields => fields.ToJson());
+        });
+
+        modelBuilder.Entity<UsageRecord>(usage =>
+        {
+            usage.HasIndex(x => x.Nanoid).IsUnique();
+
+            // Every read is "since a date", for the whole platform; the per-kind index serves the recent-turns list.
+            usage.HasIndex(x => x.CreatedAt);
+            usage.HasIndex(x => new { x.Kind, x.CreatedAt });
+
+            usage.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+            usage.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(20);
+
+            // Dollars to the millionth: a turn's cost is cents and a sandbox-second is a fraction of one, and both
+            // are summed over months — a float would drift and a coarser decimal would round a cheap turn to nothing.
+            usage.Property(x => x.CostUsd).HasPrecision(14, 6);
+
+            // Closing an account removes its usage with everything else it owned.
+            usage.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Deleting a site does not un-spend what it cost: the row stays, the link goes, SiteName remains.
+            usage.HasOne(x => x.Site)
+                .WithMany()
+                .HasForeignKey(x => x.SiteId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

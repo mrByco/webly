@@ -25,6 +25,9 @@
     <None Include="..\tools\e2e\fixtures\claude-stream-json.ndjson"
           Link="Fixtures\claude-stream-json.ndjson"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\tools\e2e\fixtures\opencode-json.ndjson"
+          Link="Fixtures\opencode-json.ndjson"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

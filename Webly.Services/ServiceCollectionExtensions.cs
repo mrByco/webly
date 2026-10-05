@@ -5,6 +5,8 @@ using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.SecurityTokens;
 using Webly.Data.Repositories.Forms;
+using Webly.Data.Repositories.Usage;
+using Webly.Services.Services.Usage;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.Agent;
@@ -19,6 +21,7 @@ using Webly.Services.UseCases.Deployments;
 using Webly.Services.UseCases.Domains;
 using Webly.Services.UseCases.Assets;
 using Webly.Services.UseCases.Forms;
+using Webly.Services.UseCases.Usage;
 using Webly.Services.UseCases.Sites;
 
 namespace Webly.Services;
@@ -40,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDeploymentRepository, DeploymentRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IFormSubmissionRepository, FormSubmissionRepository>();
+        services.AddScoped<IUsageRepository, UsageRepository>();
 
         services.AddMemoryCache();
 
@@ -104,6 +108,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<SubmitForm>();
         services.AddScoped<ListFormSubmissions>();
+        services.AddScoped<GetUsageReport>();
         services.AddScoped<MarkSubmissionsRead>();
         services.AddScoped<DeleteFormSubmission>();
 
@@ -150,6 +155,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICodingAgent, MockCodingAgent>();
         services.AddSingleton<CodingAgentRegistry>();
         services.AddScoped<IAgentTurnService, AgentTurnService>();
+        services.AddSingleton<IUsageRecorder, UsageRecorder>();
 
         return services;
     }

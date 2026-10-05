@@ -17,6 +17,7 @@ using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Sandboxes;
 using Webly.Services.UseCases.Sites;
+using Webly.Data.Models.Usage;
 
 namespace Webly.Services.Services.Deployments;
 
@@ -105,7 +106,10 @@ public class DeploymentJobRunner(
             await ProgressAsync(sink, deployment, DeploymentStatus.Preparing, dbContext, stoppingToken);
 
             sandbox = await sandboxes.StartAsync(
-                new SandboxSpec(site.Nanoid, new Dictionary<string, string>()), stoppingToken);
+                new SandboxSpec(site.Nanoid, new Dictionary<string, string>())
+                {
+                    Meter = new SandboxMeter(UsageKind.PublishSandbox, site.OwnerId, site.Id, site.Name)
+                }, stoppingToken);
 
             var tree = await repositories.ReadTreeAsync(site.Nanoid, version.CommitSha, stoppingToken);
             await sandbox.WriteTreeAsync(tree, stoppingToken);

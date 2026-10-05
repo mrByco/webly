@@ -182,7 +182,9 @@ function sanitise(events, { workspace }) {
       copy = Object.fromEntries(INIT_KEEP.filter(key => key in copy).map(key => [key, copy[key]]));
     }
 
-    for (const key of ['startup_timing', 'modelUsage', 'total_cost_usd', 'usage', 'slash_commands',
+    // Usage and cost are kept: they describe the run, not the machine, and they are what Webly's cost tracking
+    // reads — an earlier version of this list removed them, so the fixture could not settle their shape.
+    for (const key of ['startup_timing', 'slash_commands',
       'terminal_slash_commands', 'skills', 'agents', 'plugins', 'tools', 'capabilities', 'mcp_servers']) {
       delete copy[key];
     }

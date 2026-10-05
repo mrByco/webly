@@ -51,7 +51,17 @@ public record SandboxHealth(bool Reachable, bool DevServerRunning)
 /// <summary>What a sandbox is asked for when it starts.</summary>
 /// <param name="SiteNanoid">Only for naming and logs; a sandbox never learns anything else about the site.</param>
 /// <param name="Environment">Injected into every command — where an agent's provider key lives for the run.</param>
-public record SandboxSpec(string SiteNanoid, IReadOnlyDictionary<string, string> Environment);
+public record SandboxSpec(string SiteNanoid, IReadOnlyDictionary<string, string> Environment)
+{
+    /// <summary>
+    /// Whose sandbox this is, for what it costs. Null leaves it unmetered, which is only right for a sandbox
+    /// nobody is paying for — a test's.
+    /// </summary>
+    public SandboxMeter? Meter { get; init; }
+}
+
+/// <summary>What a sandbox's running time is recorded against. See <see cref="MeteredSandboxProvider"/>.</summary>
+public record SandboxMeter(Webly.Data.Models.Usage.UsageKind Kind, int UserId, int SiteId, string SiteName);
 
 public class SandboxException(string message, string? detail = null) : Exception(message)
 {

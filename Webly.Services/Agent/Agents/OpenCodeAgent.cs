@@ -13,11 +13,10 @@ namespace Webly.Services.Agent.Agents;
 /// provider-agnostic, so it is the answer to "what if we need to change model provider, or run this entirely
 /// on our own infrastructure". Keeping it working costs this class.
 ///
-/// It is deliberately the plainer implementation. It reads the default text output, where the agent's prose
-/// is stdout and its tool calls are stderr, so the person sees the prose and a coarse activity line instead
-/// of per-tool chips. The upgrade, if it becomes the default, is <c>--format json</c>: the same command
-/// emits typed <c>text</c> and <c>tool_use</c> events carrying a <c>sessionID</c>, which would give it chips
-/// and a real session to resume instead of "the last one in this directory".
+/// It reads <c>--format json</c> (<see cref="OpenCodeJsonParser"/>): what each step cost, the final answer apart
+/// from the narration before it, the tools as they are used, and a session id to resume. Text mode, which this
+/// was first written against, had none of those — its reply was every "I'm running the check now" along with the
+/// answer, and its cost was nowhere.
 ///
 /// <b>Run against opencode 1.18.31 with <c>openai/gpt-5.5</c></b>, which is what found the key going to the
 /// wrong place (see <see cref="EnvironmentFor"/>). Two more facts from that run worth not re-deriving: it
@@ -45,11 +44,21 @@ public class OpenCodeAgent(
         Func<CodingAgentEvent, Task> onEvent,
         CancellationToken cancellationToken = default)
     {
-        var arguments = new List<string> { "run", BuildPrompt(request), "--model", _options.OpenCode.Model };
+        var arguments = new List<string>
+        {
+            "run", BuildPrompt(request),
+            "--model", _options.OpenCode.Model,
+            // Typed events rather than prose: the cost of every step, the final answer apart from the narration
+            // before it, the tools as they are used, and a session id to resume. See OpenCodeJsonParser.
+            "--format", "json"
+        };
 
-        // OpenCode keeps its own sessions per directory; continuing the last one in this workspace is the
-        // same trade as Claude Code's --resume, for the same reason.
-        if (request.SessionId is { Length: > 0 }) arguments.Add("--continue");
+        // Its own session, by id — the same trade as Claude Code's --resume, for the same reason.
+        if (request.SessionId is { Length: > 0 } sessionId)
+        {
+            arguments.Add("--session");
+            arguments.Add(sessionId);
+        }
 
         var command = new SandboxCommand(
             "opencode",
@@ -57,42 +66,20 @@ public class OpenCodeAgent(
             _options.TurnTimeout,
             EnvironmentFor(_options.OpenCode));
 
-        var reply = new StringBuilder();
-        var reported = false;
+        var parser = new OpenCodeJsonParser(_options.OpenCode.Model, onEvent, logger);
 
-        var result = await sandbox.RunAsync(command, async output =>
-        {
-            if (output.IsError)
-            {
-                logger.LogDebug("opencode stderr: {Text}", output.Text);
-                return;
-            }
+        var result = await sandbox.RunAsync(command, parser.HandleAsync, cancellationToken);
 
-            reply.Append(output.Text);
-
-            // One activity line rather than a stream of chips: without a typed event stream, any finer
-            // reporting would be a guess at its log format, and a wrong guess reads as a bug.
-            if (!reported)
-            {
-                reported = true;
-                await onEvent(new CodingAgentEvent.Activity("Editing your site"));
-            }
-
-            await onEvent(new CodingAgentEvent.Text(output.Text));
-        }, cancellationToken);
-
-        // Any failed exit, not only a silent one. Text mode has no typed error event, so the exit code is the only
-        // signal — and it used to be ignored whenever some prose had come out first, which is what a run that dies
-        // halfway looks like: an OpenAI account that ran out of credit mid-turn produced three "successful" turns,
-        // each committing half a website under the owner's own message, with a reply that stopped mid-sentence.
+        // Any failed exit, not only a silent one: a run that dies halfway has already said something, which is
+        // what an OpenAI account running out of credit mid-turn looked like — three "successful" turns, each
+        // committing half a website under the owner's own message. What it spent before dying has already been
+        // reported, step by step, so the turn records it either way.
         if (!result.Succeeded)
             throw new SandboxException(
                 "The editing agent could not finish.",
-                $"opencode exited {result.ExitCode}: {result.Output}");
+                $"opencode exited {result.ExitCode}: {parser.Error ?? result.Output}");
 
-        // The session id is not printed, so the workspace remembers only that there *is* one to continue:
-        // --continue takes the last session in the directory, which is exactly what a warm workspace means.
-        return Parse(reply.ToString(), request.Message, sessionId: "last");
+        return Parse(parser.Reply, request.Message, parser.SessionId);
     }
 
     /// <summary>
@@ -157,7 +144,7 @@ public class OpenCodeAgent(
     /// The same summary convention as the other agent, parsed the same way — which is the point of putting it
     /// in the prompt rather than in a structured output only one of them supports.
     /// </summary>
-    private static CodingAgentOutcome Parse(string output, string fallbackSummary, string sessionId)
+    private static CodingAgentOutcome Parse(string output, string fallbackSummary, string? sessionId)
     {
         var reply = output.Trim();
         var summary = fallbackSummary.Length <= 70 ? fallbackSummary : $"{fallbackSummary[..67]}...";

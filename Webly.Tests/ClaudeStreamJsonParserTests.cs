@@ -332,4 +332,56 @@ public class ClaudeStreamJsonParserTests
             Assert.That(parser.Failed, Is.False);
         });
     }
+
+    /// <summary>
+    /// The cost of a turn, from the result event. Written against Claude Code's documented result message rather
+    /// than a recording — the fixture above was sanitised before these fields were kept — so the next
+    /// <c>run.mjs --agent claude</c> recording is what settles it.
+    /// </summary>
+    [Test]
+    public async Task The_result_reports_what_the_turn_cost_across_its_models()
+    {
+        var events = new List<CodingAgentEvent>();
+        var parser = new ClaudeStreamJsonParser(@event => { events.Add(@event); return Task.CompletedTask; }, NullLogger.Instance);
+
+        await parser.HandleAsync(new SandboxOutput(false, """
+            {"type":"system","subtype":"init","session_id":"s","model":"claude-opus-5"}
+            {"type":"result","subtype":"success","is_error":false,"result":"Done.","session_id":"s","total_cost_usd":0.4213,"usage":{"input_tokens":12,"output_tokens":900,"cache_read_input_tokens":40000,"cache_creation_input_tokens":7000},"modelUsage":{"claude-opus-5":{"inputTokens":12,"outputTokens":900,"cacheReadInputTokens":40000,"cacheCreationInputTokens":7000,"costUSD":0.41},"claude-haiku-4-5":{"inputTokens":300,"outputTokens":40,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"costUSD":0.0113}}}
+
+            """));
+
+        var usage = events.OfType<CodingAgentEvent.Usage>().Single().Value;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(usage.CostUsd, Is.EqualTo(0.4213m), "the CLI's own total, every model included");
+            Assert.That(usage.Model, Is.EqualTo("claude-opus-5"), "attributed to the model that did the work");
+            Assert.That(usage.InputTokens, Is.EqualTo(312));
+            Assert.That(usage.OutputTokens, Is.EqualTo(940));
+            Assert.That(usage.CacheReadTokens, Is.EqualTo(40000));
+            Assert.That(usage.CacheWriteTokens, Is.EqualTo(7000));
+        });
+    }
+
+    /// <summary>An errored turn was paid for too, and a result without a per-model breakdown still has its usage.</summary>
+    [Test]
+    public async Task A_failed_result_still_reports_what_it_spent()
+    {
+        var events = new List<CodingAgentEvent>();
+        var parser = new ClaudeStreamJsonParser(@event => { events.Add(@event); return Task.CompletedTask; }, NullLogger.Instance);
+
+        await parser.HandleAsync(new SandboxOutput(false, """
+            {"type":"system","subtype":"init","session_id":"s","model":"claude-opus-5"}
+            {"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"s","total_cost_usd":0.05,"usage":{"input_tokens":3,"output_tokens":20,"cache_read_input_tokens":100,"cache_creation_input_tokens":50}}
+
+            """));
+
+        var usage = events.OfType<CodingAgentEvent.Usage>().Single().Value;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(parser.Failed, Is.True);
+            Assert.That(usage, Is.EqualTo(new AgentUsage("claude-opus-5", 3, 20, 100, 50, 0.05m)));
+        });
+    }
 }

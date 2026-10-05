@@ -135,6 +135,10 @@ public class MockCodingAgent(
 
         await onEvent(new CodingAgentEvent.Text(reply));
 
+        // Free, and reported anyway: the usage path — summing, recording, the report — is exercised by every mock
+        // turn rather than only by turns somebody paid for.
+        await onEvent(new CodingAgentEvent.Usage(new AgentUsage("mock", 0, 0, 0, 0, 0m)));
+
         logger.LogInformation(
             breaking || mistyping
                 ? "The mock agent broke {Path} on purpose."

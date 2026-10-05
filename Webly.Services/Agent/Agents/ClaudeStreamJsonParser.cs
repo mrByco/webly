@@ -51,6 +51,9 @@ internal sealed class ClaudeStreamJsonParser(Func<CodingAgentEvent, Task> onEven
     public string Reply => _reply.ToString();
     public string? SessionId { get; private set; }
 
+    /// <summary>The session's model, from the init event; what usage is attributed to when it does not say.</summary>
+    private string? _model;
+
     /// <summary>Whether the CLI reported its own failure, which is not the same as a non-zero exit.</summary>
     public bool Failed { get; private set; }
 
@@ -130,8 +133,15 @@ internal sealed class ClaudeStreamJsonParser(Func<CodingAgentEvent, Task> onEven
 
                 break;
 
+            case "system" when node["subtype"]?.GetValue<string>() == "init":
+                _model = node["model"]?.GetValue<string>();
+                break;
+
             case "result":
                 Failed = node["is_error"]?.GetValue<bool>() ?? false;
+
+                // Before anything that can return early: an errored turn was paid for too.
+                await ReportUsageAsync(node);
 
                 // The CLI's own final text, which is the authority on what it said — the assistant blocks
                 // above include narration the final message drops. Not taken when it errored: there the
@@ -140,6 +150,56 @@ internal sealed class ClaudeStreamJsonParser(Func<CodingAgentEvent, Task> onEven
                 break;
         }
     }
+
+    /// <summary>
+    /// What the turn cost, from the <c>result</c> event: <c>total_cost_usd</c>, and tokens from
+    /// <c>modelUsage</c> when it is there — one entry per model, because a turn can use more than one — or from
+    /// <c>usage</c> when it is not. The model is the one that cost the most, which is the one doing the work.
+    ///
+    /// <b>Not yet reconciled against a recording</b>: the fixture was sanitised before these fields were kept.
+    /// The shape is Claude Code's documented result message; <c>tools/e2e/run.mjs --agent claude</c> now keeps
+    /// them, and its next recording settles it. Also unsettled: whether a <c>--resume</c>d session reports its
+    /// totals for this invocation or for the whole session. Compare two turns' costs the first time it runs.
+    /// </summary>
+    private async Task ReportUsageAsync(JsonNode result)
+    {
+        var cost = Number(result["total_cost_usd"]);
+        var models = result["modelUsage"]?.AsObject();
+        var usage = result["usage"];
+
+        if (cost == 0 && models is null && usage is null) return;
+
+        AgentUsage reported;
+
+        if (models is { Count: > 0 })
+        {
+            var main = models.MaxBy(model => Number(model.Value?["costUSD"]));
+
+            reported = new AgentUsage(
+                main.Key,
+                models.Sum(model => (long)Number(model.Value?["inputTokens"])),
+                models.Sum(model => (long)Number(model.Value?["outputTokens"])),
+                models.Sum(model => (long)Number(model.Value?["cacheReadInputTokens"])),
+                models.Sum(model => (long)Number(model.Value?["cacheCreationInputTokens"])),
+                cost);
+        }
+        else
+        {
+            reported = new AgentUsage(
+                _model,
+                (long)Number(usage?["input_tokens"]),
+                (long)Number(usage?["output_tokens"]),
+                (long)Number(usage?["cache_read_input_tokens"]),
+                (long)Number(usage?["cache_creation_input_tokens"]),
+                cost);
+        }
+
+        await onEvent(new CodingAgentEvent.Usage(reported));
+    }
+
+    /// <summary>A JSON number as a decimal, or zero for anything else — this is another product's interface.</summary>
+    private static decimal Number(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<decimal>(out var number) ? number : 0m;
 
     private async Task ReportToolAsync(JsonNode block)
     {

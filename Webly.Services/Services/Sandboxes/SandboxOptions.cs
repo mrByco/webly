@@ -34,6 +34,14 @@ public class SandboxOptions
     /// <summary>How long to wait for a freshly started sandbox's agent to answer.</summary>
     public TimeSpan StartupTimeout { get; set; } = TimeSpan.FromSeconds(90);
 
+    /// <summary>
+    /// What an hour of one sandbox costs, in dollars — the machine's line in the usage report, beside the model's.
+    /// Zero by default, which is true of the local provider (it is your own machine) and a placeholder for the
+    /// others: set it from the provider's price list for the size of sandbox this deployment runs. The running
+    /// time is recorded whatever this says, so a rate set later can be applied to the hours already in the table.
+    /// </summary>
+    public decimal CostPerHour { get; set; }
+
     public E2bOptions E2b { get; set; } = new();
 
     public class E2bOptions

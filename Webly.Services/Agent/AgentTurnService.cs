@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Webly.Data;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Sites;
+using Webly.Data.Models.Usage;
 using Webly.Data.Repositories.Chat;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
@@ -10,6 +11,7 @@ using Webly.Services.DTO.Realtime;
 using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Sandboxes;
+using Webly.Services.Services.Usage;
 using Webly.Services.Services.Workspaces;
 using Webly.Services.UseCases.Sites;
 
@@ -73,6 +75,7 @@ public class AgentTurnService(
     SyncWeblyOwnedFiles syncOwnedFiles,
     RunWriter writer,
     WeblyDbContext dbContext,
+    IUsageRecorder usageRecorder,
     ILogger<AgentTurnService> logger) : IAgentTurnService
 {
     /// <summary>
@@ -139,12 +142,16 @@ public class AgentTurnService(
         // From here the turn reaches a sandbox, another product's CLI and a git repository, so it can fail for
         // reasons this app does not control. However it ends, the thread has to end up describing it: the person's
         // message is already saved, and a thread whose last entry is their own sentence reads as "it ignored me".
+        var meter = new TurnMeter();
+        var outcome = UsageOutcome.Completed;
+
         try
         {
-            await RunTurnAsync(site, user, conversation, history, request, cancellationToken);
+            await RunTurnAsync(site, user, conversation, history, request, meter, cancellationToken);
         }
         catch (OperationCanceledException)
         {
+            outcome = UsageOutcome.Stopped;
             await DiscardAsync(site);
             await NoteAsync(conversation.Id, StoppedNote);
             throw;
@@ -154,16 +161,54 @@ public class AgentTurnService(
             // The one failure whose own sentence is better than ours: something else changed the site while this
             // turn was working, so nothing was written. "Something went wrong" would be true and useless — the
             // person knows what else they did, and asking again is all this needs.
+            outcome = UsageOutcome.Failed;
             await DiscardAsync(site);
             await NoteAsync(conversation.Id, conflict.Message);
             throw;
         }
         catch (Exception)
         {
+            outcome = UsageOutcome.Failed;
             await DiscardAsync(site);
             await NoteAsync(conversation.Id, FailureNote);
             throw;
         }
+        finally
+        {
+            // However it ended: a turn that failed or was stopped halfway had already paid for its model calls.
+            // Only a turn whose agent started is a turn that cost anything — a workspace that never woke up is
+            // the sandbox's line in the report, not the model's.
+            if (meter.Agent is not null)
+                await usageRecorder.RecordAsync(new UsageEntry(
+                    UsageKind.AgentTurn,
+                    outcome,
+                    site.OwnerId,
+                    site.Id,
+                    site.Name,
+                    meter.ElapsedMs,
+                    meter.Usage.CostUsd,
+                    meter.Agent,
+                    meter.Usage,
+                    request.Message));
+        }
+    }
+
+    /// <summary>
+    /// What a turn has spent so far. Filled in as the agent reports it rather than read from its outcome, because
+    /// the turns that most need recording are the ones that never produce an outcome.
+    /// </summary>
+    private sealed class TurnMeter
+    {
+        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+
+        /// <summary>Set the moment the agent is started; null means no model was ever called.</summary>
+        public string? Agent { get; set; }
+
+        public AgentUsage Usage { get; private set; } = AgentUsage.None;
+
+        public long ElapsedMs => _clock.ElapsedMilliseconds;
+
+        public void Add(AgentUsage usage) => Usage = Usage.Add(usage);
     }
 
     /// <summary>
@@ -195,6 +240,7 @@ public class AgentTurnService(
         Conversation conversation,
         IReadOnlyList<ConversationMessage> history,
         SendMessageRequest request,
+        TurnMeter meter,
         CancellationToken cancellationToken)
     {
         var agent = agents.Resolve(request.Agent);
@@ -224,6 +270,8 @@ public class AgentTurnService(
         // and handing one agent another's session id is nonsense rather than an optimization.
         var sessionId = workspace.AgentKey == agent.Key ? workspace.AgentSessionId : null;
 
+        meter.Agent = agent.Key;
+
         var outcome = await agent.RunAsync(
             workspace.Sandbox,
             new CodingAgentRequest(
@@ -244,6 +292,10 @@ public class AgentTurnService(
                             Type = RunEventType.Activity,
                             Detail = activity.Phrase
                         }, cancellationToken);
+                        break;
+
+                    case CodingAgentEvent.Usage usage:
+                        meter.Add(usage.Value);
                         break;
 
                     case CodingAgentEvent.FileChanged file:

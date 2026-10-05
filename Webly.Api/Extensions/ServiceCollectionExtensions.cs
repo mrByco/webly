@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using Webly.Services.Services.Usage;
 using Webly.Api.Infrastructure;
 using Webly.Api.Options;
 using Webly.Services.Services.Authentication;
@@ -276,11 +278,11 @@ public static class ServiceCollectionExtensions
 
         if (string.Equals(provider, E2bSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
         {
-            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<E2bSandboxProvider>());
+            services.AddSingleton<ISandboxProvider>(x => Metered(x, x.GetRequiredService<E2bSandboxProvider>()));
         }
         else if (string.Equals(provider, DockerSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
         {
-            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<DockerSandboxProvider>());
+            services.AddSingleton<ISandboxProvider>(x => Metered(x, x.GetRequiredService<DockerSandboxProvider>()));
         }
         else if (string.Equals(provider, LocalSandboxProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
         {
@@ -292,7 +294,7 @@ public static class ServiceCollectionExtensions
                     "Sandbox:Provider 'local' is a development-only provider and offers no isolation. "
                     + "Use 'e2b' outside Development.");
 
-            services.AddSingleton<ISandboxProvider>(x => x.GetRequiredService<LocalSandboxProvider>());
+            services.AddSingleton<ISandboxProvider>(x => Metered(x, x.GetRequiredService<LocalSandboxProvider>()));
         }
         else
         {
@@ -337,6 +339,16 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Whichever provider configuration chose, wrapped so every sandbox's running time is recorded — see
+    /// <see cref="MeteredSandboxProvider"/> for why there rather than at each place a sandbox stops.
+    /// </summary>
+    private static ISandboxProvider Metered(IServiceProvider services, ISandboxProvider provider) =>
+        new MeteredSandboxProvider(
+            provider,
+            services.GetRequiredService<IUsageRecorder>(),
+            services.GetRequiredService<IOptions<SandboxOptions>>());
 
     /// <summary>
     /// The partition key for a per-user limiter. Falls back to the connection address for a caller with no id, which

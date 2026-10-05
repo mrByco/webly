@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using Webly.Data.Models.Sites;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Sandboxes;
+using Webly.Data.Models.Usage;
 
 namespace Webly.Services.Services.Workspaces;
 
@@ -253,7 +254,10 @@ public class SiteWorkspaceRegistry(
         // No secrets in the sandbox's base environment: the agent's key is passed per command, for the one
         // command that needs it, so a shell the agent opens for its own reasons does not inherit it.
         var sandbox = await sandboxes.StartAsync(
-            new SandboxSpec(site.Nanoid, new Dictionary<string, string>()), cancellationToken);
+            new SandboxSpec(site.Nanoid, new Dictionary<string, string>())
+                {
+                    Meter = new SandboxMeter(UsageKind.EditingSandbox, site.OwnerId, site.Id, site.Name)
+                }, cancellationToken);
 
         try
         {

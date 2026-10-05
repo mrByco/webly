@@ -3,6 +3,7 @@ using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Sites;
+using Webly.Data.Models.Usage;
 
 namespace Webly.Tests;
 
@@ -122,6 +123,17 @@ public class WeblyDbContextTests : PostgresTestBase
             TriggeredByUserId = user.Id
         });
 
+        // What the site cost: pointed at both the user (cascade) and the site (set null), which one statement
+        // deletes together — the canary for that pair of actions as much as for the deferred constraints.
+        db.UsageRecords.Add(new UsageRecord
+        {
+            Kind = UsageKind.AgentTurn,
+            UserId = user.Id,
+            SiteId = site.Id,
+            SiteName = site.Name,
+            CostUsd = 0.12m
+        });
+
         await db.SaveChangesAsync();
 
         // One statement, not a tracked Remove, and this is the assertion rather than an implementation detail
@@ -147,6 +159,7 @@ public class WeblyDbContextTests : PostgresTestBase
             Assert.That(await db.Deployments.CountAsync(), Is.Zero);
             Assert.That(await db.Conversations.CountAsync(), Is.Zero);
             Assert.That(await db.ConversationMessages.CountAsync(), Is.Zero);
+            Assert.That(await db.UsageRecords.CountAsync(), Is.Zero, "closing an account removes what it cost too");
         });
     }
 
