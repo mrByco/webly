@@ -1333,6 +1333,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     three screens say it before anybody types; `/new` says "No room for another site" as its heading. Walked by
     creating a third site and deleting it again. The preview's Phone/Tablet/Full buttons say which is pressed.
 
+88. **The usage report on a phone.** The sweep never visits it (its account is not an administrator), so it was
+    walked by hand at both widths and in dark mode. Two things: the small line explaining a $0.00 sandbox figure
+    ("no hourly rate set") was truncated to "no hourl…" — the tiles' lines wrap now — and on a phone the report had
+    no way in at all: the bottom bar offers Sites and Account, and Usage was a sidebar entry only. Administrators
+    get it in the bottom bar too.
+
 
 ## What is still intent
 

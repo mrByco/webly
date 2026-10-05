@@ -32,11 +32,13 @@
         <p class="mt-1 text-5xl font-semibold tracking-tight">{{ money(total()) }}</p>
         <p class="mt-1 text-sm text-muted">Since {{ r.since | date: 'd MMM y' }}</p>
 
+        <!-- The small lines wrap rather than truncate: on a phone "no hourly rate set" was cut to "no hourl…", and it
+             is the one caveat that explains why the sandbox figure reads $0.00. -->
         <div class="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
           <div class="min-w-0">
             <p class="text-sm text-muted">Model</p>
             <p class="text-xl font-semibold">{{ money(r.totals.modelCostUsd) }}</p>
-            <p class="truncate text-xs text-muted">
+            <p class="text-xs text-muted">
               {{ compact(r.totals.inputTokens + r.totals.cacheReadTokens + r.totals.cacheWriteTokens) }} in ·
               {{ compact(r.totals.outputTokens) }} out
             </p>
@@ -45,7 +47,7 @@
           <div class="min-w-0">
             <p class="text-sm text-muted">Sandboxes</p>
             <p class="text-xl font-semibold">{{ money(r.totals.sandboxCostUsd) }}</p>
-            <p class="truncate text-xs text-muted">
+            <p class="text-xs text-muted">
               {{ duration(r.totals.sandboxSeconds) }} running
               @if (r.sandboxCostPerHour === 0) {
                 · no hourly rate set
@@ -56,7 +58,7 @@
           <div class="min-w-0">
             <p class="text-sm text-muted">Turns</p>
             <p class="text-xl font-semibold">{{ r.totals.turns }}</p>
-            <p class="truncate text-xs text-muted">
+            <p class="text-xs text-muted">
               {{ r.totals.unfinishedTurns }} failed or stopped
             </p>
           </div>
@@ -64,7 +66,7 @@
           <div class="min-w-0">
             <p class="text-sm text-muted">Per turn</p>
             <p class="text-xl font-semibold">{{ money(averagePerTurn()) }}</p>
-            <p class="truncate text-xs text-muted">model cost, on average</p>
+            <p class="text-xs text-muted">model cost, on average</p>
           </div>
         </div>
 

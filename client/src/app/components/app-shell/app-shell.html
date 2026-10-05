@@ -95,7 +95,8 @@
     <ng-content />
   </div>
 
-  <!-- Phone navigation. Two destinations, because the app has two; see the component's comment. -->
+  <!-- Phone navigation. Two destinations, because the app has two; see the component's comment. An administrator
+       has a third, as the sidebar does — without it the usage report was reachable on a phone only by its URL. -->
   <nav
     class="fixed inset-x-0 bottom-0 z-30 flex border-t border-base-300 bg-base-100 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:hidden">
     <a
@@ -106,6 +107,16 @@
       <app-icon class="size-6" name="layout" />
       <span class="truncate">Sites</span>
     </a>
+
+    @if (isAdmin()) {
+      <a
+        class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-muted"
+        routerLinkActive="text-primary!"
+        [routerLink]="routes.usage.build()">
+        <app-icon class="size-6" name="chart" />
+        <span class="truncate">Usage</span>
+      </a>
+    }
 
     <a
       class="flex flex-1 flex-col items-center gap-1 px-1 text-[0.68rem] font-semibold text-muted"
