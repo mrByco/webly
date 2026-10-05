@@ -1286,6 +1286,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     origin now ("by Webly"), a rename says "by you", and a data migration moved the eleven existing rows here —
     "Template with a parent" is exactly the misfiled set, since only a first commit has none.
 
+82. **A keyboard walk.** Tab order through the editor is sidebar, header, tabs, Publish, the chat's links, the
+    photo button, the composer, the preview's toolbar — and every stop draws a ring, including the photo button
+    whose real control is a visually hidden file input. The dialogs were the gap: a `div` with `role="dialog"`
+    that left focus behind it, let Tab wander the page underneath, ignored Escape and dropped focus on close.
+    They are native `<dialog>`s opened with `showModal()` now — driven by keyboard on the delete-site and
+    close-account dialogs: focus lands on "Keep it" (the password, for the account), stays inside, Escape closes
+    and focus returns to the button that opened it.
+
 
 ## What is still intent
 

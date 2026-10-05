@@ -1396,6 +1396,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   `mailto:` grows a `bcc` out of a string a stranger typed. The Messages screen still has no reply of its own —
   an enquiry is answered from the owner's own inbox — and this is the three verbs it has made usable rather
   than a fourth.
+- **`components/modal` is a native `<dialog>` opened with `showModal()`**, because the `div role="dialog"` it
+  replaced was only drawn: focus stayed on the button that opened it, Tab walked the obscured page behind, Escape
+  did nothing and closing dropped focus on the body — on four dialogs that each guard something irreversible.
+  The browser now makes the page inert, puts focus on the first control ("Keep it", or the password when closing
+  an account), turns Escape into the same `close` output as the backdrop, and returns focus to the trigger. It is
+  labelled by its first heading. It stays in the DOM while closed, which costs the callers nothing: projected
+  content is evaluated by the parent whether shown or not, so their templates were already null-safe.
 - `models/problem-details.ts` holds the one `messageOf`. The generated client asks for
   `responseType: 'text'` on endpoints that answer 204, so a failure from one of those hands back the problem
   body as a *string* — reading only `error.title` there silently shows the generic message.
