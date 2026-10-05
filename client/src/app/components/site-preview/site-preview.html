@@ -7,11 +7,12 @@
       Preview
     </p>
 
-    <div class="join">
+    <div class="join" role="group" aria-label="Preview width">
       <button
         class="btn join-item btn-xs"
         type="button"
         [class.btn-active]="width() === 'phone'"
+        [attr.aria-pressed]="width() === 'phone'"
         (click)="setWidth('phone')">
         Phone
       </button>
@@ -19,6 +20,7 @@
         class="btn join-item btn-xs"
         type="button"
         [class.btn-active]="width() === 'tablet'"
+        [attr.aria-pressed]="width() === 'tablet'"
         (click)="setWidth('tablet')">
         Tablet
       </button>
@@ -26,6 +28,7 @@
         class="btn join-item btn-xs"
         type="button"
         [class.btn-active]="width() === 'full'"
+        [attr.aria-pressed]="width() === 'full'"
         (click)="setWidth('full')">
         Full
       </button>

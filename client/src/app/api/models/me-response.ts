@@ -11,6 +11,7 @@ export interface MeResponse {
   hasSite?: boolean;
   isAuthenticated: boolean;
   linkedProviders?: Array<string>;
+  maxSites?: number;
   nanoid?: string | null;
   profilePictureUrl?: string | null;
   roles?: Array<string>;

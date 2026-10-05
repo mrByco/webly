@@ -1,10 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { Icon } from '../../shared/icon';
 import { SiteService } from '../../services/site.service';
+import { AuthService } from '../../services/auth.service';
 import { messageOf } from '../../models/problem-details';
+import { siteLimitReached, siteLimitSentence } from '../../models/site-limit';
 import { SiteSummaryResponse } from '../../api/models/site-summary-response';
 
 /**
@@ -21,11 +23,16 @@ import { SiteSummaryResponse } from '../../api/models/site-summary-response';
 })
 export class SitesPage {
   private readonly sites = inject(SiteService);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
   protected readonly routes = AppRoutes;
 
   protected readonly list = signal<SiteSummaryResponse[]>([]);
+
+  /** At the account's limit the header says so where its "New site" button was. See `models/site-limit.ts`. */
+  protected readonly atLimit = computed(() => siteLimitReached(this.list().length, this.auth.me().maxSites));
+  protected readonly limitSentence = computed(() => siteLimitSentence(this.auth.me().maxSites));
   protected readonly loading = signal(true);
   protected readonly error = signal<string | undefined>(undefined);
 

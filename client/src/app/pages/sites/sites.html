@@ -6,10 +6,14 @@
         <p class="text-sm text-muted">Describe what you want and Webly builds it.</p>
       </div>
 
-      <a class="btn btn-primary" [routerLink]="routes.newSite.build()">
-        <app-icon class="size-4.5" name="plus" />
-        New site
-      </a>
+      @if (atLimit()) {
+        <p class="max-w-xs text-sm text-muted">{{ limitSentence() }}</p>
+      } @else {
+        <a class="btn btn-primary" [routerLink]="routes.newSite.build()">
+          <app-icon class="size-4.5" name="plus" />
+          New site
+        </a>
+      }
     </header>
 
     @if (error()) {

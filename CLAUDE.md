@@ -1218,6 +1218,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   is a tab inside that site's own screen, because those links cannot be built without knowing which site
   they mean. There is no "more" tab — the reference project needs one for the screens its bottom bar cannot
   hold, and Webly has two destinations.
+- **The site limit is said before the form, not after it.** The profile carries `maxSites` (from
+  `Sites:MaxSitesPerUser`), and `models/site-limit.ts` is the rule three screens share: the sidebar stops offering
+  "New site", the All-sites page says why where its button was, and `/new` says it as its heading. Before, the
+  sidebar hid its link with nothing said, the All-sites button stayed, and the form refused the name afterwards
+  with the first half of the server's sentence. The number was also a literal `3` in the sidebar.
 - **The sidebar's list is `SiteService.mine`, beside `current`**, and every re-read of the open site patches its
   entry. The shell used to fetch its own copy once, and the editor's shell lives through a rename, every commit
   and every publish: renaming a site changed the header and left the sidebar on the old name.

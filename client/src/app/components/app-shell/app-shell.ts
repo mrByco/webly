@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { SiteService } from '../../services/site.service';
 import { Avatar } from '../avatar/avatar';
 import { Icon } from '../../shared/icon';
+import { siteLimitReached } from '../../models/site-limit';
 
 /**
  * The frame every signed-in screen sits in: a sidebar from `lg` up, a slim bottom bar below it.
@@ -37,8 +38,8 @@ export class AppShell {
   /** The service's list rather than a copy of it, so a rename or a publish in the editor reaches the sidebar. */
   protected readonly mySites = this.sites.mine;
 
-  /** Whether to offer another site at all, so the limit is visible before it is hit. */
-  protected readonly canCreate = computed(() => this.mySites().length < 3);
+  /** Whether to offer another site at all — the account's own limit, from its profile. See `models/site-limit.ts`. */
+  protected readonly canCreate = computed(() => !siteLimitReached(this.mySites().length, this.me().maxSites));
 
   constructor() {
     // Failure is silence: the shell is drawn around every screen, and a site list that could not be

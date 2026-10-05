@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Options;
 using Webly.Data;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Repositories.RefreshTokens;
 using Webly.Services.DTO.Authentication;
+using Webly.Services.Services.Deployments;
 
 namespace Webly.Services.Services.Authentication;
 
@@ -9,6 +11,7 @@ public class AuthSessionService(
     ITokenService tokenService,
     IRefreshTokenRepository refreshTokenRepository,
     IAdminPolicy adminPolicy,
+    IOptions<SitesOptions> sites,
     WeblyDbContext dbContext) : IAuthSessionService
 {
     public async Task<AuthResult> IssueAsync(
@@ -40,7 +43,8 @@ public class AuthSessionService(
         LinkedProviders = [.. user.ExternalLogins.Select(x => x.Provider.ToString())],
         HasSite = user.CurrentSiteId is not null,
         CurrentSiteNanoid = user.CurrentSite?.Nanoid,
-        CurrentSiteName = user.CurrentSite?.Name
+        CurrentSiteName = user.CurrentSite?.Name,
+        MaxSites = sites.Value.MaxSitesPerUser
     };
 
     /// <summary>

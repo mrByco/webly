@@ -6,6 +6,7 @@ import { OnboardingLayout } from '../../components/onboarding-layout/onboarding-
 import { AuthService } from '../../services/auth.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf } from '../../models/problem-details';
+import { siteLimitReached, siteLimitSentence } from '../../models/site-limit';
 
 /**
  * Creating a site: one field, then straight into the editor.
@@ -31,6 +32,17 @@ export class NewSitePage {
 
   /** Whether there is anywhere to go back to. See the template. */
   protected readonly hasSite = computed(() => this.auth.me()?.hasSite === true);
+
+  /**
+   * Somebody who already has every site they may have, arriving here by a bookmark or the back button: told so
+   * instead of being handed a form whose only possible answer is a refusal. See `models/site-limit.ts`.
+   */
+  protected readonly atLimit = computed(() => siteLimitReached(this.sites.mine().length, this.auth.me().maxSites));
+  protected readonly limitSentence = computed(() => siteLimitSentence(this.auth.me().maxSites));
+
+  constructor() {
+    this.sites.refreshMine().catch(() => undefined);
+  }
 
   protected name = '';
   protected readonly saving = signal(false);

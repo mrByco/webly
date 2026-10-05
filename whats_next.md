@@ -1328,6 +1328,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     thing once, when it is complete — checked on a mock turn: "Waking up your site.", the reply, "Saved as a new
     version: …". Not the transcript itself, which streams and would be read as fragments.
 
+87. **The site limit, said up front.** At three sites the sidebar hid "New site" without a word, the All-sites
+    page kept its button, and the form took a name and then refused it. The profile carries the limit now and all
+    three screens say it before anybody types; `/new` says "No room for another site" as its heading. Walked by
+    creating a third site and deleting it again. The preview's Phone/Tablet/Full buttons say which is pressed.
+
 
 ## What is still intent
 

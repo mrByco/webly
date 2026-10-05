@@ -10,6 +10,7 @@ using Webly.Services.UseCases.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Webly.Services.Services.Deployments;
 
 namespace Webly.Tests;
 
@@ -76,7 +77,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         Microsoft.Extensions.Options.Options.Create(new AdministratorOptions { Emails = AdministratorEmails }));
 
     private IAuthSessionService Sessions =>
-        new AuthSessionService(TokenService, RefreshTokens, AdminPolicy, Db);
+        new AuthSessionService(TokenService, RefreshTokens, AdminPolicy, Microsoft.Extensions.Options.Options.Create(new SitesOptions()), Db);
 
     private TimeSpan _resendCooldown = TimeSpan.Zero;
 
