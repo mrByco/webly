@@ -31,5 +31,11 @@ public interface IDeploymentRepository
     /// </summary>
     Task<List<Deployment>> ListQueuedAsync(int take, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Deployments past <c>Queued</c> and not yet finished, with their sites — the ones a runner is working on. Read
+    /// at startup, when no runner can be working on anything, these are the ones a process death left behind.
+    /// </summary>
+    Task<List<Deployment>> ListStartedAsync(CancellationToken cancellationToken = default);
+
     void Add(Deployment deployment);
 }

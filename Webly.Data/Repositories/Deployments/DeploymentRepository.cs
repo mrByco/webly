@@ -50,5 +50,11 @@ public class DeploymentRepository(WeblyDbContext dbContext) : IDeploymentReposit
             .Take(take)
             .ToListAsync(cancellationToken);
 
+    public Task<List<Deployment>> ListStartedAsync(CancellationToken cancellationToken = default) =>
+        dbContext.Deployments
+            .Include(x => x.Site)
+            .Where(x => x.Status == DeploymentStatus.Preparing || x.Status == DeploymentStatus.Building)
+            .ToListAsync(cancellationToken);
+
     public void Add(Deployment deployment) => dbContext.Deployments.Add(deployment);
 }

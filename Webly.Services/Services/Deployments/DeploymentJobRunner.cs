@@ -41,8 +41,14 @@ public class DeploymentJobRunner(
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
+    /// <summary>What a publish a process death cut off says, on the settings screen and in the email.</summary>
+    public const string InterruptedError =
+        "Webly restarted while your site was being built, so nothing was published.";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await FailInterruptedAsync(stoppingToken);
+
         using var timer = new PeriodicTimer(PollInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -67,6 +73,52 @@ public class DeploymentJobRunner(
                 // stopped working, with every row still reading "Queued".
                 logger.LogError(exception, "The deployment runner's poll failed; it will try again.");
             }
+        }
+    }
+
+    /// <summary>
+    /// Ends the deployments a previous process was in the middle of, once, before polling starts.
+    ///
+    /// The poll only ever picks up <c>Queued</c>, so a publish the process died under stayed <c>Preparing</c> or
+    /// <c>Building</c> for good — and the partial unique index allows one live publish per site, so that site could
+    /// never publish again: Publish handed back the dead deployment to watch, and the editor said "Publishing…" over
+    /// it after every reload. Found by restarting the backend mid-build. One instance runs deployments (see the
+    /// class), so at startup nothing can be building and these are exactly the orphans.
+    ///
+    /// Failed rather than re-queued, though a build is safe to repeat: whatever killed the process may have been
+    /// the build, and re-queueing that is a crash loop. The owner is told the same way as any failed publish — the
+    /// email, because they may well have closed the tab — and publishing again is one press.
+    /// </summary>
+    private async Task FailInterruptedAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+
+            var repository = scope.ServiceProvider.GetRequiredService<IDeploymentRepository>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<WeblyDbContext>();
+            var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            var email = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+
+            foreach (var deployment in await repository.ListStartedAsync(stoppingToken))
+            {
+                deployment.Status = DeploymentStatus.Failed;
+                deployment.Error = InterruptedError;
+                deployment.FinishedAt = DateTime.UtcNow;
+                await dbContext.SaveChangesAsync(stoppingToken);
+
+                logger.LogInformation(
+                    "Deployment {Deployment} of site {Site} was cut off by a restart; marked failed.",
+                    deployment.Nanoid,
+                    deployment.Site.Nanoid);
+
+                await NotifyAsync(
+                    email, users, deployment, deployment.Site.Name, null, InterruptedError, null, stoppingToken);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Could not end the deployments a previous process left in progress.");
         }
     }
 

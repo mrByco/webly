@@ -14,6 +14,8 @@
 export function messageOf(error: unknown, fallback = 'That could not be saved.'): string {
   const body = (error as { error?: unknown })?.error;
 
+  if (unreachable(error)) return UNREACHABLE;
+
   if (typeof body === 'string') {
     try {
       return (JSON.parse(body) as { title?: string }).title ?? fallback;
@@ -46,4 +48,26 @@ function hubMessageOf(error: unknown): string | undefined {
   const marker = message?.indexOf('HubException: ') ?? -1;
 
   return marker >= 0 ? message!.slice(marker + 'HubException: '.length).trim() : undefined;
+}
+
+const UNREACHABLE = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
+
+/**
+ * Whether the request never got an answer from Webly itself: no response at all (status 0 — offline, or the server
+ * down), or a gateway in front of it answering for it while it restarts (502, 503, 504), whose body is the proxy's
+ * page rather than our ProblemDetails.
+ *
+ * The fallback used to cover these too, which is how an editor whose server was restarting said "That could not be
+ * saved." over a page that had been trying to *load* something — the one sentence on screen, about the wrong verb,
+ * blaming the person's change. The truth is shorter and tells them what to do.
+ */
+function unreachable(error: unknown): boolean {
+  const failure = error as { status?: unknown; error?: unknown };
+
+  if (failure?.status === 0) return true;
+
+  const gateway = failure?.status === 502 || failure?.status === 503 || failure?.status === 504;
+  const ours = typeof failure?.error === 'object' && failure.error !== null && 'title' in failure.error;
+
+  return gateway && !ours;
 }

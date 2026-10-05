@@ -296,9 +296,10 @@ export class SiteEditorPage {
   }
 
   /**
-   * The publish run went away while the connection was down — it finished and was evicted, or the server restarted.
-   * The deployment row is the durable record, so the site is re-read: a publish still live is joined again, and
-   * otherwise the header shows whatever that row ended as.
+   * The publish run went away while the connection was down — it finished and was evicted, or the server restarted
+   * under it. The deployment row is the durable record, so it is read: a publish still going is joined again, and
+   * one that ended says how, as it would have live. Without that last half the button simply went back to
+   * "Publish", which reads as a publish that worked.
    */
   private async rejoinDeployment(): Promise<void> {
     this.publishing.set(false);
@@ -306,9 +307,17 @@ export class SiteEditorPage {
 
     await this.sites.reload();
 
+    const nanoid = this.nanoid();
     const active = this.site()?.activeDeploymentNanoid;
 
-    if (active) await this.watchDeployment(active, 'Publishing');
+    if (active) {
+      await this.watchDeployment(active, 'Publishing');
+    } else if (nanoid) {
+      const [latest] = await this.deployments.list(nanoid);
+
+      if (latest?.status === 'Failed') this.error.set(latest.error ?? 'Publishing failed.');
+      if (latest?.status === 'Ready') this.justPublished.set(true);
+    }
   }
 
   /**

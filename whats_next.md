@@ -1312,6 +1312,17 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     restart the open editor read "This was interrupted when Webly restarted. Nothing was changed — please send it
     again.", and so did a reload. `InterruptedTurnTests` was red with the sweep disabled.
 
+85. **And a restart in the middle of a publish, which was worse.** The runner only ever picks up `Queued`, so the
+    deployment stayed `Preparing` for good, and because a site has one live publish at a time, that site could
+    never publish again — the editor said "Publishing…" after every reload. The runner now fails what a previous
+    process left in progress before it starts polling (and mails the owner, who may have closed the tab); the
+    editor, finding its publish run gone, reads the row and says "Webly restarted while your site was being built,
+    so nothing was published."; and the next publish went live. Two things on the way: while the server was down
+    the editor said "That could not be saved." over a page that was loading — `messageOf` now says Webly cannot be
+    reached when nothing of ours answered — and in development the test kept being defeated by Vite reloading the
+    page, which production never does (see `CLAUDE.md`). Also a timing assertion in `UsageTests` that read 49ms for
+    a 50ms wait and failed a clean suite; it brackets the duration now instead.
+
 
 ## What is still intent
 

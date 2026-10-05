@@ -967,6 +967,17 @@ has two lines — the model and the machine — and "what does this site cost us
 - **A publish uses a fresh sandbox**, not the warm editing one, seeded from the version being published and
   `npm ci`'d against its lockfile. A build must not inherit whatever an editing session left behind, and
   that is also what makes a retry mean something.
+- **A publish the process died under is failed when the runner starts.** The poll only picks up `Queued`, so a
+  deployment cut off in `Preparing` or `Building` stayed live for good — and with one live publish per site, that
+  site could never publish again: Publish handed back the dead deployment and the editor said "Publishing…" over
+  it after every reload. `DeploymentJobRunner` fails those once, before polling, with "Webly restarted while your
+  site was being built, so nothing was published." and the usual failure email. Failed rather than re-queued,
+  because whatever killed the process may have been the build, and re-queueing that is a crash loop. The editor,
+  finding its publish run gone after a reconnect, reads the deployment row and says how it ended.
+- **In development a backend restart reloads the whole page**, which production does not do: Vite's dev-server
+  socket is proxied through the backend like everything else, so its client loses the server and reloads. A test of
+  what the page does when the server restarts under it has to answer that socket itself (Playwright's
+  `routeWebSocket`), or it is testing Vite.
 - **A site publishes one thing at a time, and the index says so.** `PublishSite` read "is one in flight" and
   then inserted, which two clicks a millisecond apart walk straight through: both ran, which is two sandboxes,
   two `npm ci`s, two real builds and two "your site is live" emails for one press of one button. A partial

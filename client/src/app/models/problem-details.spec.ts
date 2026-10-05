@@ -26,6 +26,21 @@ describe('messageOf', () => {
     expect(messageOf(failure)).toBe('You have made a lot of changes in the last hour. Try again shortly.');
   });
 
+  // No answer from Webly at all — offline, or the server restarting behind a proxy that answers for it. This used
+  // to read "That could not be saved." over a page that was loading, not saving.
+  it('says Webly cannot be reached when nothing of ours answered', () => {
+    const unreachable = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
+
+    expect(messageOf({ status: 0, error: { type: 'error' } })).toBe(unreachable);
+    expect(messageOf({ status: 502, error: '<html>Bad gateway</html>' })).toBe(unreachable);
+    expect(messageOf({ status: 503, error: null })).toBe(unreachable);
+  });
+
+  // A 503 that *is* ours — the preview's own sentence, say — carries its title and keeps it.
+  it('keeps our own sentence on a gateway status', () => {
+    expect(messageOf({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe('Your preview is asleep.');
+  });
+
   // Without the marker it is an unhandled server exception, whose message the server deliberately does not send.
   // Showing "An unexpected error occurred invoking 'Subscribe' on the server" to somebody naming a method they
   // have never heard of is worse than the generic sentence.
