@@ -41,7 +41,11 @@ export async function shrinkImage(file: File): Promise<File> {
   if (file.type === 'image/gif') return file;
 
   try {
-    const bitmap = await createImageBitmap(file);
+    // Upright as the camera meant it. A phone records which way up a photograph is in its EXIF orientation, and
+    // the re-encode below drops EXIF — so the rotation has to be applied while decoding, or a portrait photo comes
+    // out lying on its side. `from-image` is the spec's default and what Chromium does (a JPEG flagged "rotate 90°"
+    // measured 200×400 from 400×200 pixels); said here so it does not rest on any one browser's default.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
 
     if (scale === 1 && file.size <= LEAVE_ALONE_BYTES) {
