@@ -1080,8 +1080,7 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     deliberate way back. That is a real cost on macOS and Windows, where bubblewrap does not exist: the local
     provider now needs a container there, or the explicit opt-out. The container providers leave it off, because
     the container is already this boundary; the same flag would confine inside an E2B microVM, unverified.
-    Not done: **network egress** is not filtered — the model call and `npm ci` need the network, and an
-    allow-list (the model API, the npm registry) is the next step. CI still runs the harness unconfined, because
+    **Network egress is filtered too now — 73.** CI still runs the harness unconfined, because
     whether a GitHub runner allows bubblewrap's namespaces is unverified and a red CI nobody can fix from here
     is worse than the gap.
 
@@ -1100,6 +1099,41 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     seconds the agent had edited `content/brand.md` and the contact page; after the stop the branch had not
     moved, the workspace was byte-for-byte the head, and the thread said "Stopped. Nothing was changed." — which
     is now true.
+
+
+73. **The sandbox has no network but an allow-list, which took moving the boundary.** 71 wrapped each command in
+    its own bubblewrap sandbox, and that cannot restrict a network: give each command no network and they cannot
+    reach each other — the agent's `curl localhost`, the screenshot browser and the dev server would each have had
+    a loopback of their own. So a confined sandbox is now one bubblewrap sandbox around the sandbox agent itself,
+    the shape a container is, started by `tools/sandbox-agent/confine.js`, with two doors out, both Unix
+    sockets: Webly's connection in (forwarded from TCP byte for byte, so the preview's WebSocket needs no code of
+    its own), and an egress proxy out that admits `Sandbox:Local:EgressAllow` and refuses the rest with a 403 and
+    a sentence. Inside, the agent bridges a loopback port to that socket and points every command at it.
+    Anything that ignores the proxy simply has no route — `ENETUNREACH` — so the list is a boundary.
+
+    Found by running it, in order: OpenCode reads its model catalogue from `models.opencode.ai` and fails with
+    "Unexpected server error" without it, so that is on the default list; mounting the agent's own directory at
+    its path in a checkout brought the checkout's directory names with it, so it is mounted at `/opt/webly-agent`,
+    the image's path; and making node's own `fetch` use the proxy (`NODE_USE_ENV_PROXY`, which next/font needs)
+    makes every node process print that the proxy agent is experimental, into every command's output and the dev
+    server's log the compile check reads — that one warning is switched off. Proved: the confined harness, all
+    nineteen steps including the publish build downloading its font through the proxy; a probe in which npm and
+    OpenCode work, `example.com` and `github.com` are refused and a raw socket finds no route; and real turns and a
+    publish through the app. The `docker` provider is still a filesystem boundary only; the same proxy in front of
+    `--network none` is how it would get one.
+
+74. **The agent looks at its work.** `webly-screenshot` — no dependencies, Chromium over its DevTools protocol —
+    saves full-page screenshots at desktop and phone width into the workspace's `.webly/screenshots`, never
+    committed, and reports failed requests and script errors. `AGENTS.md` asks for it after any change to how a
+    page looks. Asked to close "a big empty gap" on Casa Lupa's home page — which the agent had itself noticed in
+    a screenshot earlier, unprompted — it edited the page, ran `webly-screenshot /` inside the confined sandbox,
+    opened both images (`image/png` attachments in OpenCode's own record), said "The screenshots look balanced
+    now, including the 390px phone view", ran the typecheck and committed a two-line change: the page went from
+    1066 to 962 pixels tall. Two decisions in it: the images are inside the workspace because a CLI reading
+    outside its project asks permission, and nobody is there to give it; and Claude Code is pre-approved for
+    exactly `npm run typecheck` and `webly-screenshot`, because `acceptEdits` in a headless run refuses every other
+    shell command — which means the typecheck `AGENTS.md` has always asked for was being refused. **Unverified**:
+    that change with a real Claude turn, and Debian's `chromium` in the image.
 
 
 ## What is still intent

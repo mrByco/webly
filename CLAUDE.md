@@ -26,14 +26,14 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 185-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 187-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
 Two harnesses drive it, and they answer different questions:
 
 - **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
-  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in eighteen steps from "a
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in nineteen steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
@@ -213,16 +213,35 @@ more than one restating what the line does.
   `{temp}/webly-workspaces-{checkout}`; set it to `docker` for a container instead (build the image first — see
   the table above) or the first message fails with "the sandbox container never became reachable". Idle
   sandboxes are reaped after ten minutes either way.
-- **The agent can reach nothing outside its working directory.** Every command a sandbox runs — the agent CLI,
-  `npm ci` and its install scripts, the dev server running the site's own code — runs under bubblewrap: the
-  workspace and a private home beside it are writable, the system directories and the toolchain are read-only,
-  and nothing else of the machine exists. No checkout, no `.run/repositories`, no other site's workspace, and an
-  allow-listed environment, so the backend's connection string and keys are not inherited either. The local
-  provider **refuses to start** when bubblewrap is missing or cannot create a sandbox, with a sentence naming
-  the remedies — install it, or use `docker` — rather than quietly running unconfined;
-  `Sandbox:Local:Confinement = none` is the deliberate way back. `tools/e2e/run.mjs --confine` runs the whole
-  loop confined and asserts the checkout and the starter's environment are unreachable. Not filtered: the
-  network, which the model call and `npm ci` need — an egress allow-list is the next step.
+- **The agent can reach nothing outside its working directory, and nothing on the network but an allow-list.**
+  A confined sandbox is `tools/sandbox-agent/confine.js`: the same agent, inside one bubblewrap sandbox with
+  everything it runs — the agent CLI, `npm ci` and its install scripts, the dev server running the site's own
+  code. The workspace and a private home beside it are writable; the system directories and the toolchain are
+  read-only; nothing else of the machine exists — no checkout, no `.run/repositories`, no other site's workspace,
+  and an allow-listed environment, so the backend's connection string and keys are not inherited. **It has no
+  network but loopback.** The one way out is an HTTP proxy `confine.js` runs outside, reached through a Unix
+  socket, which admits only `Sandbox:Local:EgressAllow` — the model APIs, OpenCode's model catalogue (without it
+  OpenCode will not start), the npm registry, the font host — and answers anything else with a 403 and a
+  sentence; a connection that goes around the proxy has no route at all, which is what makes the list a boundary
+  rather than a request. Webly reaches the agent the same way in reverse: TCP to `confine.js`, forwarded byte for
+  byte to the agent's socket, WebSocket upgrades included. **One sandbox rather than one per command**, because
+  the network has to be shared: the agent's commands and its screenshot browser reach the dev server on
+  loopback, and separate namespaces would each have had their own. The local provider **refuses to start** when
+  bubblewrap is missing or cannot create a sandbox, with a sentence naming the remedies — install it, or use
+  `docker` — rather than quietly running unconfined; `Sandbox:Local:Confinement = none` is the deliberate way
+  back. `tools/e2e/run.mjs --confine` runs the whole loop confined and asserts all of the above. The `docker`
+  provider's container is a filesystem boundary but not yet a network one.
+- **The agent looks at what it changed.** `webly-screenshot /page` (`tools/sandbox-agent/bin`, on every
+  command's PATH) drives a Chromium over its DevTools protocol, with no dependencies, and saves a full-page
+  screenshot at desktop and phone width into the workspace's `.webly/screenshots` — inside the workspace so
+  either CLI can open it without asking for a directory outside its project, and on the sandbox agent's ignore
+  list so it can never reach a commit. It prints any failed request or script error too. `AGENTS.md` asks for it
+  after any change to how a page looks; both CLIs read images, and the first real turn that had it photographed
+  its edit at both widths, opened both images and judged them before the type check. Claude Code is given
+  exactly `npm run typecheck` and `webly-screenshot` as pre-approved commands — `acceptEdits` refuses every
+  other shell command in a headless run, which had quietly refused the typecheck `AGENTS.md` always asked for.
+  The browser is `Sandbox:Local:Browser`, or the first Chromium on PATH; without one the command says so and the
+  agent carries on. The image installs Debian's `chromium`, the largest thing in it.
 - **A local workspace must not be inside a git repository, and a command's `PWD` must be its workspace.** Both
   were wrong, and the first real agent through the app took the whole Webly checkout for the site: it searched
   `.run`, and on its second turn checked a site's bare repository out by itself and committed to its branch, with

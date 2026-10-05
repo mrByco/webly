@@ -5,7 +5,7 @@ node tools/e2e/run.mjs --agent mock              # no credentials needed
 node tools/e2e/run.mjs --agent claude            # the real CLI; also re-records the parser's fixture
 node tools/e2e/run.mjs --agent mock --keep       # leave the workspace and repository to poke at
 node tools/e2e/run.mjs --agent mock --out ./site # keep the published site, to open in a browser
-node tools/e2e/run.mjs --agent mock --confine     # every command under bubblewrap, as the backend runs them
+node tools/e2e/run.mjs --agent mock --confine     # the sandbox under bubblewrap, network limited, as the backend runs it
 ```
 
 Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a hosting account — except
@@ -82,24 +82,29 @@ build — are all exercised for real. What is mocked is the part written in the 
 1. A new site is the template, committed to its own bare repository — with `AGENTS.md` and
    `content/brand.md` — and that first commit's diff, which has no parent to diff against.
 2. A turn that changes nothing commits nothing.
-3. A sandbox starts and answers `/health`.
+3. A sandbox starts and answers `/health`. With `--confine`, also: this checkout and the starter's environment
+   do not exist for a command, an allow-listed host answers, any other host is refused, and a connection that
+   goes around the proxy finds no route.
 4. The commit's tree lands in the workspace, and `node_modules` did not travel through git.
 5. `npm ls --depth=0` passes without an install — the prebaked-dependencies bet the sandbox image makes.
 6. `next dev` starts and `/preview/` serves the page **through the agent's proxy** — the document *and* its
    stylesheet, under the base path the dev server was started with.
-7. A turn runs the agent in the workspace.
-8. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
-   *(`--agent claude` only, so a mock run has seventeen steps rather than eighteen.)*
-9. The tree comes back and becomes exactly one commit, authored by the person, with a diff.
-10. Hot reload puts the change on screen with nothing on Webly's side asking for it.
-11. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
-12. Restoring an earlier version writes it forward and keeps the history reachable.
-13. The publish gate: the site really builds.
-14. Publishing copies the export out and **the published page says what the person typed**.
-15. The site exports as a git bundle that **clones into a working project** with its history.
-16. A broken build is caught rather than published, and the log says why.
-17. A compile error is reported when it happens and **stops being reported once it is fixed**.
-18. A type error **serves a page happily** and only `npm run typecheck` catches it — and the check leaves no
+7. **The agent can look at the page**: `webly-screenshot /`, run inside the sandbox, saves a desktop and a phone
+   screenshot, reports no failed request or script error, and none of it reaches the tree. Skipped, and said so,
+   without a Chromium (`WEBLY_BROWSER`).
+8. A turn runs the agent in the workspace.
+9. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
+   *(`--agent claude` only, so a mock run has eighteen steps rather than nineteen.)*
+10. The tree comes back and becomes exactly one commit, authored by the person, with a diff.
+11. Hot reload puts the change on screen with nothing on Webly's side asking for it.
+12. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
+13. Restoring an earlier version writes it forward and keeps the history reachable.
+14. The publish gate: the site really builds.
+15. Publishing copies the export out and **the published page says what the person typed**.
+16. The site exports as a git bundle that **clones into a working project** with its history.
+17. A broken build is caught rather than published, and the log says why.
+18. A compile error is reported when it happens and **stops being reported once it is fixed**.
+19. A type error **serves a page happily** and only `npm run typecheck` catches it — and the check leaves no
     `.tsbuildinfo` in the tree that becomes a commit.
 
 ## Things it has already caught
