@@ -12,6 +12,16 @@ import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 
 const AGENT = new URL('../sandbox-agent/index.js', import.meta.url).pathname;
+const CONFINED_AGENT = new URL('../sandbox-agent/confine.js', import.meta.url).pathname;
+
+/**
+ * Where a confined sandbox may connect, the same list the backend's default is: the two model APIs, where
+ * OpenCode reads its model catalogue (it fails to start without it), the npm registry, and the font host
+ * next/font downloads from.
+ */
+export const EGRESS_ALLOW = [
+  'api.anthropic.com', 'api.openai.com', 'models.opencode.ai', 'registry.npmjs.org', 'fonts.googleapis.com', 'fonts.gstatic.com',
+];
 
 /**
  * Starts the sandbox agent as a local child process.
@@ -30,7 +40,8 @@ export async function startSandbox({ port = 0, devPort = 0, confine = false, rea
   // Beside the workspace rather than in it: a file inside would travel into the tree the agent hands back.
   const devPidFile = `${workspace}.devpid`;
 
-  const child = spawn(process.execPath, [AGENT], {
+  // Confined, the sandbox is confine.js: the same agent inside bubblewrap, with no network but the allow-list.
+  const child = spawn(process.execPath, [confine ? CONFINED_AGENT : AGENT], {
     env: {
       ...process.env,
       WEBLY_WORKSPACE: workspace,
@@ -38,7 +49,7 @@ export async function startSandbox({ port = 0, devPort = 0, confine = false, rea
       WEBLY_AGENT_TOKEN: token,
       WEBLY_DEV_PORT: String(devServerPort),
       WEBLY_DEV_PIDFILE: devPidFile,
-      ...(confine ? { WEBLY_CONFINE: 'bubblewrap', WEBLY_CONFINE_READ: readOnly.join(':') } : {}),
+      ...(confine ? { WEBLY_CONFINE_READ: readOnly.join(':'), WEBLY_EGRESS_ALLOW: EGRESS_ALLOW.join(',') } : {}),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so disposing can kill the group. The dev server is a *grandchild* — the agent

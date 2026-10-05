@@ -71,6 +71,17 @@ If you changed a page's structure or copy, also look at the running dev server's
 before you finish. It is already compiling while you work, and that is where a syntax error or a bad import
 shows up.
 
+**Then look at what you changed.** A page that compiles can still have a card cut off on a phone, text on a
+background it cannot be read against, a button wrapped onto two lines, or a gap that makes the page look
+unfinished — and none of that is in any log. After changing how a page looks, run:
+
+    webly-screenshot /the-page-you-changed
+
+It saves a full-page screenshot at desktop and at phone width under `.webly/screenshots/` (never committed) and
+prints where, plus any request that failed or script that threw while it loaded. Open both images with your file-reading tool, look at them the way a visitor
+would, and fix what is wrong before you finish. Once is usually enough; a second look after a fix is worth it,
+a third is not. If it says screenshots are not available, carry on without them.
+
 ## Shape of the project
 
 - `src/app/` — routes. `page.tsx` is the home page; a new page is a folder with a `page.tsx`.

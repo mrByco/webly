@@ -19,12 +19,12 @@ namespace Webly.Services.Services.Sandboxes;
 ///
 /// <b>It must never be the production provider.</b> The workspace is a directory on this host and the agent
 /// CLI runs as this user. What keeps the agent inside its workspace is <b>bubblewrap</b>
-/// (<see cref="LocalSandboxOptions.Confinement"/>): every command and the dev server see the workspace, a
-/// private home, a read-only toolchain and nothing else of the machine — no checkout, no other site, no
-/// repositories, no inherited secrets. It was a plain child process until the first real agent through it
-/// committed to a site's bare repository on its own. What it does not do is filter the network, and a kernel
-/// shared with the host is not a microVM, which is why <c>AddWeblySites</c> still refuses to select it
-/// outside Development.
+/// (<see cref="LocalSandboxOptions.Confinement"/>, <c>tools/sandbox-agent/confine.js</c>): the agent, its
+/// commands and the dev server see the workspace, a private home, a read-only toolchain and nothing else of the
+/// machine — no checkout, no other site, no repositories, no inherited secrets — and reach the network only
+/// through a proxy that admits <see cref="LocalSandboxOptions.EgressAllow"/>. It was a plain child process until
+/// the first real agent through it committed to a site's bare repository on its own. A kernel shared with the
+/// host is still not a microVM, which is why <c>AddWeblySites</c> refuses to select it outside Development.
 ///
 /// What it does keep is the contract. The agent it spawns is the same <c>tools/sandbox-agent</c> the image
 /// runs, reached over HTTP with a per-sandbox bearer token, so files, exec, the dev server and the preview all
@@ -186,7 +186,9 @@ public class LocalSandboxProvider(
             WorkingDirectory = workspace
         };
 
-        startInfo.ArgumentList.Add(agentScript);
+        // Confined, the sandbox is confine.js beside the agent: the same agent inside bubblewrap, with no network but
+        // the egress allow-list. It is the local equivalent of the image, not a second agent.
+        startInfo.ArgumentList.Add(confined ? Path.Combine(Path.GetDirectoryName(agentScript)!, "confine.js") : agentScript);
 
         startInfo.Environment["WEBLY_WORKSPACE"] = workspace;
         startInfo.Environment["WEBLY_AGENT_PORT"] = agentPort.ToString();
@@ -204,11 +206,12 @@ public class LocalSandboxProvider(
 
         if (confined)
         {
-            startInfo.Environment["WEBLY_CONFINE"] = LocalSandboxOptions.BubblewrapConfinement;
-
-            // A confined command's environment is an allow-list, so the workload's own variables are named.
+            // The sandbox's environment is an allow-list, so the workload's own variables are named.
             startInfo.Environment["WEBLY_WORKLOAD_ENV"] = string.Join(',', spec.Environment.Keys);
+            startInfo.Environment["WEBLY_EGRESS_ALLOW"] = string.Join(',', _local.AllowedHosts);
         }
+
+        if (!string.IsNullOrWhiteSpace(_local.Browser)) startInfo.Environment["WEBLY_BROWSER"] = _local.Browser;
 
         var process = Process.Start(startInfo)
             ?? throw new SandboxException("The local sandbox agent could not be started.");
@@ -459,8 +462,9 @@ public class LocalSandboxOptions
     }
 
     /// <summary>
-    /// <c>bubblewrap</c> (the default) or <c>none</c>: whether what the agent runs can reach anything of this
-    /// machine but its workspace. See the sandbox agent's <c>CONFINE</c> for what it can and cannot see.
+    /// <c>bubblewrap</c> (the default) or <c>none</c>: whether the sandbox can reach anything of this machine but
+    /// its workspace, and anything on the network but <see cref="EgressAllow"/>. <c>tools/sandbox-agent/confine.js</c>
+    /// is what it can and cannot see.
     ///
     /// <b>Required by default, and refused rather than skipped when it is missing</b>, because the agent must not
     /// reach anything outside its working directory and the first real one through this provider did — it found
@@ -472,6 +476,35 @@ public class LocalSandboxOptions
     public string Confinement { get; set; } = BubblewrapConfinement;
 
     public const string BubblewrapConfinement = "bubblewrap";
+
+    /// <summary>
+    /// The hosts a confined sandbox may connect to; everything else is refused by its egress proxy, and anything
+    /// that tries to go around the proxy has no route at all. Empty means <see cref="DefaultEgress"/>, so a host
+    /// with no configuration still reaches the model — a sandbox whose agent cannot call its own API fails every
+    /// turn with "Unexpected server error", which is how a missing host on this list first showed itself.
+    /// <c>*.example.com</c> covers a domain's subdomains.
+    /// </summary>
+    public string[] EgressAllow { get; set; } = [];
+
+    /// <summary>
+    /// The model APIs; where OpenCode reads its model catalogue, without which it will not start; the npm
+    /// registry, for <c>npm ci</c> and an agent adding a package; and the font host <c>next/font/google</c>
+    /// downloads from at build time.
+    /// </summary>
+    public static readonly string[] DefaultEgress =
+    [
+        "api.anthropic.com", "api.openai.com", "models.opencode.ai", "registry.npmjs.org",
+        "fonts.googleapis.com", "fonts.gstatic.com"
+    ];
+
+    public IReadOnlyList<string> AllowedHosts => EgressAllow.Length > 0 ? EgressAllow : DefaultEgress;
+
+    /// <summary>
+    /// A Chromium for <c>webly-screenshot</c>, the agent's way of looking at the page it just changed. Empty finds
+    /// the first <c>chromium</c> or <c>google-chrome</c> on PATH; with none, the command says screenshots are not
+    /// available and the agent carries on without looking.
+    /// </summary>
+    public string Browser { get; set; } = string.Empty;
 
     public const string NoConfinement = "none";
 

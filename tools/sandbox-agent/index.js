@@ -18,10 +18,10 @@
 // archive work because it is already in every image that can run Next.js.
 
 import { createServer, request as httpRequest } from 'node:http';
-import { connect } from 'node:net';
+import { connect, createServer as createNetServer } from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync, readdirSync, rmSync, writeFileSync, lstatSync, readlinkSync, realpathSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.WEBLY_AGENT_PORT ?? 8080);
 const TOKEN = process.env.WEBLY_AGENT_TOKEN ?? '';
@@ -65,157 +65,60 @@ const INHERITED_ENV = (() => {
  * only place it could not happen; it is set here so that it is true everywhere rather than absent by luck.
  */
 function environmentFor(directory, env) {
-  return { ...INHERITED_ENV, ...env, PWD: directory };
-}
-
-/**
- * Whether what this agent runs is confined to the workspace: `bubblewrap`, or `none`.
- *
- * **A command can reach nothing of this machine but its workspace.** The coding agent and everything it starts —
- * the CLI, `npm ci` and the packages' install scripts, the dev server running the site's own code — run in a
- * bubblewrap sandbox where the workspace is the only thing they can write and the rest of the filesystem does not
- * exist: no home directory, no other site's workspace, no Webly checkout, no `.run/repositories`. The system's
- * own directories and the toolchain (node, git, the agent CLIs) are there read-only, because a program has to be
- * readable to run; that is the whole of what is visible. The environment is an allow-list too, so the backend's
- * connection string and keys, which a child process used to inherit, are not in it.
- *
- * It exists because the local provider is a process on somebody's machine, and the first real agent run through
- * it went looking outside its workspace and found a site's bare repository to commit to. Moving the workspace and
- * fixing `PWD` took away its reasons; this takes away the ability. A container is already this boundary, so the
- * image leaves it `none` — the same flag would confine inside a microVM, where bubblewrap can create namespaces.
- */
-const CONFINE = process.env.WEBLY_CONFINE ?? 'none';
-
-/**
- * The agent CLI's home: beside the workspace, never inside it, for the reason the pid files are. It is where
- * Claude Code and OpenCode keep the sessions a warm workspace resumes, so it lives as long as the workspace and
- * is private to it — one site's agent cannot read another's conversation.
- */
-const AGENT_HOME = `${WORKSPACE}.home`;
-
-/** What a confined command may know of this process's environment, by name. */
-const CONFINED_ENV = new Set([
-  'PATH', 'LANG', 'LANGUAGE', 'TZ', 'TERM',
-  // A network that only works through a proxy, with its own certificate authority, is a network the agent's
-  // model calls and `npm ci` need. The files these name are mounted read-only below.
-  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy',
-  'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE', 'CURL_CA_BUNDLE', 'GIT_SSL_CAINFO',
-  // Whatever the provider declared the workload's own (SandboxSpec.Environment).
-  ...(process.env.WEBLY_WORKLOAD_ENV ?? '').split(',').filter(Boolean),
-]);
-
-const isSystemPath = path => ['/usr', '/bin', '/sbin', '/lib', '/lib32', '/lib64', '/libx32', '/etc']
-  .some(root => path === root || path.startsWith(`${root}/`));
-
-/** A tool on PATH, as the shell would find it, or null. */
-function which(tool) {
-  for (const directory of (process.env.PATH ?? '').split(':')) {
-    const candidate = `${directory}/${tool}`;
-
-    if (directory && existsSync(candidate)) return candidate;
-  }
-
-  return null;
-}
-
-/**
- * The smallest directory a tool needs to run: the `node_modules` an npm-installed CLI lives in, since it loads
- * its siblings (OpenCode execs a platform binary from one), or the prefix of a node install, for npm and npx.
- */
-function installRoot(file) {
-  const packages = file.lastIndexOf('/node_modules/');
-
-  if (packages >= 0) return file.slice(0, packages + '/node_modules'.length);
-
-  const directory = dirname(file);
-
-  return basename(directory) === 'bin' ? dirname(directory) : directory;
-}
-
-/**
- * The bubblewrap arguments every confined command shares, worked out once. Order matters: `/tmp` is a fresh
- * tmpfs *before* anything is bound into it, because the workspace, its home and a toolchain can all live under
- * the host's `/tmp` and have to appear on top of the empty one rather than be hidden by it.
- */
-const CONFINEMENT = CONFINE === 'bubblewrap' ? (() => {
-  mkdirSync(AGENT_HOME, { recursive: true });
-
-  const args = [
-    '--die-with-parent', '--new-session',
-    // Its own process table, so a killed bwrap takes everything inside with it: the dev server's grandchildren
-    // included, which a process-group kill alone would miss across the session --new-session starts.
-    '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--unshare-cgroup-try',
-    '--ro-bind', '/usr', '/usr',
-  ];
-
-  // Merged-/usr systems make these symlinks, and a symlink is recreated rather than bound so it keeps pointing
-  // into the read-only /usr above.
-  for (const path of ['/bin', '/sbin', '/lib', '/lib32', '/lib64', '/libx32']) {
-    if (!existsSync(path)) continue;
-
-    args.push(...(lstatSync(path).isSymbolicLink() ? ['--symlink', readlinkSync(path), path] : ['--ro-bind', path, path]));
-  }
-
-  // The parts of /etc a program reads to resolve a name, trust a certificate and know who it is — and nothing
-  // else of it, because /etc is also where a machine keeps things that are nobody's business.
-  for (const path of ['resolv.conf', 'hosts', 'nsswitch.conf', 'host.conf', 'gai.conf', 'ssl', 'ca-certificates',
-    'pki', 'passwd', 'group', 'localtime', 'alternatives', 'ld.so.cache', 'ld.so.conf', 'ld.so.conf.d']) {
-    args.push('--ro-bind-try', `/etc/${path}`, `/etc/${path}`);
-  }
-
-  args.push('--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp');
-
-  const toolchain = new Set([installRoot(realpathSync(process.execPath))]);
-
-  for (const tool of ['npm', 'npx', 'git', 'claude', 'opencode', 'vercel']) {
-    const found = which(tool);
-
-    if (!found) continue;
-
-    toolchain.add(dirname(found));
-    toolchain.add(installRoot(realpathSync(found)));
-  }
-
-  for (const root of toolchain) {
-    if (root !== '/' && !isSystemPath(root)) args.push('--ro-bind', root, root);
-  }
-
-  // Several variables commonly name the same bundle; it is mounted once.
-  const certificates = new Set(['NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'REQUESTS_CA_BUNDLE',
-    'CURL_CA_BUNDLE', 'GIT_SSL_CAINFO'].map(name => process.env[name]).filter(Boolean));
-
-  for (const path of certificates) {
-    if (!isSystemPath(path)) args.push('--ro-bind-try', path, path);
-  }
-
-  // Read-only paths the starter declared: a dependency tree it already has, the way an image carries one
-  // prebaked. The harness links the template's node_modules into each workspace, and a link to a directory the
-  // sandbox cannot see is a missing dependency.
-  for (const path of (process.env.WEBLY_CONFINE_READ ?? '').split(':').filter(Boolean)) {
-    args.push('--ro-bind', path, path);
-  }
-
-  args.push('--bind', WORKSPACE, WORKSPACE, '--bind', AGENT_HOME, AGENT_HOME);
-
-  return args;
-})() : null;
-
-/**
- * How to start a command: as asked, or inside the workspace's bubblewrap sandbox with an allow-listed
- * environment. The one place both `/exec` and the dev server start a process, so neither can be confined
- * without the other.
- */
-function launch(command, args, directory, env) {
-  if (!CONFINEMENT) return { file: command, args, env: environmentFor(directory, env) };
-
-  const allowed = Object.fromEntries(Object.entries(INHERITED_ENV)
-    .filter(([name]) => CONFINED_ENV.has(name) || name.startsWith('LC_')));
-
   return {
-    file: 'bwrap',
-    args: [...CONFINEMENT, '--chdir', directory, '--', command, ...args],
-    env: { ...allowed, ...env, HOME: AGENT_HOME, TMPDIR: '/tmp', PWD: directory },
+    ...INHERITED_ENV,
+    ...egressEnv,
+    PATH: `${TOOLS}:${INHERITED_ENV.PATH ?? ''}`,
+    // Where the site is being served, for `webly-screenshot` and anything else that wants to look at it.
+    WEBLY_DEV_URL: `http://127.0.0.1:${DEV_PORT}${devBasePath}`,
+    ...env,
+    PWD: directory,
   };
+}
+
+/**
+ * Webly's own commands for the agent, on its PATH: `webly-screenshot`, for now. Beside this file, so the image and
+ * a checkout find them the same way.
+ */
+const TOOLS = fileURLToPath(new URL('./bin', import.meta.url));
+
+/**
+ * The way out, when there is one to arrange. Under confine.js this agent has no network but loopback, and the
+ * egress proxy is a Unix socket; tools speak HTTP proxies over TCP, so a loopback port is bridged to it and every
+ * command is pointed there. Anything that ignores the proxy simply has no route — which is what makes the
+ * allow-list a boundary rather than a request.
+ */
+const EGRESS_SOCKET = process.env.WEBLY_EGRESS_SOCKET ?? '';
+let egressEnv = {};
+
+function startEgressBridge(then) {
+  if (!EGRESS_SOCKET) return then();
+
+  const bridge = createNetServer(client => {
+    const upstream = connect(EGRESS_SOCKET);
+
+    client.pipe(upstream);
+    upstream.pipe(client);
+    upstream.on('error', () => client.destroy());
+    client.on('error', () => upstream.destroy());
+  });
+
+  bridge.listen(0, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${bridge.address().port}`;
+
+    egressEnv = {
+      HTTP_PROXY: url, HTTPS_PROXY: url, http_proxy: url, https_proxy: url,
+      NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost',
+      // Node's own fetch ignores the variables above unless asked, and next/font downloads with it. Asking makes
+      // every node process print that the proxy agent is experimental, which would land in every command's output,
+      // the dev server's log the compile check reads, and the agent's tool results — so that one warning is
+      // switched off, and no other.
+      NODE_USE_ENV_PROXY: '1',
+      NODE_OPTIONS: [INHERITED_ENV.NODE_OPTIONS, '--disable-warning=UNDICI-EHPA'].filter(Boolean).join(' '),
+    };
+
+    then();
+  });
 }
 
 // What never travels back to git. Build output and dependencies are reproducible from the tree, and a
@@ -230,6 +133,9 @@ function launch(command, args, directory, env) {
 const IGNORED = [
   '.git', 'node_modules', '.next', '.vercel', '.turbo', 'dist', 'out',
   '.env', '.env.local', '.env.*.local', '*.log', '*.tsbuildinfo', '.DS_Store', '.claude', '.opencode',
+  // Webly's own scratch space in a workspace: `webly-screenshot` writes there, inside the workspace so that either
+  // CLI can open the image without asking for a directory outside its project, and never into a commit.
+  '.webly',
 ];
 
 mkdirSync(WORKSPACE, { recursive: true });
@@ -294,7 +200,9 @@ function readJson(request) {
  * the one place that was told the root.
  */
 function relative(text) {
-  return text.split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
+  // The agent's own home first, which sits beside the workspace and shares its prefix: without this, a screenshot
+  // saved at `<workspace>.home/screenshots/x.png` reads as `..home/screenshots/x.png`.
+  return text.split(`${WORKSPACE}.home`).join('~').split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
 }
 
 /**
@@ -310,11 +218,9 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
 
   const directory = cwd ? `${WORKSPACE}/${cwd}` : WORKSPACE;
 
-  const launched = launch(command, args, directory, env);
-
-  const child = spawn(launched.file, launched.args, {
+  const child = spawn(command, args, {
     cwd: directory,
-    env: launched.env,
+    env: environmentFor(directory, env),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -412,11 +318,9 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   // No trailing slash, because it is concatenated with paths that start with one.
   devBasePath = basePath.replace(/\/+$/, '');
 
-  const launched = launch(command, args, WORKSPACE, { ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath });
-
-  devServer = spawn(launched.file, launched.args, {
+  devServer = spawn(command, args, {
     cwd: WORKSPACE,
-    env: launched.env,
+    env: environmentFor(WORKSPACE, { ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath }),
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
     // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the
@@ -611,8 +515,16 @@ server.on('upgrade', (request, socket, head) => {
   upstream.on('error', () => socket.destroy());
 });
 
-server.listen(PORT, '0.0.0.0', () =>
-  console.log(`webly sandbox agent on :${PORT}, workspace ${WORKSPACE}, dev server :${DEV_PORT}`));
+// On a Unix socket when confine.js asks — inside its sandbox there is no network to listen on, and it forwards
+// Webly's connection here — and on a port otherwise.
+const SOCKET = process.env.WEBLY_AGENT_SOCKET ?? '';
+
+startEgressBridge(() => {
+  if (SOCKET) rmSync(SOCKET, { force: true });
+
+  server.listen(...(SOCKET ? [SOCKET] : [PORT, '0.0.0.0']), () =>
+    console.log(`webly sandbox agent on ${SOCKET || `:${PORT}`}, workspace ${WORKSPACE}, dev server :${DEV_PORT}`));
+});
 
 /**
  * Take the dev server down with us.

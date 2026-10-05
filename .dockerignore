@@ -17,6 +17,8 @@ tools/dev-mcp/
 # node_modules under it is handled by the **/node_modules/ rule below.
 
 **/bin/
+# ...except the sandbox agent's commands for the coding agent, which the sandbox image copies.
+!tools/sandbox-agent/bin/
 **/obj/
 **/node_modules/
 

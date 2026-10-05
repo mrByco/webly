@@ -358,6 +358,16 @@ try {
 
       const inherited = await box.exec(started, { command: 'sh', args: ['-c', 'echo "${WEBLY_E2E_CANARY:-absent}"'] });
       check(inherited.output.trim() === 'absent', `confined: the starter's environment is not inherited (${inherited.output.trim()})`);
+
+      // The network: one way out, through a proxy that admits only the allow-list, and no route around it.
+      const allowed = await box.exec(started, { command: 'node', args: ['-e', 'fetch("https://registry.npmjs.org/react").then(r => console.log(r.status), e => console.log(String(e)))'] });
+      check(allowed.output.trim() === '200', `confined: an allow-listed host answers (registry.npmjs.org: ${allowed.output.trim()})`);
+
+      const refused = await box.exec(started, { command: 'node', args: ['-e', 'fetch("https://example.com").then(r => console.log(r.status), () => console.log("refused"))'] });
+      check(refused.output.trim() === 'refused', `confined: any other host is refused (example.com: ${refused.output.trim()})`);
+
+      const around = await box.exec(started, { command: 'node', args: ['-e', 'require("net").connect(443, "93.184.216.34").on("connect", () => { console.log("connected"); process.exit(0) }).on("error", e => console.log(e.code))'] });
+      check(around.output.trim() !== 'connected', `confined: going around the proxy finds no route (${around.output.trim()})`);
     }
 
     return started;
@@ -428,6 +438,29 @@ try {
     check(state.devServer === 'ready' || state.devServer === 'starting', `health reports the dev server ${state.devServer}`);
 
     globalThis.__before = html;
+  });
+
+  // -- The agent looking at its own work ------------------------------------------------------------
+  // `webly-screenshot` is how AGENTS.md asks the agent to check a page that compiles but may look wrong. Asserted
+  // here as the agent would run it, from inside the sandbox: both widths saved, the page loaded cleanly, and none
+  // of it able to reach a commit. Skipped, and said so, on a machine with no Chromium.
+  await step('The agent can look at the page it is editing: full-page screenshots from inside the sandbox', async () => {
+    const shot = await box.exec(sandbox, { command: 'webly-screenshot', args: ['/'] });
+
+    if (shot.exitCode === 3) {
+      check(true, `skipped — ${shot.output.trim()}`);
+      return;
+    }
+
+    check(shot.exitCode === 0, `webly-screenshot exited ${shot.exitCode}: ${shot.output.trim().slice(0, 300)}`);
+    check((shot.output.match(/Saved /g) ?? []).length === 2, 'it saved a desktop and a phone screenshot');
+    check(/No failed requests and no script errors/.test(shot.output), 'and the page loaded without a failed request or a script error');
+
+    const png = readFileSync(join(sandbox.workspace, '.webly', 'screenshots', 'home-phone.png'));
+    check(png.subarray(1, 4).toString() === 'PNG', `the phone screenshot is a PNG (${png.length} bytes)`);
+
+    const tree = await box.readTree(sandbox);
+    check(!tree.some(file => file.path.startsWith('.webly')), 'and nothing of it can travel into the tree that becomes a commit');
   });
 
   // -- 6. A real agent turn ----------------------------------------------------------------------

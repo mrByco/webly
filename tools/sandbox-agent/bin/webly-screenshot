@@ -1,0 +1,3 @@
+#!/bin/sh
+# Full-page screenshots of the site being edited, at desktop and phone width. See ../screenshot.js.
+exec node "$(dirname "$0")/../screenshot.js" "$@"

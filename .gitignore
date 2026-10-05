@@ -5,6 +5,8 @@ sample-projects/
 # .NET
 bin/
 obj/
+# ...except the sandbox agent's commands for the coding agent (webly-screenshot), which are not build output.
+!tools/sandbox-agent/bin/
 .vs/
 *.user
 *.suo

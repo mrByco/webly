@@ -58,6 +58,11 @@ public class ClaudeCodeAgent(
             // without it the editor shows nothing for two minutes and then everything at once.
             "--verbose",
             "--permission-mode", "acceptEdits",
+            // The two commands AGENTS.md asks for, and only those. acceptEdits lets it write files; a headless run
+            // refuses every other shell command, so without this the typecheck it has always been told to run was
+            // refused, and so would be the screenshot it now looks at its work with. Named rather than all of Bash,
+            // so that an unconfined local sandbox still is not a shell for the model.
+            "--allowedTools", "Bash(npm run typecheck),Bash(webly-screenshot *)",
             "--model", _options.Model,
             // The site's own instructions are in its repository (AGENTS.md, CLAUDE.md), so the agent reads
             // them as part of the workspace rather than being handed them here. That is what lets facts about

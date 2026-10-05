@@ -21,6 +21,29 @@ public class LocalSandboxOptionsTests
     private static readonly string AgentScript =
         Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "tools/sandbox-agent/index.js"));
 
+    /// <summary>
+    /// The network a confined sandbox gets is the allow-list and nothing else, so a host missing from it is an
+    /// agent that cannot start: OpenCode without its model catalogue failed every turn with "Unexpected server
+    /// error". With nothing configured the defaults apply rather than an empty list, which would refuse the model.
+    /// </summary>
+    [Test]
+    public void An_unconfigured_sandbox_reaches_the_model_and_the_registry_and_nothing_else()
+    {
+        var hosts = new LocalSandboxOptions().AllowedHosts;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(hosts, Does.Contain("api.anthropic.com").And.Contain("api.openai.com"), "the two model APIs");
+            Assert.That(hosts, Does.Contain("models.opencode.ai"), "OpenCode's catalogue, without which it will not start");
+            Assert.That(hosts, Does.Contain("registry.npmjs.org"), "npm ci");
+            Assert.That(hosts, Has.None.Contains("github.com"), "and not, for instance, somewhere to push code to");
+        });
+    }
+
+    [Test]
+    public void A_configured_allow_list_replaces_the_defaults() =>
+        Assert.That(new LocalSandboxOptions { EgressAllow = ["api.anthropic.com"] }.AllowedHosts, Is.EqualTo(new[] { "api.anthropic.com" }));
+
     [Test]
     public void By_default_a_workspace_is_in_no_git_repository()
     {
