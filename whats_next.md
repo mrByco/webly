@@ -1390,9 +1390,11 @@ line in the thread.
 ### 2. The sandbox in a container
 
 **Mostly done** (77): the image builds from the real Dockerfile, the prebaked dependencies hold, `next dev` and
-the preview work through the app, and a mock turn commits. What is left needs a container with a route out: a
-real agent's turn in it, and editing a file inside it by hand to confirm the browser updates by itself — the
-WebSocket forward is the one part of the proxy that fails silently rather than loudly.
+the preview work through the app, and a mock turn commits. **And the live update is confirmed**: with
+`Sandbox:Provider=docker`, a line of the home page edited by hand inside the container (`docker exec … sed`)
+showed in the open preview 0.7 s later with nobody pressing anything — the hot-reload WebSocket through the
+proxy, the one part that would fail silently. (As a frame reload rather than in place, which is the sandboxed
+frame's documented price.) What is left needs a container with a route out: a real agent's turn in it.
 
 ### 3. Vercel
 
