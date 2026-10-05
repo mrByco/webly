@@ -1160,6 +1160,20 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     cost or the session's. **Not done**: a rate for real sandboxes (zero until somebody sets one from the
     provider's price list), and anything customer-facing — that is P7's plans.
 
+76. **The agent can try the site in a browser, and decides when to.** Both CLIs are offered the Playwright MCP
+    server beside `webly-screenshot`, through `webly-browser-mcp`, a relay that fixes what a sandbox needs: the
+    browser, output kept under `.webly/browser`, the site's address in `browser_navigate` (a bare path works),
+    screenshots always returned as images, and `browser_run_code_unsafe` withheld. Claude Code takes it with
+    `--strict-mcp-config` and `mcp__playwright` pre-approved; OpenCode in its inline config. Run in the app on
+    `openai/gpt-5.5`: asked for a phone menu on Casa Lupa, the agent resized to 390px, clicked Menu and Close menu,
+    checked desktop width and the console, then typechecked — one version, after the instructions sync committed the
+    new `AGENTS.md` as its own. Asked to describe a screenshot, it named a file, which made the server send a
+    sentence instead of the picture, and it read the button's colour from computed styles; the relay now drops the
+    name, and the next turn's screenshot reached the model as an `image/png` attachment and was described from the
+    picture. The harness's step 8 asserts each rewrite from inside a confined sandbox, and skips where the server
+    is not installed. **Unverified**: a Claude turn using them (its init event lists the 24 tools and the server
+    connected, run without a key), and the server in the built image.
+
 
 ## What is still intent
 

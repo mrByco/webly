@@ -92,19 +92,23 @@ build — are all exercised for real. What is mocked is the part written in the 
 7. **The agent can look at the page**: `webly-screenshot /`, run inside the sandbox, saves a desktop and a phone
    screenshot, reports no failed request or script error, and none of it reaches the tree. Skipped, and said so,
    without a Chromium (`WEBLY_BROWSER`).
-8. A turn runs the agent in the workspace.
-9. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
-   *(`--agent claude` only, so a mock run has eighteen steps rather than nineteen.)*
-10. The tree comes back and becomes exactly one commit, authored by the person, with a diff.
-11. Hot reload puts the change on screen with nothing on Webly's side asking for it.
-12. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
-13. Restoring an earlier version writes it forward and keeps the history reachable.
-14. The publish gate: the site really builds.
-15. Publishing copies the export out and **the published page says what the person typed**.
-16. The site exports as a git bundle that **clones into a working project** with its history.
-17. A broken build is caught rather than published, and the log says why.
-18. A compile error is reported when it happens and **stops being reported once it is fixed**.
-19. A type error **serves a page happily** and only `npm run typecheck` catches it — and the check leaves no
+8. **The agent can drive a browser on the page**: an MCP client inside the sandbox starts `webly-browser-mcp`, as
+   both CLIs do, and gets the Playwright tools without `browser_run_code_unsafe`, a `browser_navigate` that names
+   the site's address and accepts a bare path, and a screenshot that lands under `.webly/browser` even when the
+   model names it `home.png`. Skipped, and said so, without `playwright-mcp` on PATH.
+9. A turn runs the agent in the workspace.
+10. The stream carries what `ClaudeStreamJsonParser` reads, and the transcript is recorded as its fixture.
+   *(`--agent claude` only, so a mock run has nineteen steps rather than twenty.)*
+11. The tree comes back and becomes exactly one commit, authored by the person, with a diff.
+12. Hot reload puts the change on screen with nothing on Webly's side asking for it.
+13. Re-seeding a warm workspace **removes** files the new tree does not have, and keeps `node_modules`.
+14. Restoring an earlier version writes it forward and keeps the history reachable.
+15. The publish gate: the site really builds.
+16. Publishing copies the export out and **the published page says what the person typed**.
+17. The site exports as a git bundle that **clones into a working project** with its history.
+18. A broken build is caught rather than published, and the log says why.
+19. A compile error is reported when it happens and **stops being reported once it is fixed**.
+20. A type error **serves a page happily** and only `npm run typecheck` catches it — and the check leaves no
     `.tsbuildinfo` in the tree that becomes a commit.
 
 ## Things it has already caught

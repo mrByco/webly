@@ -83,7 +83,8 @@ public class OpenCodeAgent(
     }
 
     /// <summary>
-    /// The CLI's environment, with the key handed to whichever provider the model string names.
+    /// The CLI's environment, with the key handed to whichever provider the model string names, and the browser
+    /// tools configured beside it.
     ///
     /// It used to be <c>ANTHROPIC_API_KEY</c> whatever the model, which is the one shape this agent exists to
     /// avoid: an OpenAI key under that name and <c>openai/…</c> as the model exits 1 with "Unexpected server
@@ -106,6 +107,16 @@ public class OpenCodeAgent(
             ["provider"] = new JsonObject
             {
                 [provider] = new JsonObject { ["options"] = new JsonObject { ["apiKey"] = options.ApiKey } }
+            },
+            // The browser tools (BrowserTools). Here rather than in an opencode.json, which would have to be in the
+            // workspace — that is, in the site, committed, and the agent's to edit.
+            ["mcp"] = new JsonObject
+            {
+                [BrowserTools.ServerName] = new JsonObject
+                {
+                    ["type"] = "local",
+                    ["command"] = new JsonArray(BrowserTools.Command)
+                }
             }
         };
 

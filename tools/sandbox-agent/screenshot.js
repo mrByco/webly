@@ -15,9 +15,10 @@
 // PATH; without one this says so and exits 3, and the agent carries on without looking.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { findBrowser } from './browser.js';
 
 const VIEWPORTS = {
   desktop: { width: 1280, height: 800, mobile: false },
@@ -35,18 +36,6 @@ const base = process.env.WEBLY_DEV_URL;
 function unavailable(reason) {
   console.log(`Screenshots are not available here: ${reason}. Carry on without one.`);
   process.exit(3);
-}
-
-function findBrowser() {
-  if (process.env.WEBLY_BROWSER) return existsSync(process.env.WEBLY_BROWSER) ? process.env.WEBLY_BROWSER : null;
-
-  for (const name of ['chromium', 'chromium-browser', 'chrome-headless-shell', 'google-chrome', 'google-chrome-stable', 'chrome']) {
-    for (const directory of (process.env.PATH ?? '').split(':')) {
-      if (directory && existsSync(`${directory}/${name}`)) return `${directory}/${name}`;
-    }
-  }
-
-  return null;
 }
 
 if (!base) unavailable('the dev server address is not known');

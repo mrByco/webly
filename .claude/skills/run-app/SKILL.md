@@ -54,6 +54,9 @@ needs **node and git and nothing else**:
   `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from the repository root (the
   context is the root, not `deploy/sandbox`). Without the image, the first message fails with "the sandbox
   container never became reachable".
+- Optional, for the agent to look at its work: a Chromium (`Sandbox:Local:Browser`, or one on PATH) for
+  `webly-screenshot`, and `npm i -g @playwright/mcp@0.0.83` for its browser tools. Without either the agent
+  carries on without looking — the server is reported failed, never the turn.
 - `Agent:Mock:Enabled` is true, so with no model key the chat still works — the mock agent makes one real
   edit to the home page's headline. For the real thing:
   `dotnet user-secrets set "Agent:ClaudeCode:ApiKey" "<key>" --project Webly.Api`, and it takes over with no

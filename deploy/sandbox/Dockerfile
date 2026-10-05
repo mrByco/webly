@@ -30,12 +30,12 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates git tar \
     && rm -rf /var/lib/apt/lists/*
 
-# A browser, for `webly-screenshot`: the agent's way of looking at the page it just changed before it says it is
-# done (AGENTS.md, "Then look at what you changed"). The largest thing in the image — roughly 250 MB with its
-# fonts — and the cost of a page that compiles but is visibly broken on a phone reaching a customer's visitors.
-# Debian's own package, so it updates with the base image rather than being pinned by hand. Without it the
-# command says screenshots are unavailable and the agent carries on, so leaving it out is a size decision, not
-# a breakage.
+# A browser, for `webly-screenshot` and the browser tools: the agent's ways of looking at the page it just changed
+# before it says it is done (AGENTS.md, "Then look at what you changed"). The largest thing in the image — roughly
+# 250 MB with its fonts — and the cost of a page that compiles but is visibly broken on a phone reaching a
+# customer's visitors. Debian's own package, so it updates with the base image rather than being pinned by hand.
+# Without it the command says screenshots are unavailable, the browser tools report themselves failed, and the
+# agent carries on, so leaving it out is a size decision, not a breakage.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends chromium fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
@@ -44,14 +44,18 @@ ENV WEBLY_BROWSER=/usr/bin/chromium
 # The two coding agents and the Vercel CLI, pinned. Pinned because an agent CLI's flags are part of
 # this repository's code — ClaudeCodeAgent passes --output-format stream-json and parses what comes
 # back, and "latest" silently changing that shape is a broken product with no diff to point at.
-# Upgrading is a version bump here and a re-read of the parser.
+# Upgrading is a version bump here and a re-read of the parser. The Playwright MCP server is the browser tools
+# both agents are offered (webly-browser-mcp), pinned for the same reason: its tool names and its arguments are
+# what that wrapper rewrites.
 ARG CLAUDE_CODE_VERSION=2.1.278
 ARG OPENCODE_VERSION=1.18.31
 ARG VERCEL_CLI_VERSION=59.23.2
+ARG PLAYWRIGHT_MCP_VERSION=0.0.83
 RUN npm install --global --no-audit --no-fund \
       "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
       "opencode-ai@${OPENCODE_VERSION}" \
       "vercel@${VERCEL_CLI_VERSION}" \
+      "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" \
     && npm cache clean --force
 
 # The sandbox agent. Copied rather than installed: it has no dependencies, which is the point of it.

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
+using System.Text.Json.Nodes;
 using Webly.Services.Services.Sandboxes;
 
 namespace Webly.Services.Agent.Agents;
@@ -58,11 +59,16 @@ public class ClaudeCodeAgent(
             // without it the editor shows nothing for two minutes and then everything at once.
             "--verbose",
             "--permission-mode", "acceptEdits",
-            // The two commands AGENTS.md asks for, and only those. acceptEdits lets it write files; a headless run
-            // refuses every other shell command, so without this the typecheck it has always been told to run was
-            // refused, and so would be the screenshot it now looks at its work with. Named rather than all of Bash,
-            // so that an unconfined local sandbox still is not a shell for the model.
-            "--allowedTools", "Bash(npm run typecheck),Bash(webly-screenshot *)",
+            // The browser tools (BrowserTools), and no MCP server from anywhere else: a site's repository is
+            // written by the agent, and a server it declared there is not one Webly chose.
+            "--mcp-config", ClaudeMcpConfig,
+            "--strict-mcp-config",
+            // The two commands AGENTS.md asks for and the browser tools, and nothing else. acceptEdits lets it write
+            // files; a headless run refuses every other shell command and every MCP tool, so without this the
+            // typecheck it has always been told to run was refused, and so would be the screenshot it looks at its
+            // work with. Named rather than all of Bash, so that an unconfined local sandbox still is not a shell for
+            // the model — which is also why webly-browser-mcp withholds the one browser tool that would be.
+            "--allowedTools", $"Bash(npm run typecheck),Bash(webly-screenshot *),mcp__{BrowserTools.ServerName}",
             "--model", _options.Model,
             // The site's own instructions are in its repository (AGENTS.md, CLAUDE.md), so the agent reads
             // them as part of the workspace rather than being handed them here. That is what lets facts about
@@ -136,6 +142,14 @@ public class ClaudeCodeAgent(
 
         return prompt.ToString();
     }
+
+    private static readonly string ClaudeMcpConfig = new JsonObject
+    {
+        ["mcpServers"] = new JsonObject
+        {
+            [BrowserTools.ServerName] = new JsonObject { ["type"] = "stdio", ["command"] = BrowserTools.Command }
+        }
+    }.ToJsonString();
 
     private static string Tail(string output) =>
         output.Length <= 2000 ? output : output[^2000..];

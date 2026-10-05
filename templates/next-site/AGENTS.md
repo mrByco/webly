@@ -73,14 +73,20 @@ shows up.
 
 **Then look at what you changed.** A page that compiles can still have a card cut off on a phone, text on a
 background it cannot be read against, a button wrapped onto two lines, or a gap that makes the page look
-unfinished — and none of that is in any log. After changing how a page looks, run:
+unfinished — and none of that is in any log. After changing how a page looks, look at it. There are two ways, and
+which one a change needs is yours to judge:
 
-    webly-screenshot /the-page-you-changed
+- **`webly-screenshot /the-page-you-changed`** — the quick look. One command saves a full-page screenshot at
+  desktop and at phone width under `.webly/screenshots/` and prints where, plus any request that failed or script
+  that threw while it loaded. Open both images with your file-reading tool.
+- **The browser tools** (`browser_navigate`, `browser_take_screenshot`, `browser_resize`, `browser_click`,
+  `browser_snapshot`, …) — for when seeing it means doing something first: opening the menu on a phone-sized
+  window, unfolding a question, hovering a card, following a link to check where it goes. Give
+  `browser_navigate` a path on the site, such as `/contact`. Whatever they save goes under `.webly/` and is never
+  part of the site. **Never submit the contact form**: a sent form is delivered to the owner's real inbox.
 
-It saves a full-page screenshot at desktop and at phone width under `.webly/screenshots/` (never committed) and
-prints where, plus any request that failed or script that threw while it loaded. Open both images with your file-reading tool, look at them the way a visitor
-would, and fix what is wrong before you finish. Once is usually enough; a second look after a fix is worth it,
-a third is not. If it says screenshots are not available, carry on without them.
+Look at the pictures the way a visitor would, and fix what is wrong before you finish. Once is usually enough; a
+second look after a fix is worth it, a third is not. If neither is available, carry on without them.
 
 ## Shape of the project
 

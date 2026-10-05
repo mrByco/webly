@@ -4,7 +4,6 @@ using System.Text.Json.Nodes;
 using Webly.Services.Agent;
 using Webly.Services.Agent.Agents;
 using Webly.Services.Services.Sandboxes;
-using Webly.Services.Services.Repositories;
 
 namespace Webly.Tests;
 
@@ -56,34 +55,6 @@ public class OpenCodeAgentTests
         Assert.That(
             async () => await agent.RunAsync(sandbox, new CodingAgentRequest("Build a menu page", [], null), _ => Task.CompletedTask),
             Throws.InstanceOf<SandboxException>());
-    }
-
-    /// <summary>A sandbox whose one command prints what it is given and exits as it is told.</summary>
-    private sealed class ScriptedSandbox(int exitCode, params string[] stdout) : ISandbox
-    {
-        public string Id => "scripted";
-        public Uri AgentUrl => new("http://127.0.0.1/");
-        public string AgentToken => string.Empty;
-
-        public async Task<SandboxCommandResult> RunAsync(
-            SandboxCommand command,
-            Func<SandboxOutput, Task>? onOutput = null,
-            CancellationToken cancellationToken = default)
-        {
-            foreach (var line in stdout)
-                if (onOutput is not null) await onOutput(new SandboxOutput(IsError: false, line));
-
-            return new SandboxCommandResult(exitCode, string.Concat(stdout));
-        }
-
-        public Task WriteTreeAsync(WorkspaceTree tree, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task StartDevServerAsync(string basePath, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task TouchPreviewAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<DevServerLog> ReadDevServerLogAsync(long since = 0, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<SandboxHealth> ReadHealthAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     [Test]

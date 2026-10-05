@@ -9,7 +9,7 @@
 //
 //   - the workspace, writable, and a private home beside it, writable (the agent CLI's sessions);
 //   - the system's /usr, the parts of /etc that name resolution, certificates and fonts need, and the toolchain
-//     — node, git, the agent CLIs, a browser for screenshots — all read-only;
+//     — node, git, the agent CLIs, a browser and the Playwright MCP server that drives it — all read-only;
 //   - no network at all except loopback, and one door out: an HTTP proxy that admits only the hosts on
 //     WEBLY_EGRESS_ALLOW (the model's API, the npm registry, the font host) and refuses everything else with a
 //     sentence saying so.
@@ -151,7 +151,7 @@ function bubblewrapArguments() {
 
   const toolchain = new Set([installRoot(realpathSync(process.execPath))]);
 
-  for (const tool of ['npm', 'npx', 'git', 'claude', 'opencode', 'vercel']) {
+  for (const tool of ['npm', 'npx', 'git', 'claude', 'opencode', 'vercel', 'playwright-mcp']) {
     const found = which(tool);
 
     if (!found) continue;

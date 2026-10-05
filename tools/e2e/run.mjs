@@ -465,6 +465,72 @@ try {
     check(!tree.some(file => file.path.startsWith('.webly')), 'and nothing of it can travel into the tree that becomes a commit');
   });
 
+  // The other way to look: the browser tools, which both CLIs start as an MCP server through `webly-browser-mcp`.
+  // A CLI talks to it over stdio, which the exec contract cannot hold open from out here — so the client below runs
+  // inside the sandbox, as the CLI would, and reports what it got. Skipped, and said so, where the server is not
+  // installed: that is a machine without it, not a defect.
+  await step('The agent can drive a browser on the page it is editing: the browser tools from inside the sandbox', async () => {
+    const client = `
+      const { spawn } = require('node:child_process');
+      const server = spawn('webly-browser-mcp', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let stderr = '', buffer = '', id = 0;
+      const waiting = new Map();
+      server.stderr.on('data', text => (stderr += text));
+      server.on('exit', code => { if (code) { console.log(JSON.stringify({ unavailable: stderr.trim() })); process.exit(3); } });
+      server.stdout.on('data', text => {
+        buffer += text;
+        for (let i; (i = buffer.indexOf('\\n')) >= 0; buffer = buffer.slice(i + 1)) {
+          const message = JSON.parse(buffer.slice(0, i));
+          waiting.get(message.id)?.(message);
+        }
+      });
+      const rpc = (method, params) => new Promise(resolve => {
+        waiting.set(++id, resolve);
+        server.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\\n');
+      });
+      const call = async (name, args) => (await rpc('tools/call', { name, arguments: args })).result;
+      (async () => {
+        await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'run.mjs', version: '1' } });
+        server.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\\n');
+        const tools = (await rpc('tools/list', {})).result.tools;
+        const page = await call('browser_navigate', { url: '/' });
+        const shot = await call('browser_take_screenshot', { fullPage: true, filename: 'home.png' });
+        const saved = await call('browser_snapshot', { filename: 'home.yml' });
+        const unsafe = await call('browser_run_code_unsafe', { code: 'async page => 1' });
+        console.log(JSON.stringify({
+          tools: tools.map(tool => tool.name),
+          navigate: tools.find(tool => tool.name === 'browser_navigate').description,
+          screenshotTakesAName: 'filename' in tools.find(tool => tool.name === 'browser_take_screenshot').inputSchema.properties,
+          page: page.content.map(part => part.text ?? '').join('\\n'),
+          shot: shot.content.map(part => part.text ?? part.mimeType).join('\\n'),
+          saved: saved.content.map(part => part.text ?? '').join('\\n'),
+          unsafe,
+        }));
+        server.stdin.end();
+      })();`;
+
+    const run = await box.exec(sandbox, { command: 'node', args: ['-e', client], timeoutMs: 120_000 });
+    const report = JSON.parse(run.output.trim().split('\n').pop() ?? '{}');
+
+    if (run.exitCode === 3) {
+      check(true, `skipped — ${report.unavailable}`);
+      return;
+    }
+
+    check(run.exitCode === 0, `the client exited ${run.exitCode}: ${run.output.trim().slice(0, 300)}`);
+    check(report.tools.includes('browser_take_screenshot') && report.tools.includes('browser_click'), `the server offers its tools (${report.tools.length})`);
+    check(!report.tools.includes('browser_run_code_unsafe') && report.unsafe.isError, 'but not the one that runs arbitrary code, by listing or by name');
+    check(report.navigate.includes(`127.0.0.1:${sandbox.devPort}`), 'browser_navigate says where the site is running');
+    check(/Page Title: .+/.test(report.page), 'and a bare path reaches the site\'s home page');
+    check(!report.screenshotTakesAName && report.shot.includes('image/png'), 'a screenshot comes back as an image, even when the model names a file');
+    check(/\.webly\/browser\/page-.*\.png/.test(report.shot), 'and is kept under .webly/browser');
+    check(report.saved.includes('.webly/browser/home.yml'), 'anything else the model names lands there too, not in the site');
+    check(!existsSync(join(sandbox.workspace, 'home.png')) && !existsSync(join(sandbox.workspace, 'home.yml')), 'and nothing was written beside the site\'s own files');
+
+    const tree = await box.readTree(sandbox);
+    check(!tree.some(file => file.path.startsWith('.webly') || file.path.startsWith('.playwright-mcp')), 'so none of it can travel into a commit');
+  });
+
   // -- 6. A real agent turn ----------------------------------------------------------------------
   const message = 'We are Koopman Cycles, a bike repair shop in Utrecht. Say that on the home page.';
 

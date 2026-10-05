@@ -1,0 +1,3 @@
+#!/bin/sh
+# The browser tools: the Playwright MCP server, set up for this sandbox. See ../browser-mcp.js.
+exec node "$(dirname "$0")/../browser-mcp.js" "$@"

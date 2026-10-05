@@ -26,14 +26,14 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 200-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 203-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
 Two harnesses drive it, and they answer different questions:
 
 - **`tools/e2e/run.mjs`** stands in for the C# and drives everything underneath it — real git plumbing, the
-  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in nineteen steps from "a
+  real sandbox agent, the real `claude` CLI, the real Next.js dev server and build — in twenty steps from "a
   new site is the template" to "a compile error stops being reported once it is fixed". No .NET, no Docker, no
   database, no credentials. `tools/e2e/README.md` lists what it has caught.
 - **`tools/e2e/screens.mjs`** answers the question neither of the others can: *is the page wrong to look at?*
@@ -242,6 +242,26 @@ more than one restating what the line does.
   other shell command in a headless run, which had quietly refused the typecheck `AGENTS.md` always asked for.
   The browser is `Sandbox:Local:Browser`, or the first Chromium on PATH; without one the command says so and the
   agent carries on. The image installs Debian's `chromium`, the largest thing in it.
+- **And it can try the site, not only photograph it.** Both CLIs are also given the **Playwright MCP server**,
+  under the name `playwright` (`BrowserTools`), and the agent picks: the command for a quick look at two widths,
+  the browser tools when seeing a page means doing something to it first. The first real turn that had both was
+  asked for a phone menu, and resized the window to 390px, opened the page, clicked Menu, read what opened,
+  clicked Close menu, went back to desktop width, checked the console and ran the typecheck — nothing in a still
+  picture could have told it the menu closed. The cost is about five thousand tokens of tool definitions per
+  model call, which sit in the cached prefix. The server is started through **`webly-browser-mcp`**, a
+  zero-dependency relay on the stdio JSON-RPC that rewrites five things a sandbox needs and nothing else: the
+  browser and its flags; everything it writes going to `.webly/browser`, because left alone it resolves a
+  `filename` the model chose against the working directory, which is the website; a screenshot always coming back
+  as an image, because given a `filename` the server sends only a sentence, and the first turn that named one
+  described a button from computed styles without ever seeing it; `browser_navigate` naming the site's address
+  and accepting a bare path, because the dev server is at a port and a base path no model could guess and a
+  Claude turn cannot `echo` a variable; and `browser_run_code_unsafe` withheld, which is arbitrary JavaScript in
+  the server's process by its own description. Claude Code gets `--strict-mcp-config`, so a server declared in
+  the site's own files — which the agent writes — is never started, and `mcp__playwright` in its pre-approved
+  tools; OpenCode gets the server in the same inline config as its key. Without `playwright-mcp` on PATH the
+  wrapper says so and exits, both CLIs report the server as failed and carry on, and `webly-screenshot` still
+  works. The image pins `@playwright/mcp`; locally it is `npm i -g @playwright/mcp@0.0.83`, and `confine.js`
+  mounts it read-only like the rest of the toolchain.
 - **A local workspace must not be inside a git repository, and a command's `PWD` must be its workspace.** Both
   were wrong, and the first real agent through the app took the whole Webly checkout for the site: it searched
   `.run`, and on its second turn checked a site's bare repository out by itself and committed to its branch, with

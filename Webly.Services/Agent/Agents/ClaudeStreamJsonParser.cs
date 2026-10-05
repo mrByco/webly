@@ -246,6 +246,7 @@ internal sealed class ClaudeStreamJsonParser(Func<CodingAgentEvent, Task> onEven
         "WebSearch" or "WebFetch" => "Looking something up",
         "TodoWrite" => "Planning",
         "Task" => "Working through it",
+        _ when tool.StartsWith(BrowserTools.ClaudeToolPrefix, StringComparison.Ordinal) => BrowserTools.Activity,
         _ => "Working"
     };
 

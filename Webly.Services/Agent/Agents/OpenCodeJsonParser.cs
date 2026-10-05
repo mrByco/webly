@@ -209,6 +209,7 @@ internal sealed class OpenCodeJsonParser(string model, Func<CodingAgentEvent, Ta
         "glob" or "grep" or "list" => "Looking through your site",
         "bash" => "Running a command",
         "webfetch" or "websearch" => "Looking something up",
+        _ when tool.StartsWith(BrowserTools.OpenCodeToolPrefix, StringComparison.Ordinal) => BrowserTools.Activity,
         _ => "Working"
     };
 
