@@ -53,6 +53,20 @@ const INHERITED_ENV = (() => {
   return rest;
 })();
 
+/**
+ * A command's environment, with `PWD` saying where it really is.
+ *
+ * `spawn`'s `cwd` moves the process and leaves `PWD` as the parent had it, and OpenCode believes `PWD` over the
+ * directory it is actually in. Under the local provider that was the directory the backend was launched from —
+ * a Webly checkout — so the first turns it ran through the app treated the whole of Webly as the site: one went
+ * looking through `.run` before finding its workspace, and the next checked a site's bare repository out on its
+ * own and committed to its branch behind Webly's back. In the image nobody sets `PWD`, which is why that is the
+ * only place it could not happen; it is set here so that it is true everywhere rather than absent by luck.
+ */
+function environmentFor(directory, env) {
+  return { ...INHERITED_ENV, ...env, PWD: directory };
+}
+
 // What never travels back to git. Build output and dependencies are reproducible from the tree, and a
 // stray .env would put a customer's secret in their history for ever.
 //
@@ -143,9 +157,11 @@ function relative(text) {
 function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd }) {
   response.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-cache' });
 
+  const directory = cwd ? `${WORKSPACE}/${cwd}` : WORKSPACE;
+
   const child = spawn(command, args, {
-    cwd: cwd ? `${WORKSPACE}/${cwd}` : WORKSPACE,
-    env: { ...INHERITED_ENV, ...env },
+    cwd: directory,
+    env: environmentFor(directory, env),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -245,7 +261,7 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
 
   devServer = spawn(command, args, {
     cwd: WORKSPACE,
-    env: { ...INHERITED_ENV, ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath },
+    env: environmentFor(WORKSPACE, { ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath }),
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
     // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the

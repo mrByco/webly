@@ -3,11 +3,14 @@ using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Webly.Services.Services.Sandboxes;
 
 /// <summary>
-/// The sandbox agent as a plain child process on this machine, with a temporary directory for a workspace.
+/// The sandbox agent as a plain child process on this machine, with a temporary directory for a workspace —
+/// outside this checkout, for the reason <see cref="LocalSandboxOptions.ResolveWorkspaceRoot"/> gives.
 ///
 /// This is the provider a fresh clone uses, and the reason it exists is a plain one: the other two both need
 /// something you might not have. E2B needs an account, and <see cref="DockerSandboxProvider"/> needs a Docker
@@ -153,7 +156,7 @@ public class LocalSandboxProvider(
 
         // The random suffix is not decoration: a timestamp to the second is not unique, and two sandboxes that
         // shared a workspace directory would edit each other's files while each believed it was alone.
-        var workspaceRoot = Path.GetFullPath(_local.WorkspaceRoot);
+        var workspaceRoot = _local.ResolveWorkspaceRoot(agentScript);
 
         SweepWorkspaceRootOnce(workspaceRoot);
 
@@ -344,8 +347,38 @@ public class LocalSandboxOptions
 
     public string NodePath { get; set; } = "node";
 
-    /// <summary>Under <c>.run/</c> by default, which is gitignored — a workspace is scratch space.</summary>
-    public string WorkspaceRoot { get; set; } = ".run/workspaces";
+    /// <summary>
+    /// Empty by default, which means a directory of this checkout's own under the system's temporary directory —
+    /// see <see cref="ResolveWorkspaceRoot"/>.
+    /// </summary>
+    public string WorkspaceRoot { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Where workspaces go: the configured root, or <c>{temp}/webly-workspaces-{checkout}</c>.
+    ///
+    /// <b>Never inside a git repository</b>, and it used to be: the default was <c>.run/workspaces</c>, which is
+    /// inside this checkout. A workspace deliberately has no <c>.git</c> of its own — the agent never sees git —
+    /// so a coding agent that looks for its project by walking up for one finds <i>Webly's</i>: asked from there,
+    /// OpenCode reports "Workspace root folder: /home/…/webly — is a git repo: yes". Claude Code reads every
+    /// <c>CLAUDE.md</c> on the same walk, which would hand it this repository's own instructions. Together with
+    /// an inherited <c>PWD</c> (the sandbox agent's <c>environmentFor</c>), it is why the first turn OpenCode ever
+    /// ran through the app began "This is the main Webly repository, not an obvious checked-out site" and went
+    /// looking through the other sites' bare repositories. In the image the workspace is <c>/workspace</c> and
+    /// there is nothing above it, so this was a difference between development and production in exactly the
+    /// place the local provider exists to have none.
+    ///
+    /// Per checkout rather than one shared directory, because the first-use sweep deletes everything under the
+    /// root and kills what it recorded: two checkouts sharing one would each take the other's sandboxes down on
+    /// start, which <c>.run/workspaces</c> never could. The agent script's own path names the checkout.
+    /// </summary>
+    public string ResolveWorkspaceRoot(string agentScript)
+    {
+        if (!string.IsNullOrWhiteSpace(WorkspaceRoot)) return Path.GetFullPath(WorkspaceRoot);
+
+        var checkout = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(agentScript)))[..8].ToLowerInvariant();
+
+        return Path.Combine(Path.GetTempPath(), $"webly-workspaces-{checkout}");
+    }
 
     /// <summary>
     /// Off for a developer who wants to look at what the agent did to the files afterwards. On by default,

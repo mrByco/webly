@@ -335,6 +335,13 @@ try {
     check(leaked.output.trim() === 'absent',
       `a command it runs cannot see WEBLY_AGENT_TOKEN (${leaked.output.trim()})`);
 
+    // And it is told where it is. OpenCode believes PWD over the directory it was started in, and an inherited
+    // one named the checkout the backend was launched from — so an agent took the whole of Webly for the site.
+    // Asked through node rather than sh, because a shell quietly repairs a PWD that disagrees with its directory.
+    // `.` because the agent writes the workspace's own path as `.` in everything a command prints.
+    const pwd = await box.exec(started, { command: 'node', args: ['-e', 'process.stdout.write(process.env.PWD ?? "")'] });
+    check(pwd.output === '.', `a command's PWD is its workspace (${pwd.output})`);
+
     return started;
   });
 
