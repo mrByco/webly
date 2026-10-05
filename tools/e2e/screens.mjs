@@ -261,8 +261,8 @@ async function clippedText(page) {
  * `templates/next-site/AGENTS.md` tells the agent that accessibility is not optional. This is the half of
  * that sentence the product can actually check, and it checks Webly's own screens by the same rule.
  */
-async function accessibility(page) {
-  return page.evaluate(() => {
+async function accessibility(page, { colourOnly = false } = {}) {
+  return page.evaluate(colourOnly => {
     const problems = [];
     const visible = element => {
       const box = element.getBoundingClientRect();
@@ -282,12 +282,12 @@ async function accessibility(page) {
       return `${element.tagName.toLowerCase()}${classes ? '.' + classes : ''}`;
     };
 
-    for (const image of document.querySelectorAll('img')) {
+    for (const image of colourOnly ? [] : document.querySelectorAll('img')) {
       // An empty alt is a decision — "this picture says nothing a reader needs" — and a missing one is not.
       if (image.getAttribute('alt') === null) problems.push(`${describe(image)} has no alt (${image.src.slice(-40)})`);
     }
 
-    for (const control of document.querySelectorAll('button, a[href], [role="button"]')) {
+    for (const control of colourOnly ? [] : document.querySelectorAll('button, a[href], [role="button"]')) {
       if (!visible(control)) continue;
       if (!named(control)) problems.push(`${describe(control)} has no accessible name`);
     }
@@ -338,7 +338,7 @@ async function accessibility(page) {
         || field.getAttribute('aria-labelledby')
         || field.getAttribute('placeholder');
 
-      if (!labelled) problems.push(`${describe(field)} has nothing naming it`);
+      if (!labelled && !colourOnly) problems.push(`${describe(field)} has nothing naming it`);
 
       /*
        * WCAG 1.4.11: 3:1 for the boundary of a control. A card can be outlined faintly because what is in
@@ -422,13 +422,15 @@ async function accessibility(page) {
       problems.push(`"${own.slice(0, 40)}" (${describe(element)}) is ${ratio.toFixed(2)}:1, under ${large ? 3 : 4.5}:1`);
     }
 
-    const headings = [...document.querySelectorAll('h1')].filter(visible);
+    if (!colourOnly) {
+      const headings = [...document.querySelectorAll('h1')].filter(visible);
 
-    if (headings.length === 0) problems.push('no h1 on the page');
-    if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+      if (headings.length === 0) problems.push('no h1 on the page');
+      if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+    }
 
     return problems.slice(0, 4);
-  });
+  }, colourOnly);
 }
 
 async function shot(page, name, width) {
@@ -494,6 +496,17 @@ async function walk(page, name, url, open) {
     if (width === 1400)
       for (const failing of await accessibility(page)) problems.push(`${name}: ${failing}`);
   }
+
+  // The colour questions again in the dark theme, because the answers differ there and every number in the app's
+  // palette was chosen to pass both — which, until this, only somebody measuring by hand would ever have known
+  // about. Desktop width only and no screenshot: what is being asked is a ratio, not a layout.
+  await page.setViewportSize({ width: 1400, height: 950 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(300);
+
+  for (const failing of await accessibility(page, { colourOnly: true })) problems.push(`${name} (dark): ${failing}`);
+
+  await page.emulateMedia({ colorScheme: 'light' });
 
   process.stdout.write(`  · ${name}\n`);
 }

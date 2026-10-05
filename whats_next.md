@@ -1368,6 +1368,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     width, so a mail app would shrink the whole message to illegibility. Its value cells break long words now, and
     the next such enquiry's email measured exactly 375px at 375px.
 
+93. **The sweep asks its colour questions in the dark theme too.** Every number in the palette was chosen to pass
+    both themes, and until now only a hand measurement could say whether it still did. Each screen gets a second,
+    colour-only pass at desktop width with the dark scheme emulated. Proved by dimming the dark theme's text on
+    purpose: 46 failures, every one marked "(dark)", and green again once restored.
+
 
 ## What is still intent
 

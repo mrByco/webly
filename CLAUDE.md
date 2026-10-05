@@ -40,8 +40,8 @@ Two harnesses drive it, and they answer different questions:
   It walks every screen of the app and of a published site in a real browser at two widths and fails on a page
   error, a 5xx, a blank screen, **a pane that has started scrolling sideways**, **an obvious accessibility
   mistake** (an icon-only control with no name, an `<img>` with no `alt`, a field with nothing naming it, a
-  field whose border is under 3:1 against what is behind it, text under 4.5:1 against what is behind it, a page
-  with no `h1` or several), **the editor scrolling as a whole**, or **a 404 on
+  field whose border is under 3:1 against what is behind it, text under 4.5:1 against what is behind it — those
+  two in the dark theme as well — a page with no `h1` or several), **the editor scrolling as a whole**, or **a 404 on
   anything the page asked for** — which is the defect it was
   written for: a published site whose every stylesheet and chunk 404ed behind a document that was 200 and HTML
   that was perfect. It **presses one thing** on the screens that have something the default selection does not
