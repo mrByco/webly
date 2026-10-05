@@ -3,6 +3,7 @@
 
 export type { AddDomainRequest } from './models/add-domain-request';
 export type { AgentStatusResponse } from './models/agent-status-response';
+export type { ChangeNameRequest } from './models/change-name-request';
 export type { ChangePasswordRequest } from './models/change-password-request';
 export type { ChatMessageResponse } from './models/chat-message-response';
 export type { ConversationResponse } from './models/conversation-response';

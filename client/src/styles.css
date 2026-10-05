@@ -92,6 +92,21 @@
 }
 
 /*
+ * Two of daisyUI's own defaults that fall under 4.5:1, found by the sweep's text rule on the usage report — and
+ * corrected here rather than per template, because every table and every soft warning badge inherits them.
+ * A table's header row is drawn at 60% of the text colour (4.1:1); it takes the app's quiet shade instead. A soft
+ * warning badge draws its words in the fill's amber (1.9:1 — the "Stopped" outcome, and "Email not confirmed" on
+ * the account page); the words take the warning ink and the tint stays the badge's.
+ */
+.table :where(thead, tfoot) {
+  color: var(--color-muted);
+}
+
+.badge-soft.badge-warning {
+  color: var(--color-warning-ink);
+}
+
+/*
  * A quiet, cool palette, and quiet is the point: this app is a frame around somebody else's website.
  * The editor's own colours have to stay out of the way of whatever the customer picked for their
  * brand, which is the opposite of the reference project's problem — a recipe app can afford to be

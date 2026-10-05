@@ -1336,9 +1336,9 @@ Kept here because each is a shape of mistake that will recur, not because the fi
 
 88. **The usage report on a phone.** The sweep never visits it (its account is not an administrator), so it was
     walked by hand at both widths and in dark mode. Two things: the small line explaining a $0.00 sandbox figure
-    ("no hourly rate set") was truncated to "no hourl…" — the tiles' lines wrap now — and on a phone the report had
-    no way in at all: the bottom bar offers Sites and Account, and Usage was a sidebar entry only. Administrators
-    get it in the bottom bar too.
+    ("no hourly rate set") was truncated to "no hourl…" — the tiles' lines wrap now. *(A correction: this entry first
+    said the report had no way in on a phone and added it to the bottom bar. It had one all along — "Usage and
+    costs" on the Account page, written for exactly that — so the bottom bar is back to its two destinations.)*
 
 89. **The template's font is a file now.** `next/font/google` was the open item from 77: a sandbox with no route
     to Google drew the preview in a fallback face — and, measured now rather than assumed, the production build does
@@ -1351,6 +1351,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     anybody chats goes live saying "Tell Webly what this site is about, and this page will be rewritten for you" to
     its visitors. The first publish of a site with no version from the assistant now asks — "Publish the starter
     page?" — with Keep editing as the easy way out.
+
+91. **A name can be corrected.** There was no way to change one's own name, and it is in every email, the sidebar
+    and the author line of every version. `PUT /api/auth/me` with registration's rule, a field on the Account page,
+    three HTTP tests; walked in the browser — saved, the sidebar followed, the next version was authored under the
+    new name, and it went back. The first attempt saved nothing: the form used `ngSubmit` on a page whose forms
+    module has no directive for it, so the browser submitted the page instead. Also from that sweep, now that the
+    walk account administers: two daisyUI defaults under 4.5:1 on the usage report (a table header, and a soft
+    warning badge at 1.9:1), overridden for every table and badge.
 
 
 ## What is still intent

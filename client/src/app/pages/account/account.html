@@ -13,6 +13,45 @@
       </a>
     }
 
+    <!--
+      The name every email opens with and every version's author carries. There was no way to change it, so a typo
+      made in the first minute of signing up stayed in all of those for good.
+    -->
+    <h2 class="section-label mt-8 mb-2.5">Your name</h2>
+
+    <section class="surface p-5">
+      <!-- The native submit event, not `ngSubmit`: that is an output of a forms directive, and this form has none
+           — it is one field bound by hand — so it never fired and the browser submitted the page instead. -->
+      <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); saveName()">
+        <p class="text-sm text-muted">What Webly calls you in its emails, and the author of every change you ask for.</p>
+
+        @if (nameSaved()) {
+          <div role="status" class="alert alert-success alert-soft text-sm">Saved.</div>
+        }
+
+        @if (nameError(); as message) {
+          <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
+        }
+
+        <div class="flex items-end gap-2 sm:max-w-sm">
+          <label class="floating-label min-w-0 flex-1">
+            <span>Your name</span>
+            <input
+              class="input input-bordered w-full"
+              type="text"
+              name="displayName"
+              autocomplete="name"
+              maxlength="100"
+              placeholder="Your name"
+              [value]="name()"
+              (input)="name.set($any($event.target).value); nameSaved.set(false)" />
+          </label>
+
+          <button class="btn" type="submit" [disabled]="savingName() || !name().trim() || nameUnchanged()">Save</button>
+        </div>
+      </form>
+    </section>
+
     <h2 class="section-label mt-8 mb-2.5">How you sign in</h2>
 
     <section class="surface flex flex-wrap gap-2 p-5">

@@ -389,6 +389,11 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   default because the default accessor is. The hub restates the same gate as
   `ClaimsPrincipal.GetUserIdVerified()` — a hub invocation never reaches the HTTP middleware that turns
   that exception into a 403, so it throws `HubException` instead.
+- **A name can be changed** (`PUT /api/auth/me`, `ChangeName`, the Account page), under the rule registration
+  uses. There was no way to, and the name is not decoration: every email opens with it, the sidebar shows it, and
+  it is the author of every version the person's messages produce — so a typo from the first minute of signing up
+  was in all of those for good. Versions already committed keep the name they were made under; a commit is
+  history. Unverified callers may use it, like a password change, because the verification email greets them by it.
 - **An account can be closed, and that is the one operation that asks for the password again.** `DELETE
   /api/auth/account` deletes each site through `DeleteSite` first — a site is a git repository, a warm sandbox and
   a provider project as well as rows, and only that use case knows about all three — and then removes the user
@@ -1373,7 +1378,9 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   — a warning fill is light by nature — so its words use `text-warning-ink`, a `light-dark()` pair; the
   compiler's output in the chat's "not compiling" block was drawn in the fill's amber, at 1.7:1.
   `tools/e2e/screens.mjs` measures every piece of text now, with the same canvas compositing as the border rule,
-  and was red in 38 places before this and green after.
+  and was red in 38 places before this and green after. Two of daisyUI's own defaults are overridden in
+  `styles.css` for the same reason — a table's header row at 60%, and a soft warning badge's words in the fill's
+  amber (1.9:1) — found by that rule on the usage report.
 - **Below `lg` the editor shows the chat or the preview, with a switch, never both.** Stacked, a phone had about
   290px of chat and 180px of website — three lines of conversation and the top of a hero. Each is a screen's job;
   the switch says "updated" when the preview has changed behind it, and the header gives Publish the title's row

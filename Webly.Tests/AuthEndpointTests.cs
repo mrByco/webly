@@ -224,4 +224,48 @@ public class AuthEndpointTests : AuthEndpointTestBase
 
         Assert.That(app.StatusCode, Is.Not.EqualTo(HttpStatusCode.Unauthorized));
     }
+
+    /// <summary>
+    /// A name can be corrected. There was no way to, and a typo from the first minute of signing up was in every email,
+    /// the sidebar and every version's author for good.
+    /// </summary>
+    [Test]
+    public async Task A_name_can_be_corrected_and_is_stored_trimmed()
+    {
+        var registered = await RegisterAsync();
+        var access = CookieValue(registered, AuthCookies.AccessTokenName)!;
+
+        var change = Request(HttpMethod.Put, "/api/auth/me", (AuthCookies.AccessTokenName, access));
+        change.Content = Json(new { displayName = "  Ada Lovelace  " });
+        var changed = await Client.SendAsync(change);
+
+        var me = await Client.SendAsync(Request(HttpMethod.Get, "/api/auth/me", (AuthCookies.AccessTokenName, access)));
+        using var body = JsonDocument.Parse(await me.Content.ReadAsStringAsync());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(changed.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(body.RootElement.GetProperty("displayName").GetString(), Is.EqualTo("Ada Lovelace"));
+        });
+    }
+
+    [Test]
+    public async Task A_name_of_nothing_but_spaces_is_refused()
+    {
+        var registered = await RegisterAsync();
+        var access = CookieValue(registered, AuthCookies.AccessTokenName)!;
+
+        var change = Request(HttpMethod.Put, "/api/auth/me", (AuthCookies.AccessTokenName, access));
+        change.Content = Json(new { displayName = "   " });
+
+        Assert.That((await Client.SendAsync(change)).StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Changing_a_name_needs_somebody_signed_in()
+    {
+        var response = await Client.PutAsync("/api/auth/me", Json(new { displayName = "Nobody" }));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+    }
 }

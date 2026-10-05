@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
@@ -28,6 +28,35 @@ export class AccountPage {
    * reads as "set a password" rather than "change" it.
    */
   protected readonly settingFirstPassword = computed(() => !this.me().hasPassword);
+
+  /**
+   * The name field: what the account is called, until somebody types. Linked to the profile rather than copied from
+   * it once, so a profile that arrives after the page — a reload straight onto this screen — still fills the box.
+   */
+  protected readonly name = linkedSignal(() => this.me().displayName ?? '');
+  protected readonly savingName = signal(false);
+  protected readonly nameSaved = signal(false);
+  protected readonly nameError = signal<string | null>(null);
+  protected readonly nameUnchanged = computed(() => this.name().trim() === (this.me().displayName ?? ''));
+
+  protected async saveName(): Promise<void> {
+    const name = this.name().trim();
+
+    if (!name || this.nameUnchanged() || this.savingName()) return;
+
+    this.savingName.set(true);
+    this.nameSaved.set(false);
+    this.nameError.set(null);
+
+    try {
+      await this.auth.changeName(name);
+      this.nameSaved.set(true);
+    } catch (failure) {
+      this.nameError.set(messageOf(failure));
+    } finally {
+      this.savingName.set(false);
+    }
+  }
 
   protected readonly confirmingDelete = signal(false);
   protected readonly deleting = signal(false);

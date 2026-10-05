@@ -8,6 +8,7 @@ import { apiAuthAccountDelete } from '../api/fn/auth/api-auth-account-delete';
 import { apiAuthLoginPost$Json } from '../api/fn/auth/api-auth-login-post-json';
 import { apiAuthLogoutPost } from '../api/fn/auth/api-auth-logout-post';
 import { apiAuthMeGet$Json } from '../api/fn/auth/api-auth-me-get-json';
+import { apiAuthMePut$Json } from '../api/fn/auth/api-auth-me-put-json';
 import { apiAuthProvidersGet$Json } from '../api/fn/auth/api-auth-providers-get-json';
 import { apiAuthRegisterPost$Json } from '../api/fn/auth/api-auth-register-post-json';
 import { apiAuthEmailResendPost } from '../api/fn/email-verification/api-auth-email-resend-post';
@@ -214,6 +215,11 @@ export class AuthService {
 
   async resendVerification(): Promise<void> {
     await this.api.invoke(apiAuthEmailResendPost);
+  }
+
+  /** Changes the name the account is called by, and holds the profile the server answers with. */
+  async changeName(displayName: string): Promise<void> {
+    this.me.set(await this.api.invoke(apiAuthMePut$Json, { body: { displayName } }));
   }
 
   async forgotPassword(email: string): Promise<void> {

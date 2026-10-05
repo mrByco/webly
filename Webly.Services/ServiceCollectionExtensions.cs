@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<RequestPasswordReset>();
         services.AddScoped<ResetPassword>();
         services.AddScoped<ChangePassword>();
+        services.AddScoped<ChangeName>();
         services.AddScoped<DeleteAccount>();
 
         // A site's source: one bare git repository each, and the starter project every one begins as.
