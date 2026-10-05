@@ -1373,6 +1373,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     colour-only pass at desktop width with the dark scheme emulated. Proved by dimming the dark theme's text on
     purpose: 46 failures, every one marked "(dark)", and green again once restored.
 
+94. **A transparent logo came out on a black rectangle.** The browser shrinks an upload to 2,000px and re-encodes
+    it as JPEG, which has no transparency — a canvas encodes a transparent pixel as black. Measured: a 2,400px
+    transparent PNG was stored as `logo.jpg` with its corner at rgba(0,0,0,255). Images with transparent pixels
+    stay PNGs now (`logo-clear.png`, corner rgba(0,0,0,0)); an opaque PNG still becomes a JPEG
+    (`banner-opaque.jpg`). Also checked on the way: a document renamed `.jpg` is refused with "menu.jpg is not a
+    JPEG, PNG, GIF or WebP".
+
 
 ## What is still intent
 

@@ -1091,7 +1091,10 @@ files into the site's repository under `public/images/`, which is where Next.js 
   underneath. The browser shrinks first (`client/src/app/models/image-file.ts`, a canvas re-encode to 2000 px)
   — which is also where the resizing has to happen, because a static export has no image optimizer behind it
   (`next.config.ts` turns Next's off, since it needs a running server) so **what is uploaded is what every
-  visitor downloads**. The server re-checks; the browser is an affordance, not an authority.
+  visitor downloads**. The server re-checks; the browser is an affordance, not an authority. **A transparent image
+  stays a PNG**: the re-encode is a JPEG, a JPEG has no alpha, and a canvas writes a transparent pixel as black,
+  so a large transparent logo came back as its mark on a black rectangle. Decided by the pixels, not the type —
+  most PNGs are photographs and screenshots, which are better off as JPEGs.
 - **The extension comes from the bytes, never from the name.** `ImageKind.Of` sniffs the magic numbers and the
   file is stored with that extension, because the extension is the only thing a static host uses to decide how
   to serve a file and the name comes from whoever uploaded it. A PNG called `.jpg` is stored as a `.png`; an
