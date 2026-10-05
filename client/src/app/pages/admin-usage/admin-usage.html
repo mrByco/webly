@@ -1,0 +1,276 @@
+<app-shell>
+  <main class="flex w-full max-w-6xl flex-col px-5 pt-6 pb-10 sm:px-8 xl:px-10 xl:pt-10">
+    <header class="flex flex-wrap items-end justify-between gap-4">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Usage</h1>
+        <p class="mt-0.5 text-base-content/60">What running the sites has cost: the model's calls and the sandboxes' time.</p>
+      </div>
+
+      <!-- The one filter, in one row above everything it filters. -->
+      <div class="join" role="group" aria-label="Period">
+        @for (period of periods; track period) {
+          <button
+            class="btn join-item btn-sm"
+            type="button"
+            [class.btn-primary]="days() === period"
+            [attr.aria-pressed]="days() === period"
+            (click)="days.set(period)">
+            {{ period }} days
+          </button>
+        }
+      </div>
+    </header>
+
+    @if (error(); as message) {
+      <div role="alert" class="alert alert-error alert-soft mt-6 text-sm">{{ message }}</div>
+    }
+
+    @if (report(); as r) {
+      <!-- The headline, and the two lines it is made of. -->
+      <section class="surface mt-6 p-5 sm:p-6" [class.opacity-60]="loading()">
+        <p class="text-sm font-semibold text-base-content/60">Total, last {{ r.periodDays }} days</p>
+        <p class="mt-1 text-5xl font-semibold tracking-tight">{{ money(total()) }}</p>
+        <p class="mt-1 text-sm text-base-content/55">Since {{ r.since | date: 'd MMM y' }}</p>
+
+        <div class="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+          <div class="min-w-0">
+            <p class="text-sm text-base-content/60">Model</p>
+            <p class="text-xl font-semibold">{{ money(r.totals.modelCostUsd) }}</p>
+            <p class="truncate text-xs text-base-content/55">
+              {{ compact(r.totals.inputTokens + r.totals.cacheReadTokens + r.totals.cacheWriteTokens) }} in ·
+              {{ compact(r.totals.outputTokens) }} out
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="text-sm text-base-content/60">Sandboxes</p>
+            <p class="text-xl font-semibold">{{ money(r.totals.sandboxCostUsd) }}</p>
+            <p class="truncate text-xs text-base-content/55">
+              {{ duration(r.totals.sandboxSeconds) }} running
+              @if (r.sandboxCostPerHour === 0) {
+                · no hourly rate set
+              }
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="text-sm text-base-content/60">Turns</p>
+            <p class="text-xl font-semibold">{{ r.totals.turns }}</p>
+            <p class="truncate text-xs text-base-content/55">
+              {{ r.totals.unfinishedTurns }} failed or stopped
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="text-sm text-base-content/60">Per turn</p>
+            <p class="text-xl font-semibold">{{ money(averagePerTurn()) }}</p>
+            <p class="truncate text-xs text-base-content/55">model cost, on average</p>
+          </div>
+        </div>
+
+        <p class="mt-5 text-xs text-base-content/55">
+          A sandbox's time is counted when it stops, so the ones running now are not in these numbers yet.
+          @if (r.sandboxCostPerHour === 0) {
+            It is priced at nothing until <code>Sandbox:CostPerHour</code> is set to the provider's hourly price; the
+            time already recorded stays, ready to be priced.
+          }
+        </p>
+      </section>
+
+      <h2 class="section-label mt-8 mb-2.5">Cost per day</h2>
+
+      <section class="surface p-5 sm:p-6">
+        @let c = chart();
+
+        <div class="relative h-52">
+          <!-- Hairline gridlines at a clean top, its half and zero, with their values in a gutter on the left. -->
+          @for (tick of c.ticks; track tick.at) {
+            <div class="pointer-events-none absolute right-0 left-16 border-t border-base-300" [style.bottom.%]="tick.at">
+              <span class="absolute -top-2 -left-16 w-14 pr-2 text-right text-xs leading-none text-base-content/55 tabular-nums">{{ tick.label }}</span>
+            </div>
+          }
+
+          <div class="absolute inset-y-0 right-0 left-16 flex items-end gap-0.5">
+            @for (column of c.columns; track column.day; let index = $index, count = $count) {
+              <div
+                class="group relative flex h-full min-w-0 flex-1 items-end justify-center outline-none"
+                tabindex="0"
+                [attr.aria-label]="(column.day | date: 'EEE d MMM') + ': ' + money(column.cost) + ', ' + column.turns + ' turns'">
+                @if (column.cost > 0) {
+                  <div
+                    class="w-full max-w-6 rounded-t-[4px] bg-(--color-chart) transition-opacity group-hover:opacity-80 group-focus-visible:opacity-80"
+                    [style.height.%]="column.height"></div>
+                }
+
+                <!-- The value on hover or focus: the day, its total, and what it was made of. -->
+                <!-- Anchored inward near either edge, so the first and last days' values are not cut off. -->
+                <div
+                  class="pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-field bg-base-100 px-3 py-2 text-xs whitespace-nowrap shadow-lg ring-1 ring-base-300 group-hover:block group-focus-visible:block"
+                  [class.left-0]="index < count / 3"
+                  [class.right-0]="index >= (count * 2) / 3"
+                  [class.left-1/2]="index >= count / 3 && index < (count * 2) / 3"
+                  [class.-translate-x-1/2]="index >= count / 3 && index < (count * 2) / 3">
+                  <p class="font-semibold">{{ column.day | date: 'EEE d MMM' }}</p>
+                  <p class="tabular-nums">{{ money(column.cost) }} · {{ column.turns }} {{ column.turns === 1 ? 'turn' : 'turns' }}</p>
+                  <p class="text-base-content/60 tabular-nums">
+                    model {{ money(column.modelCostUsd) }} · sandboxes {{ money(column.sandboxCostUsd) }}
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (c.columns.length > 0) {
+          <div class="mt-2 ml-16 flex justify-between text-xs text-base-content/55">
+            <span>{{ c.columns[0].day | date: 'd MMM' }}</span>
+            <span>{{ c.columns[c.columns.length - 1].day | date: 'd MMM' }}</span>
+          </div>
+        }
+
+        <details class="mt-4">
+          <summary class="cursor-pointer text-sm font-semibold text-base-content/70">Show as a table</summary>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th class="text-right">Turns</th>
+                  <th class="text-right">Model</th>
+                  <th class="text-right">Sandboxes</th>
+                  <th class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (column of c.columns; track column.day) {
+                  <tr>
+                    <td>{{ column.day | date: 'EEE d MMM' }}</td>
+                    <td class="text-right tabular-nums">{{ column.turns }}</td>
+                    <td class="text-right tabular-nums">{{ money(column.modelCostUsd) }}</td>
+                    <td class="text-right tabular-nums">{{ money(column.sandboxCostUsd) }}</td>
+                    <td class="text-right font-semibold tabular-nums">{{ money(column.cost) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <h2 class="section-label mt-8 mb-2.5">By site</h2>
+
+      <section class="surface overflow-x-auto">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Site</th>
+              <th>Owner</th>
+              <th class="text-right">Turns</th>
+              <th class="text-right">Model</th>
+              <th class="text-right">Sandbox time</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (site of r.bySite; track $index) {
+              <tr>
+                <td class="font-semibold whitespace-nowrap">
+                  @if (site.siteNanoid) {
+                    <a class="link link-hover" [routerLink]="routes.site.build(site.siteNanoid)">{{ site.siteName }}</a>
+                  } @else {
+                    {{ site.siteName }} <span class="badge badge-soft badge-sm ml-1">deleted</span>
+                  }
+                </td>
+                <td class="text-base-content/70">{{ site.ownerEmail }}</td>
+                <td class="text-right tabular-nums">{{ site.turns }}</td>
+                <td class="text-right tabular-nums">{{ money(site.modelCostUsd) }}</td>
+                <td class="text-right tabular-nums">{{ duration(site.sandboxSeconds) }}</td>
+                <td class="text-right font-semibold tabular-nums">{{ money(site.modelCostUsd + site.sandboxCostUsd) }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="6" class="text-base-content/55">Nothing has cost anything in this period.</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <h2 class="section-label mt-8 mb-2.5">By person</h2>
+
+      <section class="surface overflow-x-auto">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th class="text-right">Turns</th>
+              <th class="text-right">Model</th>
+              <th class="text-right">Sandbox time</th>
+              <th class="text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (person of r.byUser; track person.userNanoid) {
+              <tr>
+                <td>
+                  <p class="font-semibold">{{ person.displayName }}</p>
+                  <p class="text-xs text-base-content/60">{{ person.email }}</p>
+                </td>
+                <td class="text-right tabular-nums">{{ person.turns }}</td>
+                <td class="text-right tabular-nums">{{ money(person.modelCostUsd) }}</td>
+                <td class="text-right tabular-nums">{{ duration(person.sandboxSeconds) }}</td>
+                <td class="text-right font-semibold tabular-nums">{{ money(person.modelCostUsd + person.sandboxCostUsd) }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5" class="text-base-content/55">Nobody has spent anything in this period.</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <h2 class="section-label mt-8 mb-2.5">Recent turns</h2>
+
+      <section class="surface overflow-x-auto">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Site</th>
+              <th>Asked for</th>
+              <th>Agent</th>
+              <th>Outcome</th>
+              <th class="text-right">Tokens in / out</th>
+              <th class="text-right">Took</th>
+              <th class="text-right">Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (turn of r.recentTurns; track turn.nanoid) {
+              <tr>
+                <td class="whitespace-nowrap text-base-content/70">{{ turn.createdAt | date: 'd MMM, HH:mm' }}</td>
+                <td class="font-semibold whitespace-nowrap">{{ turn.siteName }}</td>
+                <td class="max-w-72 min-w-48 text-base-content/80">{{ turn.description }}</td>
+                <td class="whitespace-nowrap">
+                  <p>{{ turn.agent }}</p>
+                  <p class="text-xs text-base-content/60">{{ turn.model }}</p>
+                </td>
+                <td><span class="badge badge-soft badge-sm" [class]="outcomeClass(turn.outcome)">{{ turn.outcome }}</span></td>
+                <td class="text-right whitespace-nowrap tabular-nums">
+                  {{ compact(turn.inputTokens + turn.cacheReadTokens + turn.cacheWriteTokens) }} / {{ compact(turn.outputTokens) }}
+                  @if (turn.cacheReadTokens > 0) {
+                    <p class="text-xs text-base-content/55">{{ compact(turn.cacheReadTokens) }} from cache</p>
+                  }
+                </td>
+                <td class="text-right whitespace-nowrap tabular-nums">{{ duration(turn.durationMs / 1000) }}</td>
+                <td class="text-right font-semibold tabular-nums">{{ money(turn.costUsd) }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="8" class="text-base-content/55">No turns in this period.</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+    } @else if (loading()) {
+      <div class="mt-10 flex justify-center"><span class="loading loading-spinner" aria-label="Loading"></span></div>
+    }
+  </main>
+</app-shell>

@@ -20,6 +20,7 @@ import { inject } from '@angular/core';
  */
 type IconName =
   | 'arrow-right'
+  | 'chart'
   | 'check'
   | 'chevron-left'
   | 'chevron-right'
@@ -50,6 +51,7 @@ type IconName =
 
 const PATHS: Record<IconName, string> = {
   'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   'chevron-left': '<path d="m15 18-6-6 6-6"/>',
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',

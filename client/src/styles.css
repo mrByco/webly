@@ -54,6 +54,9 @@
   --color-base-content: oklch(26% 0.014 265);
 
   --color-primary: oklch(52% 0.19 268);
+  /* A chart's one series. The primary in light; its own step in dark, where the primary (L 68%) is above the
+     lightness band a mark needs against the dark surface — checked with the dataviz palette validator, not by eye. */
+  --color-chart: oklch(52% 0.19 268);
   --color-primary-content: oklch(98.5% 0.008 268);
   --color-secondary: oklch(58% 0.12 200);
   --color-secondary-content: oklch(98% 0.01 200);
@@ -99,6 +102,7 @@
   --color-base-content: oklch(95% 0.008 265);
 
   --color-primary: oklch(68% 0.16 268);
+  --color-chart: oklch(62% 0.16 268);
   --color-primary-content: oklch(18% 0.03 268);
   --color-secondary: oklch(68% 0.1 200);
   --color-secondary-content: oklch(18% 0.03 200);

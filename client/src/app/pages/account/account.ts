@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { Modal } from '../../components/modal/modal';
@@ -9,7 +9,7 @@ import { messageOf } from '../../models/problem-details';
 
 @Component({
   selector: 'app-account',
-  imports: [AppShell, Modal, ReactiveFormsModule],
+  imports: [AppShell, Modal, ReactiveFormsModule, RouterLink],
   templateUrl: './account.html',
 })
 export class AccountPage {
@@ -18,6 +18,7 @@ export class AccountPage {
 
   protected readonly routes = AppRoutes;
   protected readonly me = this.auth.me;
+  protected readonly isAdmin = this.auth.isAdmin;
   protected readonly submitting = signal(false);
   protected readonly saved = signal(false);
   protected readonly error = signal<string | null>(null);

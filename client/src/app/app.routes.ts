@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AppRoutes } from './app.routes.paths';
 import { authGuard } from './guards/auth.guard';
 import { verifiedGuard } from './guards/verified.guard';
+import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -31,6 +32,11 @@ export const routes: Routes = [
     path: AppRoutes.account.path,
     canActivate: [authGuard, verifiedGuard],
     loadComponent: () => import('./pages/account/account').then(m => m.AccountPage),
+  },
+  {
+    path: AppRoutes.usage.path,
+    canActivate: [authGuard, verifiedGuard, adminGuard],
+    loadComponent: () => import('./pages/admin-usage/admin-usage').then(m => m.AdminUsagePage),
   },
   {
     path: AppRoutes.newSite.path,

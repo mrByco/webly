@@ -43,6 +43,12 @@ export const AppRoutes = {
     build: () => '/account',
   },
 
+  /** What the platform costs to run: administrators only. */
+  usage: {
+    path: 'admin/usage',
+    build: () => '/admin/usage',
+  },
+
   /** The first-site screen, shown full-screen as the last step of onboarding. */
   newSite: {
     path: 'new',

@@ -21,6 +21,16 @@
       All sites
     </a>
 
+    @if (isAdmin()) {
+      <a
+        class="mt-0.5 flex h-10 items-center gap-3 rounded-field px-2.5 text-[0.95rem] font-semibold text-base-content/75 transition-colors hover:bg-base-300/70"
+        routerLinkActive="bg-base-100! text-primary! shadow-sm"
+        [routerLink]="routes.usage.build()">
+        <app-icon class="size-5" name="chart" />
+        Usage
+      </a>
+    }
+
     <p class="section-label px-2.5 pt-5 pb-2">Your sites</p>
 
     <nav class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">

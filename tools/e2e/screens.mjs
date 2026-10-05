@@ -197,6 +197,12 @@ async function clippedText(page) {
       if (box.width === 0 || box.height === 0) continue;
 
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        // A box its author made to scroll sideways — a wide table on a phone — holds what is past its edge rather
+        // than losing it. Read from the class, for the reason the sideways-scroll rule above reads classes: the
+        // computed style cannot tell a deliberate scroller from a column whose overflow-x is auto by accident of
+        // its overflow-y. Without this, every table in one was measured against the window and reported cut.
+        if (/\boverflow-(x-)?(auto|scroll)\b/.test(parent.className?.toString?.() ?? '')) break;
+
         const parentStyle = getComputedStyle(parent);
 
         if (!clips(parentStyle.overflowX) && !clips(parentStyle.overflowY)) continue;
@@ -469,6 +475,14 @@ try {
     return response.ok ? Boolean((await response.json()).summary?.publishedAt) : false;
   }, { base: origin, id: nanoid });
 
+  // Administrators have one more screen, and only they can load it — anybody else is sent home — so it is walked
+  // when the account is one and left out when it is not, rather than reported as a page that went somewhere else.
+  const admin = await page.evaluate(async base => {
+    const response = await fetch(`${base}/api/auth/me`, { credentials: 'include' });
+
+    return response.ok ? ((await response.json()).roles ?? []).includes('admin') : false;
+  }, origin);
+
   // The third entry, where there is one, is what to press once the screen has loaded. See `walk`.
   const screens = [
     ['sites', `${origin}/`],
@@ -481,6 +495,8 @@ try {
     ['domains', `${origin}/sites/${nanoid}/domains`],
     ['settings', `${origin}/sites/${nanoid}/settings`],
     ['account', `${origin}/account`],
+    // The table view of the chart is what to press: the one part of the screen that is folded away by default.
+    ...(admin ? [['usage', `${origin}/admin/usage`, page => page.getByText('Show as a table')]] : []),
 
     // The published site, which is the half that is not Webly's app — and the half where every one of the
     // defects above was. The 404 is deliberate: what it must not be is Webly's own login page.

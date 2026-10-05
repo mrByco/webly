@@ -32,6 +32,9 @@ export class AppShell {
   protected readonly routes = AppRoutes;
   protected readonly me = this.auth.me;
 
+  /** Administrators also see what the platform costs; nobody else has a reason to know the screen exists. */
+  protected readonly isAdmin = this.auth.isAdmin;
+
   protected readonly mySites = signal<SiteSummaryResponse[]>([]);
 
   /** Whether to offer another site at all, so the limit is visible before it is hit. */
