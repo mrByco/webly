@@ -3,12 +3,21 @@ using Webly.Services.Services.Sandboxes;
 namespace Webly.Tests;
 
 /// <summary>
-/// Where the local provider puts a workspace. It used to be <c>.run/workspaces</c>, inside this checkout, and a
-/// coding agent walking up from its workspace for a <c>.git</c> found Webly's — so its first turn through the
-/// app went looking through the other sites' repositories before it found the one it had been given.
+/// The two defaults that keep a local agent inside its workspace. Where the workspace goes: it used to be
+/// <c>.run/workspaces</c>, inside this checkout, and a coding agent walking up from its workspace for a
+/// <c>.git</c> found Webly's — so its first turn through the app went looking through the other sites'
+/// repositories before it found the one it had been given. And that it is confined there.
 /// </summary>
-public class LocalSandboxWorkspaceRootTests
+public class LocalSandboxOptionsTests
 {
+    /// <summary>
+    /// An agent must not reach anything outside its working directory, and the switch for that is one string
+    /// in configuration. A default that drifted to "none" would turn it off for every fresh clone, silently.
+    /// </summary>
+    [Test]
+    public void By_default_the_agent_is_confined_to_its_workspace() =>
+        Assert.That(new LocalSandboxOptions().Confinement, Is.EqualTo(LocalSandboxOptions.BubblewrapConfinement));
+
     private static readonly string AgentScript =
         Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "tools/sandbox-agent/index.js"));
 

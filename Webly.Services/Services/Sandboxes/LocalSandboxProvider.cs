@@ -17,11 +17,14 @@ namespace Webly.Services.Services.Sandboxes;
 /// daemon — which a lot of development machines, CI runners and containers do not have. With this one, editing
 /// a site needs <b>node and git and nothing else</b>, which is what makes "clone it and try it" true.
 ///
-/// <b>It is not isolation, and it must never be the production provider.</b> The workspace is a directory on
-/// this host, the agent CLI runs as this user, and a command it runs can reach anything this process can —
-/// including the database and the configuration. Every security property in <see cref="ISandbox"/>'s comment
-/// is absent here. That is an acceptable trade on a machine whose owner is the person typing into the chat,
-/// and only there, which is why <c>AddWeblySites</c> refuses to select it outside Development.
+/// <b>It must never be the production provider.</b> The workspace is a directory on this host and the agent
+/// CLI runs as this user. What keeps the agent inside its workspace is <b>bubblewrap</b>
+/// (<see cref="LocalSandboxOptions.Confinement"/>): every command and the dev server see the workspace, a
+/// private home, a read-only toolchain and nothing else of the machine — no checkout, no other site, no
+/// repositories, no inherited secrets. It was a plain child process until the first real agent through it
+/// committed to a site's bare repository on its own. What it does not do is filter the network, and a kernel
+/// shared with the host is not a microVM, which is why <c>AddWeblySites</c> still refuses to select it
+/// outside Development.
 ///
 /// What it does keep is the contract. The agent it spawns is the same <c>tools/sandbox-agent</c> the image
 /// runs, reached over HTTP with a per-sandbox bearer token, so files, exec, the dev server and the preview all
@@ -154,6 +157,8 @@ public class LocalSandboxProvider(
         if (!spec.SiteNanoid.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_'))
             throw new SandboxException("That site's id is not one this provider will build a path from.");
 
+        var confined = await EnsureConfinementAsync();
+
         // The random suffix is not decoration: a timestamp to the second is not unique, and two sandboxes that
         // shared a workspace directory would edit each other's files while each believed it was alone.
         var workspaceRoot = _local.ResolveWorkspaceRoot(agentScript);
@@ -196,6 +201,14 @@ public class LocalSandboxProvider(
         startInfo.Environment["WEBLY_DEV_PIDFILE"] = $"{workspace}.devpid";
 
         foreach (var (key, value) in spec.Environment) startInfo.Environment[key] = value;
+
+        if (confined)
+        {
+            startInfo.Environment["WEBLY_CONFINE"] = LocalSandboxOptions.BubblewrapConfinement;
+
+            // A confined command's environment is an allow-list, so the workload's own variables are named.
+            startInfo.Environment["WEBLY_WORKLOAD_ENV"] = string.Join(',', spec.Environment.Keys);
+        }
 
         var process = Process.Start(startInfo)
             ?? throw new SandboxException("The local sandbox agent could not be started.");
@@ -281,6 +294,9 @@ public class LocalSandboxProvider(
                     try
                     {
                         Directory.Delete(workspace, recursive: true);
+
+                        // The agent CLI's home, beside the workspace: its sessions, which die with it.
+                        if (Directory.Exists($"{workspace}.home")) Directory.Delete($"{workspace}.home", recursive: true);
                     }
                     catch (IOException exception)
                     {
@@ -318,6 +334,68 @@ public class LocalSandboxProvider(
         }
 
         return sandbox;
+    }
+
+    private Task<bool>? _confinement;
+
+    /// <summary>
+    /// Whether this provider confines its sandboxes, decided once: false only when configuration says
+    /// <c>none</c>, and a refusal when it asks for bubblewrap and bubblewrap cannot make a sandbox here.
+    ///
+    /// Proven by running one, not by finding the binary: bubblewrap is installed on plenty of machines that
+    /// forbid the user namespaces it needs, and there every command of every turn would fail with bwrap's own
+    /// sentence about namespaces — in the chat, as the reason somebody's website did not change.
+    /// </summary>
+    private async Task<bool> EnsureConfinementAsync()
+    {
+        if (string.Equals(_local.Confinement, LocalSandboxOptions.NoConfinement, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!string.Equals(_local.Confinement, LocalSandboxOptions.BubblewrapConfinement, StringComparison.OrdinalIgnoreCase))
+            throw new SandboxException(
+                "The local sandbox is misconfigured.",
+                $"Sandbox:Local:Confinement is '{_local.Confinement}'; it must be 'bubblewrap' or 'none'.");
+
+        var works = await (_confinement ??= ProbeBubblewrapAsync());
+
+        if (!works)
+            throw new SandboxException(
+                "Editing a site needs a sandbox this machine cannot make.",
+                "The local provider confines the agent to its workspace with bubblewrap, and `bwrap` is missing or "
+                + "cannot create a sandbox here. Install it (apt install bubblewrap / dnf install bubblewrap), or set "
+                + "Sandbox:Provider to 'docker'. Sandbox:Local:Confinement = 'none' runs the agent unconfined, with "
+                + "access to everything this user can read.");
+
+        return true;
+    }
+
+    private async Task<bool> ProbeBubblewrapAsync()
+    {
+        try
+        {
+            using var probe = Process.Start(new ProcessStartInfo("bwrap")
+            {
+                ArgumentList = { "--ro-bind", "/", "/", "--unshare-pid", "--die-with-parent", "true" },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            });
+
+            if (probe is null) return false;
+
+            var error = probe.StandardError.ReadToEndAsync();
+            await probe.WaitForExitAsync();
+
+            if (probe.ExitCode != 0)
+                logger.LogWarning("bubblewrap is installed but cannot make a sandbox: {Error}", (await error).Trim());
+
+            return probe.ExitCode == 0;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Not installed: Process.Start cannot find the file.
+            return false;
+        }
     }
 
     /// <summary>
@@ -379,6 +457,23 @@ public class LocalSandboxOptions
 
         return Path.Combine(Path.GetTempPath(), $"webly-workspaces-{checkout}");
     }
+
+    /// <summary>
+    /// <c>bubblewrap</c> (the default) or <c>none</c>: whether what the agent runs can reach anything of this
+    /// machine but its workspace. See the sandbox agent's <c>CONFINE</c> for what it can and cannot see.
+    ///
+    /// <b>Required by default, and refused rather than skipped when it is missing</b>, because the agent must not
+    /// reach anything outside its working directory and the first real one through this provider did — it found
+    /// a site's bare repository and committed to it. So a machine without bubblewrap (macOS, Windows, a Linux
+    /// that forbids user namespaces) gets a sentence naming the remedies instead of an unconfined agent: install
+    /// it, or use the <c>docker</c> provider, whose container is the same boundary. <c>none</c> is the explicit
+    /// way back to an unconfined process, for somebody who has decided that on their own machine.
+    /// </summary>
+    public string Confinement { get; set; } = BubblewrapConfinement;
+
+    public const string BubblewrapConfinement = "bubblewrap";
+
+    public const string NoConfinement = "none";
 
     /// <summary>
     /// Off for a developer who wants to look at what the agent did to the files afterwards. On by default,

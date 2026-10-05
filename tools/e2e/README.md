@@ -5,6 +5,7 @@ node tools/e2e/run.mjs --agent mock              # no credentials needed
 node tools/e2e/run.mjs --agent claude            # the real CLI; also re-records the parser's fixture
 node tools/e2e/run.mjs --agent mock --keep       # leave the workspace and repository to poke at
 node tools/e2e/run.mjs --agent mock --out ./site # keep the published site, to open in a browser
+node tools/e2e/run.mjs --agent mock --confine     # every command under bubblewrap, as the backend runs them
 ```
 
 Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a hosting account — except

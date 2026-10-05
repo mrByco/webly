@@ -20,7 +20,7 @@ const AGENT = new URL('../sandbox-agent/index.js', import.meta.url).pathname;
  * Docker daemon in every environment, and the contract does not care what the machine is. It is NOT
  * isolation — the workspace is a directory on this host and the agent runs as this user.
  */
-export async function startSandbox({ port = 0, devPort = 0 } = {}) {
+export async function startSandbox({ port = 0, devPort = 0, confine = false, readOnly = [] } = {}) {
   const workspace = mkdtempSync(join(tmpdir(), 'webly-workspace-'));
   const token = randomBytes(24).toString('hex');
 
@@ -38,6 +38,7 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
       WEBLY_AGENT_TOKEN: token,
       WEBLY_DEV_PORT: String(devServerPort),
       WEBLY_DEV_PIDFILE: devPidFile,
+      ...(confine ? { WEBLY_CONFINE: 'bubblewrap', WEBLY_CONFINE_READ: readOnly.join(':') } : {}),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Its own process group, so disposing can kill the group. The dev server is a *grandchild* — the agent
@@ -96,6 +97,7 @@ export async function startSandbox({ port = 0, devPort = 0 } = {}) {
 
       rmSync(workspace, { recursive: true, force: true });
       rmSync(devPidFile, { force: true });
+      rmSync(`${workspace}.home`, { recursive: true, force: true });
     },
   };
 

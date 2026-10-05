@@ -11,7 +11,7 @@
 // edit becomes a commit, the preview shows it, the history can diff and restore it, and the publish gate
 // catches a broken build. Each step asserts, and the whole thing exits non-zero on the first failure.
 //
-// Usage:  node tools/e2e/run.mjs [--agent claude|mock] [--keep]
+// Usage:  node tools/e2e/run.mjs [--agent claude|mock] [--keep] [--confine]
 
 import {
   cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync,
@@ -32,6 +32,16 @@ const option = name => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 const keep = args.includes('--keep');
+
+// Run every sandbox command under bubblewrap, as the local provider does by default: the workspace is the only
+// thing a command can write, and the rest of this machine — this checkout included — does not exist for it.
+// A flag rather than the default because the harness promises node and git and nothing else, and bubblewrap is
+// Linux-only; the backend refuses to run without it instead.
+const confine = args.includes('--confine');
+
+// Something the starter's environment holds that a confined command must not see, the way the backend's holds
+// a connection string and keys.
+if (confine) process.env.WEBLY_E2E_CANARY = 'the starter environment leaked';
 
 // The address a publish tells the build about. Any absolute URL in the export has to come from here.
 const SITE_URL = 'https://kovacs-bakery.webly.site';
@@ -323,7 +333,7 @@ try {
 
   // -- 3. A sandbox, and a workspace seeded from the commit --------------------------------------
   sandbox = await step('A sandbox starts and answers its contract', async () => {
-    const started = await box.startSandbox();
+    const started = await box.startSandbox({ confine, readOnly: [join(template, 'node_modules')] });
     const state = await box.health(started);
     check(state.ok === true, `health is ok on ${state.node}`);
     check(state.devServer === 'stopped', 'no dev server yet');
@@ -341,6 +351,14 @@ try {
     // `.` because the agent writes the workspace's own path as `.` in everything a command prints.
     const pwd = await box.exec(started, { command: 'node', args: ['-e', 'process.stdout.write(process.env.PWD ?? "")'] });
     check(pwd.output === '.', `a command's PWD is its workspace (${pwd.output})`);
+
+    if (confine) {
+      const outside = await box.exec(started, { command: 'cat', args: [join(root, 'CLAUDE.md')] });
+      check(outside.exitCode !== 0, 'confined: this checkout does not exist for a command');
+
+      const inherited = await box.exec(started, { command: 'sh', args: ['-c', 'echo "${WEBLY_E2E_CANARY:-absent}"'] });
+      check(inherited.output.trim() === 'absent', `confined: the starter's environment is not inherited (${inherited.output.trim()})`);
+    }
 
     return started;
   });
@@ -607,7 +625,7 @@ try {
     const head = await store.resolveHead(repository);
     const tree = await store.readTree(repository, head);
 
-    publishSandbox = await box.startSandbox();
+    publishSandbox = await box.startSandbox({ confine, readOnly: [join(template, 'node_modules')] });
     await box.writeTree(publishSandbox, tree);
 
     // Standing in for the image's prebaked dependencies, as in step 5. The real runner runs `npm ci` against
