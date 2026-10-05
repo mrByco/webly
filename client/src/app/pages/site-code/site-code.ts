@@ -23,6 +23,9 @@ import { SiteFileEntryResponse } from '../../api/models/site-file-entry-response
   selector: 'app-site-code',
   imports: [Icon],
   templateUrl: './site-code.html',
+  // Fills the editor's pane, so this page scrolls inside it rather than the whole editor scrolling — see the
+  // history page, where it was found.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteCodePage {
   private readonly route = inject(ActivatedRoute);

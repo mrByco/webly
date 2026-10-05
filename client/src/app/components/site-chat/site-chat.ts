@@ -263,10 +263,16 @@ export class SiteChat {
       const result = await this.images.upload(this.siteNanoid(), files);
       const urls = result.images.map(image => image.url);
 
-      this.entries.update(entries => [
-        ...entries,
-        { kind: 'files', text: urls.length === 1 ? 'Added an image' : `Added ${urls.length} images`, paths: urls },
-      ]);
+      this.append({
+        kind: 'files',
+        text: urls.length === 1 ? 'Added an image' : `Added ${urls.length} images`,
+        paths: urls,
+      });
+
+      // Brought into view, which nothing did: a turn scrolls on every event it applies, and an upload is not a
+      // turn — so on any thread longer than the pane, the line saying the photograph had arrived was drawn below
+      // the composer, and the only visible sign of the upload was its path appearing in the box.
+      this.scrollToEnd();
 
       this.suggest(`${this.message.trim()} ${urls.join(' ')} `.trimStart());
 

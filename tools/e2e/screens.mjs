@@ -157,6 +157,27 @@ async function sidewaysScroll(page) {
 }
 
 /**
+ * The editor scrolling as a whole, which it never should: it is a frame — header, chat, and a pane beside it — and
+ * each pane scrolls itself. When one of them does not fill its space, the app shell's column scrolls instead, so the
+ * site's name, the tabs and the chat's composer travel off the screen with whatever was too tall.
+ *
+ * The defect this exists for: the routed pages under the editor — History, Code, Settings — had no host styles,
+ * so each sized to its content, the History list's own `overflow-y-auto` never engaged, and clicking a version
+ * low in the list scrolled the header off the top of the window. Nothing was cut off and nothing scrolled
+ * sideways, so no other rule here could see it; the measurement is the column's own height against its content.
+ */
+async function editorScrolls(page) {
+  return page.evaluate(() => {
+    const column = document.querySelector('app-site-editor app-shell > div > div.overflow-y-auto');
+
+    if (!column || column.scrollHeight <= column.clientHeight + 1) return null;
+
+    return `the whole editor scrolls (${column.scrollHeight} tall in ${column.clientHeight}) — `
+      + 'a pane under it is not filling its space';
+  });
+}
+
+/**
  * A word cut off by the box around it, which nothing else here can see.
  *
  * `sidewaysScroll` catches a pane that has grown too wide, and cannot catch this: when a child overflows an
@@ -372,7 +393,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 }, ign
 
 /**
  * One screen: go there, let it settle, optionally press something, shoot it at both widths, and ask the
- * three questions.
+ * questions below.
  *
  * <b>The `open` step exists because opening a screen is not using it.</b> Three defects in a row were found
  * by clicking once on a screen this sweep had walked clean a dozen times — a photograph in the Code tab that
@@ -406,6 +427,10 @@ async function walk(page, name, url, open) {
 
     for (const pane of await sidewaysScroll(page))
       problems.push(`${name} @${width}: ${pane} — content is being cut off`);
+
+    const scrolls = await editorScrolls(page);
+
+    if (scrolls) problems.push(`${name} @${width}: ${scrolls}`);
 
     // At both widths, unlike the accessibility questions: this one is about the room a word has, and a phone
     // is where it runs out.

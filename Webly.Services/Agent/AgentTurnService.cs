@@ -343,20 +343,34 @@ public class AgentTurnService(
 
         var version = await CommitAsync(site, workspace, user, outcome, assistantMessage.Id, cancellationToken);
 
+        // From here the change is made, and nothing after this line may say otherwise. Stop used to land here as
+        // easily as anywhere — the checks below take seconds, the typecheck most of them — and a stopped turn writes
+        // "Stopped. Nothing was changed." into the thread: directly beneath the link to the version it had just
+        // committed, on the live screen and after every reload. So linking the version and announcing it are not
+        // cancellable, and a Stop during the checks ends the checks rather than the turn. The version stands; if
+        // it is not wanted, History brings back the one before it, which is what undoing anything here means.
         if (version is not null)
         {
             assistantMessage.ProducedVersionId = version.Id;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(CancellationToken.None);
 
             await writer.WriteAsync(new RunEvent
             {
                 Type = RunEventType.VersionCommitted,
                 VersionNanoid = version.Nanoid,
                 Detail = version.Summary
-            }, cancellationToken);
+            }, CancellationToken.None);
         }
 
-        await ReportBreakageAsync(workspace, conversation.Id, logOffset, version is not null, cancellationToken);
+        try
+        {
+            await ReportBreakageAsync(workspace, conversation.Id, logOffset, version is not null, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                "Stopped during the checks after a turn on {Site}; what it committed stands.", site.Nanoid);
+        }
     }
 
     /// <summary>

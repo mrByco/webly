@@ -689,6 +689,11 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   nothing behind**: a failed or stopped one re-seeds the workspace from the branch head
   (`ISiteWorkspaceRegistry.DiscardAsync`), because "Nothing was changed" used to be true of the history and not
   of the workspace — the half-written edits stayed in the preview and went into the next turn's commit.
+- **And a turn that has committed is not stopped by Stop.** The checks after the commit take seconds — the
+  typecheck most of them — and Stop landed there as easily as anywhere, so "Stopped. Nothing was changed." was
+  written directly beneath the link to the version the turn had just made, live and after every reload. Linking
+  and announcing the version use `CancellationToken.None`, and a Stop during the checks ends the checks: the
+  version stands, and History is how anything here is undone.
 - **Two turns on one site at the same moment is a real case**, and it broke three things, each found by
   starting two turns a millisecond apart against the running app. Both turns see no open thread and both
   insert one — the partial unique index refuses the loser, so `FindOrCreateActiveAsync` returns the thread the
@@ -1188,6 +1193,14 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   is a tab inside that site's own screen, because those links cannot be built without knowing which site
   they mean. There is no "more" tab — the reference project needs one for the screens its bottom bar cannot
   hold, and Webly has two destinations.
+- **The sidebar's list is `SiteService.mine`, beside `current`**, and every re-read of the open site patches its
+  entry. The shell used to fetch its own copy once, and the editor's shell lives through a rename, every commit
+  and every publish: renaming a site changed the header and left the sidebar on the old name.
+- **Every page routed into the editor's pane declares `host: { class: 'flex min-h-0 flex-1 flex-col' }`**, as
+  the chat and the preview do. Without it a routed page is a flex item sized to its own content, so its inner
+  `overflow-y-auto` never engages and the app shell's column scrolls instead — header, tabs and chat with it.
+  History, Code and (on a phone) Settings all did; clicking a version low in the list scrolled the site's name
+  off the top of the window. `tools/e2e/screens.mjs` fails when the editor scrolls as a whole.
 - **`min-w-0` on the editor's child pane is load-bearing**, as it is on the History screen's diff. A flex
   item's default minimum width is its content's, so a long version summary made that pane wider than the room
   beside the chat and an ancestor clipped it: the title was cut off mid-word, the diff ran off the edge, and

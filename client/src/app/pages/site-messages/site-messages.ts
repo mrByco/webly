@@ -32,6 +32,9 @@ import { FormSubmissionResponse } from '../../api/models/form-submission-respons
   selector: 'app-site-messages',
   imports: [DatePipe, Icon, Modal],
   templateUrl: './site-messages.html',
+  // Fills the editor's pane, so this page scrolls inside it rather than the whole editor scrolling — see the
+  // history page, where it was found.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteMessagesPage {
   private readonly route = inject(ActivatedRoute);

@@ -24,6 +24,9 @@ import { SiteImageResponse } from '../../api/models/site-image-response';
   selector: 'app-site-settings',
   imports: [DatePipe, DecimalPipe, FormsModule, Icon, Modal],
   templateUrl: './site-settings.html',
+  // Fills the editor's pane, so this page scrolls inside it rather than the whole editor scrolling — see the
+  // history page, where it was found.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteSettingsPage {
   private readonly route = inject(ActivatedRoute);

@@ -27,6 +27,13 @@ import { SiteVersionResponse } from '../../api/models/site-version-response';
   selector: 'app-site-history',
   imports: [DatePipe, Icon],
   templateUrl: './site-history.html',
+  // The host fills the editor's pane, like the chat's and the preview's, and for the same reason. A routed page is
+  // a flex item of that pane, and without this it was a block sized to its own content: the list's
+  // `overflow-y-auto` never engaged, because nothing above it was ever shorter than the list, and the app shell's
+  // column scrolled instead — the whole editor, header and chat included. Clicking a version low in the list
+  // scrolled the site's name and the tabs off the top of the window. Every page under the editor needs it, and
+  // `tools/e2e/screens.mjs` fails on the next one that does not have it.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteHistoryPage {
   private readonly route = inject(ActivatedRoute);

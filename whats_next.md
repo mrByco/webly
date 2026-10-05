@@ -1256,6 +1256,22 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     Also: the phone's chat/preview switch is a labelled group of `aria-pressed` buttons rather than ARIA tabs it
     did not behave like.
 
+80. **The second hour, walked: a photograph, History, a rename, domains, Stop, a second site, deleting it, and a
+    forgotten password.** All of them work. Four things were wrong on the way:
+
+    - **History and Code scrolled the whole editor.** The pages routed into the editor's pane had no host
+      styles, so each sized to its content and the shell's column scrolled instead of the list — clicking a
+      version low in the list moved the site's name and the tabs off the top of the window. Settings did the same
+      on a phone. They fill the pane now, and `screens.mjs` has a rule for it that was red on all five cases
+      before the fix and green after.
+    - **Stop after the commit said nothing had changed.** Pressed during the typecheck that follows a commit, it
+      wrote "Stopped. Nothing was changed." under the link to the version just made. The checks are what stop
+      now; the version stands.
+    - **A rename did not reach the sidebar**, which fetched its list once per shell; it reads `SiteService.mine`
+      now, which every re-read of the open site keeps current — the status dot after a publish included.
+    - **A photograph's upload line was drawn below the fold** on any thread longer than the pane; the chat
+      scrolls to it.
+
 
 ## What is still intent
 
