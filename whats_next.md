@@ -1321,7 +1321,8 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     the editor said "That could not be saved." over a page that was loading — `messageOf` now says Webly cannot be
     reached when nothing of ours answered — and in development the test kept being defeated by Vite reloading the
     page, which production never does (see `CLAUDE.md`). Also a timing assertion in `UsageTests` that read 49ms for
-    a 50ms wait and failed a clean suite; it brackets the duration now instead.
+    a 50ms wait and failed a clean suite; it brackets the duration now instead. `InterruptedPublishTests` pins the
+    runner's half — red with the startup pass disabled.
 
 86. **A screen reader hears the turn.** Nothing in the chat was a live region, so pressing Send was followed by
     silence for anybody listening rather than looking. A visually hidden log beside the transcript now says each

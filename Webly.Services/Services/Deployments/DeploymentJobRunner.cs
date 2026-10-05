@@ -89,7 +89,7 @@ public class DeploymentJobRunner(
     /// the build, and re-queueing that is a crash loop. The owner is told the same way as any failed publish — the
     /// email, because they may well have closed the tab — and publishing again is one press.
     /// </summary>
-    private async Task FailInterruptedAsync(CancellationToken stoppingToken)
+    internal async Task FailInterruptedAsync(CancellationToken stoppingToken)
     {
         try
         {
