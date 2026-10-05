@@ -1172,7 +1172,34 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     name, and the next turn's screenshot reached the model as an `image/png` attachment and was described from the
     picture. The harness's step 8 asserts each rewrite from inside a confined sandbox, and skips where the server
     is not installed. **Unverified**: a Claude turn using them (its init event lists the 24 tools and the server
-    connected, run without a key), and the server in the built image.
+    connected, run without a key). The server in the built image is checked in 77.
+
+77. **The sandbox image is built, and running it found two defects no local run could.** Built here from
+    `deploy/sandbox/Dockerfile` unchanged — the base image from Google's Docker Hub mirror, since Docker Hub
+    answers 429 to an anonymous pull from a shared address, and this environment's proxy CA added in a copy
+    (`CLAUDE.md`, "Docker here"). Started the way `DockerSandboxProvider` starts it and driven through its contract:
+    it runs as `node`; Debian's Chromium 154, `playwright-mcp` and both agent CLIs are on PATH; a real site's tree
+    goes in, `npm ls --depth=0` passes with **no install**, `next dev` serves it through the agent, the browser
+    tools load all 24 tools and photograph the page, the typecheck runs, and nothing of `.webly` comes back in the
+    tree. Then through the app, with `Sandbox:Provider=docker` and the mock agent: a container per site, seeded,
+    the preview served through Webly's proxy, one version committed, and the container removed — and its 76
+    seconds recorded — when the app stopped.
+
+    **`webly-screenshot` reported every success as a failure.** Both pictures were saved, and then "The screenshot
+    failed: ENOTEMPTY": it removed the browser's profile while Debian's Chromium was still writing into it on the
+    way down. The browser every local run used exits faster, so nothing had ever seen it. It now waits for the
+    browser to exit, and a temporary directory left behind no longer fails a screenshot that worked.
+
+    **`sans-serif` was a typewriter face.** Debian's font rules want DejaVu for it, the slim image has no DejaVu,
+    and fontconfig fell through to Liberation Mono — so a page whose web font was unavailable, or which an agent
+    set in `system-ui`, was photographed in monospace, and the agent was asked to judge its work from that.
+    `deploy/sandbox/fonts.conf` points the generic families at the Liberation faces the image already has, which
+    are metric-compatible with Arial, Times and Courier.
+
+    **Not done**: a real agent in a container, because containers here have no route out; and the hot-reload socket
+    through a container, which is the same proxy code the local provider exercises. And the font this exposed is
+    the one already written down: with no route to Google Fonts, `next/font/google` falls back, so the preview and
+    a publish in such a sandbox are not in Inter. Self-hosting it with `next/font/local` is the fix.
 
 
 ## What is still intent
@@ -1184,7 +1211,8 @@ Kept here because each is a shape of mistake that will recur, not because the fi
 - **`ClaudeCodeAgent` inside the app.** The `claude` CLI has run under `tools/e2e/run.mjs` and its transcript
   is the parser's fixture, but no Claude turn has gone through the running app. **`OpenCodeAgent` has**, on
   `openai/gpt-5.5` — five turns and a publish, 66–70 above.
-- **The sandbox image has never been built**, for want of a Docker daemon.
+- **A real agent in the sandbox image.** The image is built and has served a site and a mock turn through the app
+  (77), but containers here have no route out, so no model has been reached from one.
 - **Google sign-in and Resend**, absent by design without their configuration.
 
 ## The first five things, in order
@@ -1211,14 +1239,9 @@ line in the thread.
 
 ### 2. The sandbox in a container
 
-```
-docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .
-```
-
-Then set `Sandbox:Provider` to `docker` and watch the same chain the local provider already passes: health,
-the tree in `/workspace`, `npm ls --depth=0` succeeding **without an install** — that is the prebaked
-dependencies bet and the only thing the local provider cannot tell you — `next dev`, and the preview through
-the proxy. Then edit a file inside the container by hand and confirm the browser updates by itself: the
+**Mostly done** (77): the image builds from the real Dockerfile, the prebaked dependencies hold, `next dev` and
+the preview work through the app, and a mock turn commits. What is left needs a container with a route out: a
+real agent's turn in it, and editing a file inside it by hand to confirm the browser updates by itself — the
 WebSocket forward is the one part of the proxy that fails silently rather than loudly.
 
 ### 3. Vercel

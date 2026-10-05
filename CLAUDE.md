@@ -79,10 +79,10 @@ Two harnesses drive it, and they answer different questions:
 - **`VercelDeploymentTarget`** — written against another product's documented interface, never executed.
   `docs/deploy-plan.md` §6 says what to reconcile first.
 - **`E2bSandboxProvider`** — never run. The contract every provider speaks is the one `tools/e2e` exercises,
-  which is the point of having it. **`DockerSandboxProvider` has now run**: a container started, published a
-  loopback port, answered `/health`, took a seeded tree, ran a turn's agent and handed the tree back, and a
-  version was committed from it. Two things it had wrong are fixed below. What has still not run in it is a
-  `next dev` — see the note on the font.
+  which is the point of having it. **`DockerSandboxProvider` has now run on the real image**: built from
+  `deploy/sandbox/Dockerfile`, started by the app, seeded, `next dev` serving the preview through the proxy, a
+  mock turn committed, and the container removed and metered when the app stopped. What has not run in it is a
+  real agent, because containers here have no route out — see "Docker here".
 - **`ClaudeCodeAgent` inside the app.** `ClaudeStreamJsonParser` is covered by a recorded transcript and the
   `claude` CLI has run under `tools/e2e/run.mjs`, but no Claude turn has gone through the running app. That
   needs `Agent:ClaudeCode:ApiKey` in user secrets and nothing else. **`OpenCodeAgent` has**, on
@@ -93,14 +93,22 @@ Two harnesses drive it, and they answer different questions:
 ### Docker here, and what it is actually good for
 
 A daemon **can** be started in this kind of container — `dockerd --iptables=false --ip6tables=false`, as
-root — and containers run. What does not work is the **image registry**: a pull answers 403 at the egress
-proxy. So `docker build` on `deploy/sandbox/Dockerfile` is out, because its base image cannot be fetched.
+root — and containers run, with no route out (no NAT without iptables). **And the real image builds**, which
+for a long time it did not. Three things about this network, each of which cost a failed attempt:
 
-The way round it, when the Docker provider needs exercising: assemble a rootfs on the host — the node
-install, `git`, a handful of `/bin` tools with their libraries, `tools/sandbox-agent`, and the template's
-`node_modules` under `/workspace` — `tar` it, and `docker import --change 'CMD …'`. That is how
-`DockerSandboxProvider` was first run. It is not the real image and it does not have to be: what it proves is
-the provider's plumbing, not the Dockerfile's.
+- **Docker Hub answers 429** to an anonymous pull from a shared address (it used to be a 403). Google's mirror
+  does not: `docker pull mirror.gcr.io/library/node:22-bookworm-slim`, then `docker tag` it as
+  `node:22-bookworm-slim`, and the Dockerfile's `FROM` is satisfied locally.
+- **Only HTTPS goes through the proxy.** Pass `HTTPS_PROXY`/`https_proxy` and `NO_PROXY`/`no_proxy` as build
+  args, never `HTTP_PROXY`: plain HTTP goes direct, and sent to the proxy apt gets a 405.
+- **The proxy re-terminates TLS**, so npm inside the build needs its CA. Do that in a copy of the Dockerfile,
+  never in the real one: two lines after `FROM` — `COPY --from=proxyca ca-bundle.crt /etc/ssl/certs/build-proxy-ca.pem`
+  and `ENV NODE_EXTRA_CA_CERTS=…` — with `--build-context proxyca=<dir holding /root/.ccr/ca-bundle.crt>`, and
+  `--network host` so the build can reach the proxy on loopback.
+
+The image then builds in under three minutes, and running it found two defects no local run could — see
+`whats_next.md` 77. Its containers have no route out here, so a real agent cannot reach its model from one;
+the mock can, and that is how `Sandbox:Provider=docker` has been driven through the app.
 
 ### Getting a .NET SDK where there is not one
 

@@ -108,8 +108,10 @@ paragraphs are kept because each one names a thing to check again after a change
    `Agent:ClaudeCode:ApiKey` set**, which is the next thing, and the only part of the chat path the mock cannot
    stand in for.
 6. **Reconcile `VercelDeploymentTarget`** against a real token: publish, add a domain, verify it.
-7. **Build the sandbox image** and run the same turn with `Sandbox:Provider=docker`. The prebaked-dependencies
-   bet — `npm ls --depth=0` passing without an install — is the one thing the local provider cannot tell you.
+7. ~~**Build the sandbox image** and run the same turn with `Sandbox:Provider=docker`~~ — built here from the real
+   Dockerfile and driven through the app with the mock agent; the prebaked-dependencies bet holds (`npm ls
+   --depth=0` passes with no install). Running it found two defects no local run could (`whats_next.md` 77). Still
+   to do: a real agent in it, which needs a container with a route out.
 
 ## P2 — The editor people can actually use
 

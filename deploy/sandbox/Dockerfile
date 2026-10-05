@@ -40,6 +40,9 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends chromium fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 ENV WEBLY_BROWSER=/usr/bin/chromium
+# Without it `sans-serif` resolves to Liberation Mono here, and the agent judges its pages from screenshots set in a
+# typewriter face. The file says why.
+COPY deploy/sandbox/fonts.conf /etc/fonts/local.conf
 
 # The two coding agents and the Vercel CLI, pinned. Pinned because an agent CLI's flags are part of
 # this repository's code — ClaudeCodeAgent passes --output-format stream-json and parses what comes

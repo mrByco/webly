@@ -20,7 +20,7 @@ public class SandboxOptions
     /// starter template's dependencies already installed, which is what makes a cold workspace's dev server
     /// start in seconds instead of after an npm install.
     /// </summary>
-    public string Image { get; set; } = "byc0/webly-sandbox:latest";
+    public string Image { get; set; } = "byc0/margareta:webly_sandbox";
 
     /// <summary>
     /// How long a workspace stays warm with nobody talking to it. Sandboxes bill by the second, so this is

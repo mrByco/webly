@@ -52,14 +52,24 @@ const browser = spawn(browserPath, [
   `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
-function finish(code) {
-  try {
+// The browser is killed and then waited for, because Chromium writes into its profile on the way down: removing the
+// profile while it is still exiting fails with ENOTEMPTY. Debian's build, which the sandbox image carries, did that
+// on every run, and both pictures were saved and then reported as "The screenshot failed" — which an agent reads as
+// having nothing to look at. Nothing found it until the image was run: the browser every local run used exits
+// faster. And the removal is best-effort, because a temporary directory left behind is not a failed screenshot.
+async function finish(code) {
+  if (browser.exitCode === null && browser.signalCode === null) {
+    const exited = new Promise(resolve => browser.once('exit', resolve));
     browser.kill('SIGKILL');
-  } catch {
-    // Gone already.
+    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5_000))]);
   }
 
-  rmSync(profile, { recursive: true, force: true });
+  try {
+    rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  } catch {
+    // Left in the temporary directory, which is the sandbox's and goes with it.
+  }
+
   process.exit(code);
 }
 
@@ -194,8 +204,8 @@ try {
   for (const name of only ? [only] : Object.keys(VIEWPORTS)) await capture(name, VIEWPORTS[name]);
 
   console.log('Open each image with your file-reading tool and look at it before you finish.');
-  finish(0);
+  await finish(0);
 } catch (error) {
   console.log(`The screenshot failed: ${error.message}`);
-  finish(1);
+  await finish(1);
 }
