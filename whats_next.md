@@ -1323,6 +1323,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     page, which production never does (see `CLAUDE.md`). Also a timing assertion in `UsageTests` that read 49ms for
     a 50ms wait and failed a clean suite; it brackets the duration now instead.
 
+86. **A screen reader hears the turn.** Nothing in the chat was a live region, so pressing Send was followed by
+    silence for anybody listening rather than looking. A visually hidden log beside the transcript now says each
+    thing once, when it is complete — checked on a mock turn: "Waking up your site.", the reply, "Saved as a new
+    version: …". Not the transcript itself, which streams and would be read as fragments.
+
 
 ## What is still intent
 

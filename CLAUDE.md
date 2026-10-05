@@ -1419,6 +1419,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   `mailto:` grows a `bcc` out of a string a stranger typed. The Messages screen still has no reply of its own —
   an enquiry is answered from the owner's own inbox — and this is the three verbs it has made usable rather
   than a fourth.
+- **The chat speaks to a screen reader through a log of its own**, `spoken` in `SiteChat`: the reply, "saved as a
+  new version", a build failure, how a turn ended — each once, whole, in a visually hidden `role="log"`. Before
+  it, somebody who cannot see the screen pressed Send and heard nothing at all. The transcript itself is
+  deliberately not the live region: it streams a reply a few words at a time and then replaces it whole, which a
+  screen reader reads as fragments and then everything again.
 - **`components/modal` is a native `<dialog>` opened with `showModal()`**, because the `div role="dialog"` it
   replaced was only drawn: focus stayed on the button that opened it, Tab walked the obscured page behind, Escape
   did nothing and closing dropped focus on the body — on four dialogs that each guard something irreversible.

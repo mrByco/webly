@@ -136,6 +136,13 @@
       }
     </div>
 
+    <!-- For a screen reader: what the turn did, each line once and whole. See `spoken`. -->
+    <div class="sr-only" role="log" aria-live="polite">
+      @for (line of spoken(); track $index) {
+        <p>{{ line }}</p>
+      }
+    </div>
+
     <form class="border-t border-base-300 p-3" (ngSubmit)="send()">
       @if (error()) {
         <p class="mb-2 text-xs font-semibold text-error">{{ error() }}</p>

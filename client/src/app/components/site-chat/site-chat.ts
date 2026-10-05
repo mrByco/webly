@@ -125,6 +125,17 @@ export class SiteChat {
 
   protected message = '';
 
+  /**
+   * What a screen reader is told as a turn goes: one line per thing worth hearing, said once, when it is complete.
+   *
+   * Nothing was told anything before this — the transcript is not a live region, so somebody who cannot see the
+   * screen pressed Send and heard silence, whatever happened next. And it cannot simply become one, because it
+   * streams: a reply arrives a few words at a time and is then replaced whole, which a live region reads out as a
+   * dozen fragments and then everything again. So this is a separate, visually hidden log beside it. Emptied when
+   * a turn starts, and never filled from a loaded thread — history is for reading, not for announcing.
+   */
+  protected readonly spoken = signal<string[]>([]);
+
   private runId?: string;
 
   /**
@@ -315,6 +326,7 @@ export class SiteChat {
 
     this.message = '';
     this.error.set(undefined);
+    this.spoken.set([]);
     this.append({ kind: 'user', text });
 
     try {
@@ -357,6 +369,11 @@ export class SiteChat {
     this.turnFinished.emit();
 
     await this.load(this.siteNanoid());
+
+    // The one line of a reloaded thread that is news: how the turn that was running ended.
+    const last = this.entries().at(-1);
+
+    if (last?.kind === 'notice') this.say(last.text);
   }
 
   /**
@@ -390,11 +407,13 @@ export class SiteChat {
         // The whole message, which replaces whatever the deltas built: a client that joined mid-turn has
         // the tail and not the head, and rebuilding from deltas is more fragile than being told.
         this.replaceAssistant(event.text ?? '');
+        if (event.text) this.say(event.text);
         break;
 
       case 'WorkspaceProgress':
         // Replaced rather than appended: this is one step with several stages, and a line per stage reads
         // like something going wrong.
+        if (!this.entries().some(entry => entry.kind === 'waking')) this.say('Waking up your site.');
         this.replaceLatest('waking', event.detail ?? 'Waking up your site');
         this.workspaceProgress.emit(event.detail ?? '');
         break;
@@ -432,6 +451,7 @@ export class SiteChat {
           versionNanoid: event.versionNanoid ?? undefined,
         });
         this.versionCommitted.emit(event.versionNanoid ?? '');
+        this.say(`Saved as a new version: ${event.detail ?? 'your site was updated'}.`);
         break;
 
       case 'BuildFailed':
@@ -442,6 +462,7 @@ export class SiteChat {
           heading: 'Your site is not compiling',
           text: event.detail ?? 'The site is not compiling.',
         });
+        this.say('Your site is not compiling. The error is in the chat.');
         break;
 
       case 'TypesFailed':
@@ -452,10 +473,12 @@ export class SiteChat {
           heading: 'This will stop your site publishing',
           text: event.detail ?? 'The types do not check.',
         });
+        this.say('This will stop your site publishing. The error is in the chat.');
         break;
 
       case 'Failed':
         this.append({ kind: 'error', text: event.error ?? 'Something went wrong.' });
+        this.say(event.error ?? 'Something went wrong.');
         this.finish();
         break;
 
@@ -467,6 +490,7 @@ export class SiteChat {
         // stopped moving.
         if (event.detail) {
           this.append({ kind: 'notice', text: event.detail });
+          this.say(event.detail);
         }
 
         this.finish();
@@ -487,6 +511,10 @@ export class SiteChat {
       void this.realtime.unwatch(this.runId);
       this.runId = undefined;
     }
+  }
+
+  private say(line: string): void {
+    this.spoken.update(lines => [...lines, line]);
   }
 
   private append(entry: ChatEntry): void {
