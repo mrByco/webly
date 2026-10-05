@@ -1205,6 +1205,40 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     too. Self-hosting it with `next/font/local` would remove the question.
 
 
+78. **A new customer's first hour, walked and refined.** A fresh account through the real UI — sign-up, the code,
+    a first site, two real OpenCode turns, publishing, the published site's contact form as a stranger, the
+    owner's Messages, every screen at both widths and the main ones in dark mode — and then fixed what it showed:
+
+    - **The end of every narrated turn repeated itself.** The live screen drew the agent's narration twice, with
+      the `SUMMARY:` line meant for the commit under it, while a reload showed the clean answer: `RunWriter` sent
+      the streamed text and the turn stored the reply. It sends the reply now.
+    - **The preview sat behind a spinner for the whole first turn** — 94 seconds of "Starting the preview" while
+      the agent wrote the site. `RunEventType.WorkspaceReady` ends the wait as soon as the workspace is up: the
+      next first turn had its preview on screen at 13 seconds, with the agent's edits arriving in it.
+    - **Repeated activity lines** ("Reading your site" three times) are one line now.
+    - **Starter text reached published sites.** The contact page told visitors to "tell Webly what this page should
+      say", and the description every search result and shared link shows said the same, beside a home page the
+      agent had already written. The contact copy is a visitor's, the description starts empty, and `AGENTS.md`
+      rule 12 asks the agent to clear starter text — which an older site's next, unrelated turn then did, its
+      description included.
+    - **Publishing** shows a working button with a spinner rather than a grey one, and ends with "Your site is
+      live" and a link.
+    - **Phones** get the chat or the preview, each a whole screen, with a switch; they had 290px and 180px.
+    - **The facts panel** in Settings shows a chevron, and renders `content/brand.md` as formatted text rather than
+      Markdown (`models/brand-facts.ts`); the template's copy of that file is written for the owner throughout.
+    - **The app's font is self-hosted**, so no page asks Google for anything.
+    - **History entries are specific**: one shared `TurnPrompt` for both agents, with an example of a good
+      summary. "Ridgeway Cycles home page was updated." became "Added second-hand bike sales to the home page".
+
+    **Tried and reverted**: letting webpack's hot-update manifest through the preview proxy like a font, so edits
+    would apply in place instead of reloading the frame. Client components did; pages stopped updating at all,
+    because Next applies a Server Component change by writing `document.cookie`, which the sandboxed frame may
+    not. `PreviewController.IsFont` and `CLAUDE.md` say so. The real answer is still the preview's own origin.
+
+    **Not changed, worth knowing**: a turn's first reload of the preview logs a 502 in the console — that is the
+    "your site is compiling" page doing its job while `next dev` starts.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the

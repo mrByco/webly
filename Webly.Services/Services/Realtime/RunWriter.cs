@@ -50,16 +50,26 @@ public sealed class RunWriter(IRunEventSink sink)
     }
 
     /// <summary>
-    /// Ends the assistant's message and returns the whole of it, for persisting. The complete text is sent as
-    /// well as the deltas: a client that joined mid-turn has the tail but not the head, and replaying deltas to
-    /// rebuild a message is more fragile than being told what it says.
+    /// Ends the assistant's message and returns the whole of it, for persisting: <paramref name="reply"/>, the
+    /// agent's own account of what it said, when it gave one, and the streamed text when it did not. The complete
+    /// text is sent as well as the deltas: a client that joined mid-turn has the tail but not the head, and
+    /// replaying deltas to rebuild a message is more fragile than being told what it says.
+    ///
+    /// <b>What is sent and what is stored are one string</b>, which they were not. This sent the streamed text and
+    /// the turn then stored the agent's reply, and the two differ whenever the agent narrates as it works: the
+    /// stream is every "I'm checking the page now" plus the answer plus the <c>SUMMARY:</c> line meant for the
+    /// commit, while the reply is the answer alone. So the end of every such turn drew the narration a second time
+    /// with the summary line under it, and a reload showed the clean answer — the live screen and the thread
+    /// disagreeing about what the agent said. Found by watching a real OpenCode turn finish in a browser.
     /// </summary>
-    public async Task<string> CompleteMessageAsync(CancellationToken cancellationToken = default)
+    public async Task<string> CompleteMessageAsync(string? reply, CancellationToken cancellationToken = default)
     {
         await FlushAsync(cancellationToken);
 
-        var text = _message.ToString();
+        var streamed = _message.ToString();
         _message.Clear();
+
+        var text = string.IsNullOrEmpty(reply) ? streamed : reply;
 
         if (text.Length > 0)
             await sink.EmitAsync(RunId, new RunEvent { Type = RunEventType.MessageCompleted, Text = text },

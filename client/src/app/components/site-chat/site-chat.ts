@@ -1,4 +1,4 @@
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
@@ -93,6 +93,12 @@ export class SiteChat {
   readonly workspaceProgress = output<string>();
 
   /**
+   * Raised when the workspace a turn was waiting for is up, so the preview can be shown while the agent works —
+   * which is when there is something to watch. See `RunEventType.WorkspaceReady`.
+   */
+  readonly workspaceReady = output<void>();
+
+  /**
    * Raised when a turn ends, however it ended. The editor re-reads the site on it — a turn that wrote
    * nothing still left a warm workspace behind, and that is what the preview needs to know.
    */
@@ -102,6 +108,7 @@ export class SiteChat {
   private readonly injector = inject(Injector);
   private readonly images = inject(ImageService);
   private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly entries = signal<ChatEntry[]>([]);
   protected readonly enabled = signal(true);
@@ -130,6 +137,25 @@ export class SiteChat {
     effect(() => {
       const nanoid = this.siteNanoid();
       void this.load(nanoid);
+    });
+
+    // Back at the newest entry whenever the chat is shown again. Below `lg` the editor shows the chat or the
+    // preview, never both, and a transcript that was `display: none` while a turn wrote into it comes back
+    // scrolled to its top: hidden, it had no height to scroll, and the browser does not remember a position it
+    // could not have. Only on the way back from hidden, so somebody scrolled up to read is left where they are.
+    afterNextRender(() => {
+      let hidden = false;
+
+      const observer = new ResizeObserver(([entry]) => {
+        const nowHidden = entry.contentRect.height === 0;
+
+        if (hidden && !nowHidden) this.scrollToEnd();
+
+        hidden = nowHidden;
+      });
+
+      observer.observe(this.host.nativeElement);
+      this.destroyRef.onDestroy(() => observer.disconnect());
     });
   }
 
@@ -335,9 +361,25 @@ export class SiteChat {
         this.workspaceProgress.emit(event.detail ?? '');
         break;
 
-      case 'Activity':
-        this.append({ kind: 'activity', text: event.detail ?? 'Working' });
+      case 'WorkspaceReady':
+        // The waiting is over, so the line that said what it was waiting for goes. Left in place it kept its
+        // spinner above everything the agent did next, and read as the site still starting a minute later.
+        this.entries.update(entries => entries.filter(entry => entry.kind !== 'waking'));
+        this.workspaceReady.emit();
         break;
+
+      case 'Activity': {
+        // Once for a run of the same thing. An agent reads three files to answer one question and clicks
+        // through a page ten times to check it, and a line for each buried the sentences between them under
+        // "Reading your site" three times over. A different activity, or anything else, starts a new line.
+        const text = event.detail ?? 'Working';
+        const last = this.entries().at(-1);
+
+        if (last?.kind !== 'activity' || last.text !== text) {
+          this.append({ kind: 'activity', text });
+        }
+        break;
+      }
 
       case 'FileChanged':
         // Collected into one growing entry. A turn touches a dozen files and a chip each would bury the

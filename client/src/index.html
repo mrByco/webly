@@ -17,13 +17,12 @@
   <meta name="theme-color" content="#202329" media="(prefers-color-scheme: dark)">
 
   <!--
-    Source Sans 3. Preconnected because the font is on the critical path for the first paint, and the
-    CSS falls back to the system stack until it lands.
+    The app's own typeface, self-hosted (see the @font-face rules in styles.css for why it is no longer
+    Google's), and preloaded because it is on the critical path for the first paint: without the hint the
+    browser learns it needs the file only once the stylesheet is parsed. The Latin file only — the Extended
+    one is for accented names, and most visitors never need it.
   -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+  <link rel="preload" href="/fonts/source-sans-3-latin.woff2" as="font" type="font/woff2" crossorigin>
 
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>

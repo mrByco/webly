@@ -2,8 +2,13 @@
   @if (site(); as detail) {
     <div class="flex min-h-0 flex-1 flex-col">
       <!-- The header: what is open, where it lives, and the one button that changes the world. -->
+      <!--
+        Below `lg` the tabs take a row of their own and the title and Publish share the first, which is a row
+        the header used to spend on the Publish button alone — on a phone, the height the chat and the preview
+        are fighting over.
+      -->
       <header class="flex flex-wrap items-center gap-3 border-b border-base-300 bg-base-100 px-4 py-3">
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <h1 class="truncate text-lg font-bold tracking-tight">{{ detail.summary.name }}</h1>
 
           <!--
@@ -50,7 +55,7 @@
           pill visible at the edge as the only evidence. Swiping the row is how the rest of the phone world does
           this, and `ml-auto` is what pushes it to the right of the title from `lg` up.
         -->
-        <nav class="-mx-1 flex w-full gap-1 overflow-x-auto px-1 lg:mx-0 lg:ml-auto lg:w-auto lg:overflow-x-visible lg:px-0">
+        <nav class="-mx-1 flex w-full gap-1 overflow-x-auto px-1 max-lg:order-last lg:mx-0 lg:ml-auto lg:w-auto lg:overflow-x-visible lg:px-0">
           <a
             class="btn btn-ghost btn-sm"
             routerLinkActive="btn-active"
@@ -90,13 +95,27 @@
           </a>
         </nav>
 
-        <button class="btn btn-primary btn-sm" type="button" [disabled]="!canPublish()" (click)="publish()">
-          <app-icon class="size-4" name="rocket" />
+        <!--
+          Busy rather than disabled while a publish runs. Disabled is daisyUI's grey, and a grey button reading
+          "Preparing" for the better part of a minute looked like a control nobody could use rather than one doing
+          something: the status words were there and nothing about them said they were moving. Inert instead —
+          `publish()` refuses a second press anyway — with a spinner where the rocket was.
+        -->
+        <button
+          class="btn btn-primary btn-sm"
+          type="button"
+          [class.pointer-events-none]="publishing()"
+          [attr.aria-busy]="publishing()"
+          [disabled]="!canPublish() && !publishing()"
+          (click)="publish()">
           @if (publishing()) {
-            {{ publishStatus() ?? 'Publishing…' }}
+            <span class="loading loading-spinner loading-xs"></span>
+            {{ publishStatus() ?? 'Publishing' }}…
           } @else if (detail.summary.hasUnpublishedChanges || !detail.summary.publishedAt) {
+            <app-icon class="size-4" name="rocket" />
             Publish
           } @else {
+            <app-icon class="size-4" name="check" />
             Published
           }
         </button>
@@ -110,27 +129,78 @@
       }
 
       <!--
-        Chat on the left, preview on the right, from `lg` up. Below that the preview goes under the chat
-        rather than beside it: on a phone the chat is the product, and half a screen of each is neither.
+        The moment a publish lands, said once and with somewhere to go. Before this the only sign was the button
+        turning grey and the address under the title changing to a link — a minute's wait on the product's biggest
+        moment ended without the screen saying so. Only for a publish this page watched finish, never on load.
+      -->
+      @if (justPublished() && detail.summary.liveUrl) {
+        <div role="status" class="alert alert-success alert-soft mx-4 mt-3">
+          <app-icon class="size-5" name="check" />
+          <span>Your site is live.</span>
+          <a class="link font-semibold" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">
+            Open it
+            <app-icon class="ml-0.5 inline-block size-3.5 align-[-2px]" name="external" />
+          </a>
+          <button class="btn btn-ghost btn-square btn-xs" type="button" aria-label="Dismiss" (click)="justPublished.set(false)">
+            <app-icon class="size-4" name="x" />
+          </button>
+        </div>
+      }
+
+      <!--
+        Chat on the left, preview on the right, from `lg` up. Below that, **one at a time**, with a switch.
+
+        They used to be stacked, and the screen showed what stacking two panes in a phone's height leaves: about
+        290px of chat and 180px of a website — three lines of the conversation and the top of a hero — with the
+        page somebody was building cut off at its headline. Each is a whole screen's job. The chat is the default
+        because it is where a turn starts; the switch says when the preview has something new to look at.
       -->
       <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+        @if (!outlet.isActivated) {
+          <div class="flex shrink-0 gap-1 border-b border-base-300 bg-base-100 px-4 py-2 lg:hidden" role="tablist">
+            <button
+              class="btn btn-ghost btn-sm flex-1"
+              type="button"
+              role="tab"
+              [class.btn-active]="pane() === 'chat'"
+              [attr.aria-selected]="pane() === 'chat'"
+              (click)="showPane('chat')">
+              <app-icon class="size-4" name="sparkles" />
+              Chat
+            </button>
+            <button
+              class="btn btn-ghost btn-sm flex-1"
+              type="button"
+              role="tab"
+              [class.btn-active]="pane() === 'preview'"
+              [attr.aria-selected]="pane() === 'preview'"
+              (click)="showPane('preview')">
+              <app-icon class="size-4" name="eye" />
+              Preview
+              @if (previewFresh()) {
+                <span class="badge badge-primary badge-xs">updated</span>
+              }
+            </button>
+          </div>
+        }
+
         <!--
-          A fixed width from `lg` up, not a share of the row. `basis-2/5` is the phone layout's two fifths of
-          the *height*, and it was also letting the chat be squeezed sideways whenever the pane beside it
-          wanted room — opening History left the transcript about ninety pixels wide, one word per line.
-        -->
-        <!--
-          `max-lg:hidden` while a child route is showing: at phone width the chat and the child would be two
-          cramped halves of one screen, and the child is the thing that was just navigated to. From `lg` up they
-          sit side by side, which is the whole reason history and settings render in place of the preview.
+          A fixed width from `lg` up, not a share of the row: a share let the chat be squeezed sideways whenever
+          the pane beside it wanted room — opening History left the transcript about ninety pixels wide, one word
+          per line.
+
+          Hidden below `lg` while a child route is showing, because the child is the thing that was just navigated
+          to, and while the switch above says Preview. From `lg` up they sit side by side, which is the whole reason
+          history and settings render in place of the preview.
         -->
         <section
-          class="flex min-h-0 basis-3/5 flex-col border-base-300 lg:w-96 lg:shrink-0 lg:basis-auto lg:border-r"
-          [class.max-lg:hidden]="outlet.isActivated">
+          class="flex min-h-0 flex-col border-base-300 max-lg:flex-1 lg:w-96 lg:shrink-0 lg:border-r"
+          [class.max-lg:hidden]="outlet.isActivated || pane() === 'preview'">
           <app-site-chat
             [siteNanoid]="detail.summary.nanoid"
             (versionCommitted)="onVersionCommitted()"
             (workspaceProgress)="onWorkspaceProgress($event)"
+            (workspaceReady)="onWorkspaceReady()"
             (turnFinished)="onTurnFinished()" />
         </section>
 
@@ -141,7 +211,9 @@
           of the window, the diff ran off with no scrollbar, and the whole thing read as a bug in the diff
           rendering. Every child route renders in here, so it belongs here rather than in each of them.
         -->
-        <section class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <section
+          class="flex min-h-0 min-w-0 flex-1 flex-col"
+          [class.max-lg:hidden]="!outlet.isActivated && pane() === 'chat'">
           <!--
             The child routes render in place of the preview: history, domains and settings are all about the
             site you are looking at, and taking the chat off screen to show them would interrupt the one

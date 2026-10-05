@@ -252,11 +252,23 @@ public class AgentTurnService(
         await syncOwnedFiles.ExecuteAsync(
             site, new CommitAuthor(user.DisplayName, user.Email), user.Id, cancellationToken);
 
+        var waited = false;
+
         await using var lease = await workspaces.AcquireAsync(
             site,
-            progress => writer.WriteAsync(
-                new RunEvent { Type = RunEventType.WorkspaceProgress, Detail = progress }, cancellationToken),
+            progress =>
+            {
+                waited = true;
+
+                return writer.WriteAsync(
+                    new RunEvent { Type = RunEventType.WorkspaceProgress, Detail = progress }, cancellationToken);
+            },
             cancellationToken);
+
+        // The preview can be shown from here on, so the agent's edits appear in it as they are made. Only after a
+        // wait: a warm workspace's preview is already on screen. See RunEventType.WorkspaceReady.
+        if (waited)
+            await writer.WriteAsync(new RunEvent { Type = RunEventType.WorkspaceReady }, cancellationToken);
 
         var workspace = lease.Workspace;
         var changedFiles = new HashSet<string>(StringComparer.Ordinal);
@@ -315,11 +327,10 @@ public class AgentTurnService(
         workspace.AgentSessionId = outcome.SessionId;
         workspace.AgentKey = agent.Key;
 
-        var reply = await writer.CompleteMessageAsync(cancellationToken);
-
         // The agent's own final text wins over the accumulated deltas: a stream can be partial, and the outcome
-        // is what the CLI says it said.
-        if (outcome.Reply.Length > 0) reply = outcome.Reply;
+        // is what the CLI says it said. Decided inside the writer, so the screen is told the same thing the thread
+        // stores.
+        var reply = await writer.CompleteMessageAsync(outcome.Reply, cancellationToken);
 
         var assistantMessage = new ConversationMessage
         {

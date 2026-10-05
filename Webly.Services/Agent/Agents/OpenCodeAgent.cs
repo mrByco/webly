@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text;
 using System.Text.Json.Nodes;
 using Webly.Services.Services.Sandboxes;
 
@@ -46,7 +45,7 @@ public class OpenCodeAgent(
     {
         var arguments = new List<string>
         {
-            "run", BuildPrompt(request),
+            "run", TurnPrompt.Build(request),
             "--model", _options.OpenCode.Model,
             // Typed events rather than prose: the cost of every step, the final answer apart from the narration
             // before it, the tools as they are used, and a session id to resume. See OpenCodeJsonParser.
@@ -128,53 +127,10 @@ public class OpenCodeAgent(
         };
     }
 
-    private static string BuildPrompt(CodingAgentRequest request)
-    {
-        var prompt = new StringBuilder();
-
-        if (request.History.Count > 0)
-        {
-            prompt.AppendLine("Earlier in this conversation:");
-
-            foreach (var turn in request.History) prompt.AppendLine($"- {turn}");
-
-            prompt.AppendLine();
-        }
-
-        prompt.AppendLine(request.Message);
-        prompt.AppendLine();
-        prompt.AppendLine(
-            "End your reply with a line of the form 'SUMMARY: <one past-tense sentence, under 70 characters, "
-            + "naming what changed>' — it becomes the entry in the site owner's history. If you changed "
-            + "nothing, say SUMMARY: none.");
-
-        return prompt.ToString();
-    }
-
-    /// <summary>
-    /// The same summary convention as the other agent, parsed the same way — which is the point of putting it
-    /// in the prompt rather than in a structured output only one of them supports.
-    /// </summary>
+    /// <summary>The reply and its summary line, split the way every agent's are — see <see cref="TurnPrompt"/>.</summary>
     private static CodingAgentOutcome Parse(string output, string fallbackSummary, string? sessionId)
     {
-        var reply = output.Trim();
-        var summary = fallbackSummary.Length <= 70 ? fallbackSummary : $"{fallbackSummary[..67]}...";
-        var lines = reply.Split('\n');
-
-        for (var index = lines.Length - 1; index >= 0; index--)
-        {
-            var line = lines[index].Trim();
-
-            if (!line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var value = line["SUMMARY:".Length..].Trim();
-
-            if (value.Length > 0 && !value.Equals("none", StringComparison.OrdinalIgnoreCase))
-                summary = value.Length <= 70 ? value : $"{value[..67]}...";
-
-            reply = string.Join('\n', lines.Take(index)).TrimEnd();
-            break;
-        }
+        var (reply, summary) = TurnPrompt.Split(output, fallbackSummary);
 
         return new CodingAgentOutcome(reply, summary, Details: null, sessionId);
     }

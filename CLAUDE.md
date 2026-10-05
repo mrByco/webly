@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 203-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 209-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -551,6 +551,16 @@ structured-document model it replaced was better at.
   stay in the stack) and **`content/brand.md`** is where the agent records facts it learns, because its
   session does not outlive the workspace. `CLAUDE.md` in the template just points at `AGENTS.md`, so both
   CLIs read one file.
+- **Starter text is written for whoever will read it once it is published.** The home page is a deliberate
+  skeleton ("Your new website"), and that is fine on a site nobody has described. What was not fine is what
+  outlived it: the contact page's copy told the owner to "tell Webly what this page should say", and the site's
+  default description — the line under its name in a search result and under its picture in a shared link —
+  said the same. A first turn rewrote the home page, the contact page and the description were nobody's
+  request, and both went out to a real business's customers. The contact page is the page that works from the
+  first minute, so its copy is now a visitor's; the description now **starts empty**, because the owner never
+  sees it and empty leaves the tags out rather than saying something wrong; and `AGENTS.md` rule 12 asks the agent
+  to clear any starter text it can, the description by name. That rule is what reached existing sites, through
+  the instructions sync: an older site's next turn — about second-hand bikes — rewrote its description unasked.
 - **A photograph in the Code tab is shown, not described.** A file that is not text gets "there is nothing
   to show" — which is right for a font and wrong for one of the owner's own pictures, when a route serving
   its bytes already exists for the settings screen's thumbnails. Only under `public/images/`, which is where
@@ -668,6 +678,12 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   worst thing this product can do. The agent asks in its reply and the turn ends; the answer is the
   person's next message. (The old blocking `AskUser` tool is gone — a CLI in a sandbox cannot wait on this
   app. The MCP bridge that would bring it back is in the plan, §1.3.)
+- **What a turn asks is written once**, in `TurnPrompt`: the history, the message, and the `SUMMARY:` line that
+  becomes the version's entry in the owner's history — and the split that takes that line back off the reply.
+  Each agent used to carry its own copy of both, worded differently. The instruction carries an example ("Added
+  opening hours and a phone link to the home page", not "Updated the home page") because the first real turn
+  wrote "Ridgeway Cycles home page was updated." for a change that added an address, hours and a phone number;
+  the next one wrote "Added florist services, hours and Haarlem delivery to home page".
 - **A turn is one version.** `AgentTurnService` runs the agent, then commits once from the tree the sandbox
   hands back: atomic, readable in the history, and free to cancel. **And a turn that does not commit leaves
   nothing behind**: a failed or stopped one re-seeds the workspace from the branch head
@@ -777,6 +793,12 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   typeface broke — the preview rendered in a fallback while the published site rendered in Inter. Font files
   under `_next/static/media/` are served on the nanoid alone with `Access-Control-Allow-Origin: *`: a copy of a
   public typeface, to somebody who already knows an unguessable id.
+  **Hot reload is a full reload in there, and has to stay one.** Webpack's update manifest is the font's problem
+  in another shape — fetched with CORS, from origin `null`, so refused — and webpack answers a manifest it cannot
+  read by reloading the frame, which is what puts an agent's edit on screen. Letting the manifest through like a
+  font was tried against a real dev server: client components then updated in place and every page stopped
+  updating, because a page is a Server Component and Next applies those by writing `document.cookie`, which a
+  sandboxed document may not do. `PreviewController.IsFont` says so where the next attempt would start.
   **The proper fix is a separate origin** (`{id}.preview.webly.site`), where the frame's own origin serves its
   own assets and none of this arises. It needs a wildcard record and a certificate.
 - **The dev server is told where it is, and that is load-bearing.** Next.js writes absolute URLs for its
@@ -853,6 +875,17 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   half had that from the start and the stop half did not, so pressing Stop ended with the spinner gone and a
   status line frozen mid-sentence: the "Stopped. Nothing was changed." note was in the database and only
   appeared if the person reloaded the page.
+- **What the screen is told the agent said is what the thread stores.** `RunWriter.CompleteMessageAsync` takes
+  the agent's own reply and sends that as `MessageCompleted`; it used to send the streamed text while the turn
+  stored the reply, and for an agent that narrates as it works those differ by every "I'm checking the page now"
+  plus the `SUMMARY:` line meant for the commit. So the end of every such turn drew the narration a second time
+  with the summary line under it, and a reload showed the clean answer. Found by watching a real turn finish.
+- **`WorkspaceReady` is sent when a turn's wait is over**, after any `WorkspaceProgress`, so the editor shows the
+  preview while the agent works rather than when the turn ends. It used to take the end of the turn as its cue,
+  and on a site's first turn the pane said "Starting the preview" for the whole minute and a half the agent spent
+  writing the site — the one thing this product does that nothing else does, a page changing as it is described,
+  happening behind a spinner. The dev server may still be compiling when it arrives; the proxy's
+  "your site is compiling" page retries by itself. Measured: preview on screen at 13 seconds rather than 94.
 - **The log is in memory, not a table.** A chat run cannot outlive its process and the log exists only to
   serve a reconnect. `IRunEventSink` is the seam if that changes.
 - **`RunWriter` flushes before any non-text event**, or a file chip arrives before the sentence that
@@ -1224,7 +1257,10 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   see. A fact recorded wrongly shapes every page written afterwards, and the person it belongs to had no way
   of knowing. Read from the head commit through the existing file endpoint, folded away, and read-only for
   the Code tab's reason: correcting it is a sentence in the chat, which is how it got there. **It renders the
-  file verbatim, so the file has to be written for the person** — the template's copy shipped with an HTML
+  file as formatted text** — headings, paragraphs, bullets and bold, through `models/brand-facts.ts`, bound as
+  text and never as HTML because a model wrote it — and it used to render it verbatim, so a florist checking her
+  facts read `- **Opening hours:**` under `## Facts`. **The file has to be written for the person either way** —
+  the template's copy shipped with an HTML
   comment under the Name fact, explaining to the agent that it is also `siteName` in `src/site.ts` and that a
   correction means changing both. True, useful, and addressed to the wrong reader: somebody looking at their own
   facts in a product that promises they never touch code was reading a note about a TypeScript constant. The
@@ -1254,8 +1290,10 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   unsuitable anywhere a directive or a sibling reads the DOM in the same pass.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
-  line that is replaced rather than appended while the workspace starts, and a `build` block carrying the
-  compiler's own words.
+  line that is replaced rather than appended while the workspace starts and removed once it has, and a `build`
+  block carrying the compiler's own words. **An activity is one line for a run of the same thing**: an agent
+  reads three files to answer one question and clicks through a page ten times to check it, and a line each
+  buried the sentences between them.
 - **And the transcript opens at the newest one, which it did not.** `scrollToEnd()` existed and was called
   only from `apply()`, the run-event handler — so the chat jumped to the end the moment anybody typed and never
   on the way in, which is the shape that hides a defect: right during the thing being tested, wrong before it
@@ -1266,6 +1304,21 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   ago, which on a first load is an empty one.
 - **The app's own colours are quiet on purpose.** This app is a frame around somebody else's website, and
   the accents on screen should be the preview's.
+- **Below `lg` the editor shows the chat or the preview, with a switch, never both.** Stacked, a phone had about
+  290px of chat and 180px of website — three lines of conversation and the top of a hero. Each is a screen's job;
+  the switch says "updated" when the preview has changed behind it, and the header gives Publish the title's row
+  instead of one of its own. The chat watches its own size (`ResizeObserver` on the host) and returns to the
+  newest entry when it is shown again, because a transcript that was `display: none` while a turn wrote into it
+  comes back scrolled to its top.
+- **A publish shows that it is working and says when it has worked.** The button stays primary with a spinner
+  and the status word rather than going disabled-grey, which read as a control nobody could use; and a publish
+  this page watched finish ends with "Your site is live" and a link, once. Before, a minute's wait on the
+  product's biggest moment ended with the button turning grey.
+- **The app's typeface is served by the app** (`public/fonts`, with its licence), not by Google's font CDN. Every
+  page load used to hand each visitor's address to Google — on the sign-in page of a European product, which a
+  German court has found to be a GDPR breach — and the sign-in screen drew itself in the system font before
+  swapping. Latin and Latin Extended only, each one variable file; `unicode-range` makes the second free for
+  anybody who never types an accented name.
 - **A field's border is the one place a faint line is not a style choice**, and daisyUI's default is 1.5:1
   against the panel — under WCAG 1.4.11's 3:1 for the boundary of a control. A card can be outlined faintly
   because what is in it says what it is; a field is empty by definition, so its border is the only thing

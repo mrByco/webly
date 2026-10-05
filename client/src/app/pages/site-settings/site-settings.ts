@@ -8,6 +8,7 @@ import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
 import { ImageService } from '../../services/image.service';
 import { SiteService } from '../../services/site.service';
+import { brandFacts } from '../../models/brand-facts';
 import { messageOf } from '../../models/problem-details';
 import { DeploymentResponse } from '../../api/models/deployment-response';
 import { SiteImageResponse } from '../../api/models/site-image-response';
@@ -68,6 +69,13 @@ export class SiteSettingsPage {
    * definition of a version. Correcting it is a sentence in the chat, which is also how it got there.
    */
   protected readonly brand = signal<string | undefined>(undefined);
+
+  /** That file as somebody who does not read Markdown would want to see it. See `brandFacts`. */
+  protected readonly brandBlocks = computed(() => {
+    const text = this.brand();
+
+    return text === undefined ? undefined : brandFacts(text);
+  });
 
   /**
    * The name the site's own pages say, read from its source.

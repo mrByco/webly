@@ -29,10 +29,10 @@ export default function Contact() {
     <section className="mx-auto max-w-2xl px-5 py-16">
       <h1 className="text-3xl font-bold tracking-tight">Get in touch</h1>
 
-      <p className="mt-3 text-ink-muted">
-        Send us a message and we will get back to you. Tell Webly what this page should say and it will be
-        rewritten for you.
-      </p>
+      {/* Written for a visitor, unlike the home page's deliberate skeleton: this is the page that works from the
+          first minute, so it gets published as it is — and a sentence telling the owner to "tell Webly" what to
+          write went out to a real business's customers beside a home page the agent had already filled in. */}
+      <p className="mt-3 text-ink-muted">Send us a message and we will get back to you.</p>
 
       <div className="mt-10">
         <SentNotice>

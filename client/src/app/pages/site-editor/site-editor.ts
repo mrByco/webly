@@ -63,6 +63,29 @@ export class SiteEditorPage {
   protected readonly publishing = signal(false);
   protected readonly publishStatus = signal<string | undefined>(undefined);
 
+  /** A publish this page watched has just finished, and the screen should say so once. */
+  protected readonly justPublished = signal(false);
+
+  /**
+   * Which pane a screen narrower than `lg` shows — it has room for one. Below that width the template hides the
+   * other; from `lg` up both are always drawn and this is never read.
+   */
+  protected readonly pane = signal<'chat' | 'preview'>('chat');
+
+  /** The preview has changed since somebody on a narrow screen last looked at it. A word on the switch, not a jump. */
+  protected readonly previewFresh = signal(false);
+
+  protected showPane(pane: 'chat' | 'preview'): void {
+    this.pane.set(pane);
+
+    if (pane === 'preview') this.previewFresh.set(false);
+  }
+
+  /** Something worth seeing reached the preview; say so on the switch if the chat is what is on screen. */
+  private markPreviewFresh(): void {
+    if (this.pane() === 'chat') this.previewFresh.set(true);
+  }
+
   protected readonly canPublish = computed(() => {
     const summary = this.site()?.summary;
 
@@ -76,11 +99,24 @@ export class SiteEditorPage {
     // The dev server has already hot-reloaded the edits; this is for the case where the tree moved as a
     // whole, which a reload of the frame is the only way to be sure of.
     this.previewKey.update(key => key + 1);
+    this.markPreviewFresh();
   }
 
   /** The workspace is starting. Shown in the preview pane, because that is the thing that is missing. */
   protected onWorkspaceProgress(detail: string): void {
     this.workspaceProgress.set(detail);
+  }
+
+  /**
+   * The workspace a turn was waiting for is up: show the preview now, so the agent's edits appear in it as they
+   * are made. The frame is reloaded as well as revealed, because a frame that was showing an older tree — a
+   * workspace re-seeded or a dev server restarted — has to start again from the new one.
+   */
+  protected onWorkspaceReady(): void {
+    this.workspaceProgress.set(undefined);
+    this.workspaceReady.set(true);
+    this.previewKey.update(key => key + 1);
+    this.markPreviewFresh();
   }
 
   /**
@@ -199,6 +235,8 @@ export class SiteEditorPage {
       const site = await this.sites.load(nanoid);
       this.workspaceReady.set(site.workspaceReady);
       this.workspaceProgress.set(undefined);
+      this.justPublished.set(false);
+      this.previewFresh.set(false);
       this.previewKey.update(key => key + 1);
       this.error.set(undefined);
 
@@ -253,6 +291,7 @@ export class SiteEditorPage {
     // reads this. Two publishes are refused by the index anyway, but a button that stays pressable is how
     // somebody finds that out.
     this.publishing.set(true);
+    this.justPublished.set(false);
     this.error.set(undefined);
 
     try {
@@ -274,7 +313,8 @@ export class SiteEditorPage {
 
       case 'Completed':
         this.publishing.set(false);
-        this.publishStatus.set('Live');
+        this.publishStatus.set(undefined);
+        this.justPublished.set(true);
         void this.sites.reload();
         break;
 
