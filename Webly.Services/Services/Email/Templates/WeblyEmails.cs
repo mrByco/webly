@@ -75,6 +75,11 @@ public static class WeblyEmails
     /// Sent after the password actually changes. Carries no link on purpose: its whole job is to let
     /// someone notice a change they did not make, and a "wasn't me" button in an email is exactly
     /// what a phishing message imitates.
+    ///
+    /// It used to say "every device has been signed out", which is false for the one device that matters most:
+    /// a change and a reset both revoke every session and then sign the device that made it straight back in.
+    /// To the owner that read as a lie about the browser in front of them; to somebody whose account was taken,
+    /// it said the intruder had been signed out too.
     /// </summary>
     public static EmailMessage PasswordChanged(string to, string displayName) =>
         new()
@@ -85,18 +90,19 @@ public static class WeblyEmails
             HtmlBody = EmailLayout.Wrap(
                 "Your password changed",
                 "A security notice about your Webly account.",
-                EmailLayout.Paragraph($"Hi {displayName}, the password on your Webly account has just been changed, and every device has been signed out.")
-                + EmailLayout.Paragraph("If that was you, there is nothing to do. If it was not, set a new password immediately from the sign-in page and check the security of your mailbox too."),
+                EmailLayout.Paragraph($"Hi {displayName}, the password on your Webly account has just been changed. Every device that was signed in has been signed out, apart from the one the change was made on.")
+                + EmailLayout.Paragraph("If that was you, there is nothing to do. If it was not, use “Forgotten your password?” on the sign-in page straight away — setting a new password signs out every device, that one included — and check the security of your mailbox too."),
                 footer: "Webly sends this whenever the password on an account changes, so a change nobody made does not go unnoticed."),
             TextBody =
                 $"""
                 Hi {displayName},
 
-                The password on your Webly account has just been changed, and every device has been
-                signed out.
+                The password on your Webly account has just been changed. Every device that was signed
+                in has been signed out, apart from the one the change was made on.
 
-                If that was you, there is nothing to do. If it was not, set a new password immediately
-                from the sign-in page and check the security of your mailbox too.
+                If that was you, there is nothing to do. If it was not, use "Forgotten your password?" on
+                the sign-in page straight away — setting a new password signs out every device, that one
+                included — and check the security of your mailbox too.
                 """
         };
 
@@ -229,7 +235,7 @@ public static class WeblyEmails
                 "You have a new message",
                 $"Somebody filled in a form on {siteName}.",
                 EmailLayout.Paragraph($"Hi {displayName}, somebody filled in a form on <strong>{EmailLayout.Escape(siteName)}</strong>.")
-                + EmailLayout.Fields(fields)
+                + EmailLayout.Fields([.. fields.Select(field => (FieldLabel.Of(field.Name), field.Value))])
                 + (replyTo is null
                     ? EmailLayout.Small("They did not leave an email address, so check the message for another way to reach them.")
                     : EmailLayout.Small("Reply to this email and your answer goes straight to them."))
@@ -241,7 +247,7 @@ public static class WeblyEmails
 
                 Somebody filled in a form on {siteName}.
 
-                {string.Join("\n\n", fields.Select(field => $"{field.Name}:\n{field.Value}"))}
+                {string.Join("\n\n", fields.Select(field => $"{FieldLabel.Of(field.Name)}:\n{field.Value}"))}
 
                 {(replyTo is null
                     ? "They did not leave an email address, so check the message for another way to reach them."

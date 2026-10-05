@@ -1162,7 +1162,10 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   tidies the name as far as a name can be tidied — separators and camelCase humps become spaces, the first
   letter is capitalised — and deliberately no further: it cannot know `qty` means quantity, and a confident
   wrong word above somebody's enquiry is worse than a plain one. A name already written as prose is left
-  alone, because a form whose names *are* its labels is allowed.
+  alone, because a form whose names *are* its labels is allowed. **The notification email applies the same
+  rule** (`FieldLabel` beside the templates, whose tests are the client spec's cases): the defect was found by
+  reading the inbox, and the fix had gone only to the screen, so the email went on printing `name` and
+  `preferred-date` for months.
 - **`App:BaseUrl` is where the endpoint's address comes from**, the same setting the links in mail are built
   from: a form action and a verification link are one fact about one host. `AppOptions.FormEndpointFor` is the
   one place it is composed, and both the dev server and the publish read it — a preview whose form posts

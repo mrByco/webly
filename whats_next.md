@@ -1294,6 +1294,15 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     close-account dialogs: focus lands on "Keep it" (the password, for the account), stays inside, Escape closes
     and focus returns to the button that opened it.
 
+83. **The emails, read rather than tested.** Two said something untrue. The enquiry notification printed the
+    raw field names — `name`, `email`, `message` — though the comment on the Messages screen's label rule says
+    the defect was found *in the inbox*; the fix had gone to the screen only. `FieldLabel` is the same rule for
+    the email, tested with the client spec's cases. And "your password changed" said every device had been
+    signed out, while a change and a reset both sign the device that made them straight back in — so it told the
+    owner something false about the browser in front of them, and told somebody whose account had been taken
+    that the intruder was out too. It now says which device stays, and that a reset removes that one as well.
+    Both checked by sending the published contact form as a stranger and changing the password in the app.
+
 
 ## What is still intent
 
