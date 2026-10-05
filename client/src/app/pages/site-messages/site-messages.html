@@ -46,7 +46,7 @@
       <article class="surface flex flex-col gap-3 p-4">
         <header class="flex items-center gap-2 text-xs text-muted">
           <app-icon class="size-4" name="mail" />
-          <time>{{ submission.createdAt | date: 'medium' }}</time>
+          <time [attr.datetime]="submission.createdAt">{{ submission.createdAt | date: 'd MMM, HH:mm' }}</time>
 
           @if (label(submission); as name) {
             <span class="badge badge-ghost badge-sm">{{ name }}</span>
