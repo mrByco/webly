@@ -594,6 +594,9 @@ try {
     ...(published
       ? [
         ['published', `${origin}/published/${nanoid}/`],
+        // The one page a visitor fills anything in on, and the one whose markup is most Webly's own: the form and
+        // its acknowledgement are components Webly keeps current in every site.
+        ['published-contact', `${origin}/published/${nanoid}/contact/`],
         ['published-404', `${origin}/published/${nanoid}/not-a-page/`],
       ]
       : []),
