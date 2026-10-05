@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
+using System.Text.Json.Nodes;
 using Webly.Services.Services.Sandboxes;
 
 namespace Webly.Services.Agent.Agents;
@@ -12,14 +13,19 @@ namespace Webly.Services.Agent.Agents;
 /// provider-agnostic, so it is the answer to "what if we need to change model provider, or run this entirely
 /// on our own infrastructure". Keeping it working costs this class.
 ///
-/// It is deliberately the plainer implementation. OpenCode's headless output is text rather than a typed
-/// event stream, so the person sees the agent's prose and a coarse activity line instead of per-tool chips —
-/// which is the honest consequence of the choice, not something to paper over with guesses about its
-/// internal format. If it becomes the default, the upgrade is its server mode (<c>opencode serve</c>) and its
-/// event stream.
+/// It is deliberately the plainer implementation. It reads the default text output, where the agent's prose
+/// is stdout and its tool calls are stderr, so the person sees the prose and a coarse activity line instead
+/// of per-tool chips. The upgrade, if it becomes the default, is <c>--format json</c>: the same command
+/// emits typed <c>text</c> and <c>tool_use</c> events carrying a <c>sessionID</c>, which would give it chips
+/// and a real session to resume instead of "the last one in this directory".
 ///
-/// <b>Unverified against the CLI</b>, like everything else that talks to another product from here. See
-/// whats_next.md.
+/// <b>Run against opencode 1.18.31 with <c>openai/gpt-5.5</c></b>, which is what found the key going to the
+/// wrong place (see <see cref="EnvironmentFor"/>). Two more facts from that run worth not re-deriving: it
+/// followed the <c>SUMMARY:</c> line and <c>AGENTS.md</c> unprompted — facts into <c>content/brand.md</c>,
+/// the name into <c>siteName</c>, <c>npm run typecheck</c> before finishing — and it <b>waits for stdin to
+/// close before doing anything</b>, so a command started with an open stdin hangs silently until the turn
+/// times out. The sandbox agent starts every command with stdin ignored, which is what makes that a non-issue
+/// here rather than a fifteen-minute turn that says nothing.
 /// </summary>
 public class OpenCodeAgent(
     IOptions<CodingAgentOptions> options,
@@ -49,12 +55,7 @@ public class OpenCodeAgent(
             "opencode",
             arguments,
             _options.TurnTimeout,
-            new Dictionary<string, string>
-            {
-                ["ANTHROPIC_API_KEY"] = _options.OpenCode.ApiKey,
-                ["OPENCODE_DISABLE_TUI"] = "1",
-                ["CI"] = "true"
-            });
+            EnvironmentFor(_options.OpenCode));
 
         var reply = new StringBuilder();
         var reported = false;
@@ -88,6 +89,41 @@ public class OpenCodeAgent(
         // The session id is not printed, so the workspace remembers only that there *is* one to continue:
         // --continue takes the last session in the directory, which is exactly what a warm workspace means.
         return Parse(reply.ToString(), request.Message, sessionId: "last");
+    }
+
+    /// <summary>
+    /// The CLI's environment, with the key handed to whichever provider the model string names.
+    ///
+    /// It used to be <c>ANTHROPIC_API_KEY</c> whatever the model, which is the one shape this agent exists to
+    /// avoid: an OpenAI key under that name and <c>openai/…</c> as the model exits 1 with "Unexpected server
+    /// error" and nothing about a key. Inline config rather than a table of variable names, because OpenCode
+    /// reads every provider's key from the same place there, while the variable names are each provider's own
+    /// (<c>GOOGLE_GENERATIVE_AI_API_KEY</c> is not <c>GOOGLE_API_KEY</c>), and a table would be one more thing
+    /// to keep in step with somebody else's product.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> EnvironmentFor(CodingAgentOptions.OpenCodeOptions options)
+    {
+        var separator = options.Model.IndexOf('/');
+
+        if (separator <= 0)
+            throw new InvalidOperationException(
+                $"Agent:OpenCode:Model must name its provider, as in 'openai/gpt-5.5'; it is '{options.Model}'.");
+
+        var provider = options.Model[..separator];
+        var config = new JsonObject
+        {
+            ["provider"] = new JsonObject
+            {
+                [provider] = new JsonObject { ["options"] = new JsonObject { ["apiKey"] = options.ApiKey } }
+            }
+        };
+
+        return new Dictionary<string, string>
+        {
+            ["OPENCODE_CONFIG_CONTENT"] = config.ToJsonString(),
+            ["OPENCODE_DISABLE_TUI"] = "1",
+            ["CI"] = "true"
+        };
     }
 
     private static string BuildPrompt(CodingAgentRequest request)
