@@ -1199,7 +1199,10 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     **Not done**: a real agent in a container, because containers here have no route out; and the hot-reload socket
     through a container, which is the same proxy code the local provider exercises. And the font this exposed is
     the one already written down: with no route to Google Fonts, `next/font/google` falls back, so the preview and
-    a publish in such a sandbox are not in Inter. Self-hosting it with `next/font/local` is the fix.
+    a publish in such a sandbox are not in Inter. Given a route out — the same image on the host network, through
+    this machine's proxy — Inter downloads and the page renders in it, so the fallback is the network's, not the
+    image's. The local sandbox already allows both font hosts; a Docker allow-list, when there is one, needs them
+    too. Self-hosting it with `next/font/local` would remove the question.
 
 
 ## What is still intent
