@@ -91,6 +91,14 @@ export class SiteDomainsPage {
   /** What the address falls back to, which is what the dialog has to name. */
   protected readonly weblyUrl = computed(() => this.sites.current()?.summary.weblyUrl ?? '');
 
+  /**
+   * Whether that fallback already works, which the dialog may only claim when it does. The provider serves the
+   * subdomain once `addressReadyAt` says so, and not before: a site whose attach has not gone through yet — and
+   * every site in development, where nothing resolves a subdomain of the production zone — would be told its
+   * address "has been working all along" by a dialog sitting above a row that reads "Being set up".
+   */
+  protected readonly weblyUrlWorks = computed(() => !!this.sites.current()?.summary.addressReadyAt);
+
   protected confirmRemove(domain: DomainResponse): Promise<void> | void {
     if (!domain.isPrimary) return this.run(() => this.domains.remove(this.siteNanoid, domain.nanoid));
 

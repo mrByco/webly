@@ -1380,6 +1380,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     (`banner-opaque.jpg`). Also checked on the way: a document renamed `.jpg` is refused with "menu.jpg is not a
     JPEG, PNG, GIF or WebP".
 
+95. **Removing the main domain promised an address that was not there yet.** The confirmation said the site's
+    Webly address "has been working all along" while the row above it read "Being set up" — true only once
+    `addressReadyAt` is stamped, which can lag a publish in production and never happens in development. It says
+    "which is still being set up" until then. Walked both ways in the browser, the second by stamping the column
+    by hand. The rest of the custom-domain path checked out: promote, the settings screen naming the customer's
+    domain as the address with no "still being set up" note under it, remove, fall back.
+
 
 ## What is still intent
 
