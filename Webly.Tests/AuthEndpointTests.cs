@@ -85,6 +85,37 @@ public class AuthEndpointTests : AuthEndpointTestBase
             "the refresh token must rotate, not be reused");
     }
 
+    /// <summary>
+    /// The rest of a batch, through the middleware rather than the use case. When the access token dies a page's
+    /// parallel requests all carry the same refresh cookie; one rotates it and the others land inside
+    /// <c>RotateRefreshToken.ReuseGrace</c>, which answers with an access token and deliberately no refresh
+    /// token. The use case was tested for that and the middleware was not, and it wrote the missing refresh
+    /// token into a cookie with a null-forgiving <c>!</c> — so every request but one answered 500, on any page
+    /// that loads more than one thing, every fifteen minutes. Found by a script whose cookie jar lagged a
+    /// rotation behind, which is the same shape.
+    /// </summary>
+    [Test]
+    public async Task The_rest_of_a_batch_is_served_and_leaves_the_refresh_cookie_alone()
+    {
+        var registered = await RegisterAsync();
+        var refresh = CookieValue(registered, AuthCookies.RefreshTokenName)!;
+
+        var first = await Client.SendAsync(
+            Request(HttpMethod.Get, "/api/auth/me", (AuthCookies.RefreshTokenName, refresh)));
+        var sibling = await Client.SendAsync(
+            Request(HttpMethod.Get, "/api/auth/me", (AuthCookies.RefreshTokenName, refresh)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(sibling.StatusCode, Is.EqualTo(HttpStatusCode.OK), "the sibling is served, not a 500");
+            Assert.That(CookieValue(sibling, AuthCookies.AccessTokenName), Is.Not.Null, "with an access cookie");
+            Assert.That(
+                CookieHeader(sibling, AuthCookies.RefreshTokenName), Is.Null,
+                "and no word about the refresh cookie, so the successor its sibling set is the one the browser keeps");
+        });
+    }
+
     [Test]
     public async Task An_endpoint_that_requires_authentication_rejects_an_anonymous_caller()
     {

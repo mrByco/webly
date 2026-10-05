@@ -61,11 +61,18 @@ public class CookieAuthenticationMiddleware(
             return;
         }
 
-        AuthCookies.Set(
-            context.Response,
-            result.AccessToken!,
-            result.RefreshToken!,
-            jwtOptions.Value.RefreshTokenLifetime);
+        // No refresh token means this request is the rest of a batch inside RotateRefreshToken.ReuseGrace: a
+        // sibling rotated a moment ago and its response carries the successor. Leaving the refresh cookie alone
+        // is the whole design — and writing the missing one with a `!` here answered 500 to every request of
+        // the batch but one, every fifteen minutes.
+        if (result.RefreshToken is null)
+            AuthCookies.SetAccessToken(context.Response, result.AccessToken!);
+        else
+            AuthCookies.Set(
+                context.Response,
+                result.AccessToken!,
+                result.RefreshToken,
+                jwtOptions.Value.RefreshTokenLifetime);
 
         InjectHeader(context, result.AccessToken!);
     }

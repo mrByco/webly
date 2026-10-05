@@ -30,10 +30,16 @@ public static class AuthCookies
 
     public static void Set(HttpResponse response, string accessToken, string refreshToken, TimeSpan refreshLifetime)
     {
+        SetAccessToken(response, accessToken);
+        response.Cookies.Append(RefreshTokenName, refreshToken, Options(DateTimeOffset.UtcNow.Add(refreshLifetime)));
+    }
+
+    /// <summary>The access cookie alone, for a request that must not touch the refresh cookie.</summary>
+    public static void SetAccessToken(HttpResponse response, string accessToken)
+    {
         // The access cookie is a session cookie: its real lifetime is the `exp` inside the token,
         // and giving the cookie its own expiry only creates a second deadline to disagree with.
         response.Cookies.Append(AccessTokenName, accessToken, Options());
-        response.Cookies.Append(RefreshTokenName, refreshToken, Options(DateTimeOffset.UtcNow.Add(refreshLifetime)));
     }
 
     public static void Clear(HttpResponse response)
