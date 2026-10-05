@@ -180,7 +180,7 @@ Two details of that contract are load-bearing and were both wrong at first, whic
 
 | Provider | Starts | For |
 |---|---|---|
-| `local` | `tools/sandbox-agent` as a child process, workspace in `.run/workspaces` | development, and the default — it needs nothing but node |
+| `local` | `tools/sandbox-agent` as a child process, workspace under the temp directory — never inside a git repository (`whats_next.md` 67) | development, and the default — it needs nothing but node |
 | `docker` | a container from the sandbox image | development with real isolation |
 | `e2b` | a managed sandbox | production |
 

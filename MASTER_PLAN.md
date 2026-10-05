@@ -67,10 +67,10 @@ and the app at 390 px and in dark mode.
 
 | Gap | Where |
 |---|---|
-| `OpenCodeAgent` has never run, and its output is prose rather than a typed stream | `OpenCodeAgent` class comment |
-| `DockerSandboxProvider` and `E2bSandboxProvider` have never run; only `local` has | their class comments |
+| `OpenCodeAgent` has run (on `openai/gpt-5.5`) but reads text mode, so its stored reply is its whole narration; `--format json` is the fix | `whats_next.md` 70 |
+| `E2bSandboxProvider` has never run; `local` and `docker` have | its class comment |
 | `VercelDeploymentTarget` is unverified in both halves — REST and CLI | `docs/deploy-plan.md` §6 |
-| The real agent has never run *inside the app* — every turn so far has been the mock | `whats_next.md` §1 |
+| `ClaudeCodeAgent` has never run *inside the app*; OpenCode has | `whats_next.md` §1 |
 | Google sign-in and Resend are absent without their configuration, by design | `CLAUDE.md` "An unconfigured feature is absent" |
 
 Closed by running things rather than reading them, which is the only reason any of it is closed:

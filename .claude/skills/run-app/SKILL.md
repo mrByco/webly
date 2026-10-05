@@ -48,7 +48,7 @@ An agent turn does not run on the backend — it runs in a sandbox. The developm
 needs **node and git and nothing else**:
 
 - `Sandbox:Provider` is `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace
-  under `.run/workspaces`. Not isolation, and refused outside Development. For real isolation set it to
+  under `{temp}/webly-workspaces-{checkout}`. Not isolation, and refused outside Development. For real isolation set it to
   `docker` and build the image first:
   `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from the repository root (the
   context is the root, not `deploy/sandbox`). Without the image, the first message fails with "the sandbox

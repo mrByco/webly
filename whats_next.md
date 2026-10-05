@@ -978,16 +978,94 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     test that every path on the list is a file the real template actually ships — a misspelt entry is not a
     failure anywhere else, it is a file that quietly stops being kept current in anybody's site.
 
+66. **A real agent ran through the app for the first time, and it was OpenCode — which could not have run at
+    all.** `OpenCodeAgent` handed its key to the CLI as `ANTHROPIC_API_KEY` whatever the model, so an OpenAI key
+    with `openai/gpt-5.5` exited 1 with "Unexpected server error" and not a word about a key. It is
+    `OPENCODE_CONFIG_CONTENT` now, the key under whichever provider the model string names — inline config
+    rather than a table of variable names, because those are each provider's own and the config is one shape
+    for all of them. `OpenCodeAgentTests` pins it. Run against opencode 1.18.31 directly first, which found one
+    more thing worth knowing: **it waits for stdin to close before doing anything**, so a command started with
+    an open stdin hangs silently until the turn's timeout. The sandbox agent has always started commands with
+    stdin ignored, which is why that is a sentence in a comment rather than a defect.
+
+    Then the conversation `whats_next.md` §1 asked for, through `turn.mjs` against the running app, and the
+    part that was the point went right. Asked for "our opening hours and a few customer reviews" with neither
+    given, it wrote the page without them and asked; answered with the hours and "no reviews yet", it put the
+    hours on and kept reviews off; told "we bake rye on the same day we open latest" when every day's hours were
+    the same, it declined to state a schedule nobody had given it and said why. Every turn recorded its facts
+    in `content/brand.md`, kept `siteName` in step, ran the typecheck and ended with a `SUMMARY:` line. A cold
+    turn was 34–69 s, a warm one 24 s. Published, the page said exactly what the owner had said and nothing
+    else.
+
+67. **The agent took the whole of Webly for the site, and on its second turn committed behind Webly's back.**
+    The first reply began "This is the main Webly repository, not an obvious checked-out site", went looking
+    through `.run` and the bare repositories, and only then found its workspace. The second — the workspace now
+    somewhere else, which turned out not to be the cause — checked the site's bare repository out into a
+    temporary worktree, ran `npm install` there, **committed to the site's `main` and moved it**, and cleaned up
+    after itself. The turn reported success with no version, because the workspace Webly was watching had not
+    changed; the branch held a commit with no `SiteVersion` row, authored `Claude <noreply@anthropic.com>` —
+    the development container's own git identity, inherited like everything else. "The agent never sees git"
+    and "`CommitSiteVersion` is the only writer", both broken by a model being diligent.
+
+    Two causes, each enough on its own, both found by asking OpenCode rather than reasoning about it:
+
+    - **`PWD` was the backend's.** `spawn`'s `cwd` moves a process and leaves `PWD` as the parent had it, and
+      OpenCode believes `PWD` — started in `/tmp/x` with `PWD=/home/user/webly` it reports its working
+      directory as the checkout. The sandbox agent sets `PWD` to the command's real directory now, for every
+      command and the dev server, and `tools/e2e/run.mjs` step 3 asserts it (red on the old agent, through node
+      rather than `sh`, which quietly repairs a wrong `PWD`). The image sets no `PWD`, which is the only reason
+      production was spared.
+    - **The workspace was inside the checkout.** With `PWD` right, a workspace under `.run/workspaces` still
+      reports "Workspace root folder: /home/user/webly — is a git repo: yes", because a workspace has no `.git`
+      of its own and the walk up finds Webly's; Claude Code reads every `CLAUDE.md` on the same walk, which
+      would have handed it this repository's instructions. `Sandbox:Local:WorkspaceRoot` is empty by default
+      now, meaning `{temp}/webly-workspaces-{checkout}` — per checkout, because the first-use sweep deletes
+      everything under the root and two checkouts sharing one would take each other's sandboxes down.
+
+    **What this does not change**: the local provider is still not isolation. An agent that decides to look
+    can still reach `.run/repositories` by absolute path; the fix removes every reason it had to, not the
+    ability. A cold turn's history is also the last eight messages verbatim, so a thread whose earlier reply
+    narrates a hunt through `.run` primes the next one to repeat it — the contaminated test site was left as it
+    was and the clean run used a new one. Isolation is the Docker and E2B providers' job, and this is the
+    clearest argument yet for running the development default under an OS-level sandbox (bubblewrap) when one
+    is available.
+
+68. **The rest of a refresh batch answered 500.** `RotateRefreshToken.ReuseGrace` answers a sibling request
+    with an access token and deliberately no refresh token, and the use-case test says so — but the middleware
+    wrote `result.RefreshToken!` into a cookie, and `ResponseCookies.Append` throws on null. So when the access
+    token died, every parallel request on a page but the one that rotated failed, every fifteen minutes; the
+    fix for "logging in lasted fifteen minutes" (11) had moved the failure from the session to the requests.
+    Found by a script whose cookie jar lagged one rotation behind, which is the same shape. The middleware sets
+    the access cookie alone on that path now; `AuthEndpointTests` drives it over HTTP and was red first.
+
+69. **`AGENTS.md` changed twice from watching real turns, and both reached the live site through
+    `SyncSiteInstructions`** — "Updated the editing instructions" as its own version ahead of the turn's, which
+    is the first time that path ran with a real agent behind it. Rule 1 said to leave a section out until the
+    facts exist, and the agent left the hours out and put a card in their place reading "Opening hours and
+    customer reviews will be added once confirmed" — a note to the owner, on the public page. It says
+    "leaving it out means leaving it out" now. And rule 12 is new: **the reply is for the owner**, because every
+    reply said `content/brand.md` with its backticks and "`npm run typecheck` passed" to somebody who runs a
+    bakery, and the chat renders text exactly as written. The next turn said "saved it in the business details.
+    The site check passed."
+
+70. **Noted, not fixed: OpenCode's reply is its whole narration.** `ClaudeStreamJsonParser` replaces what
+    streamed with the final `result`, so a Claude reply is the answer; `OpenCodeAgent` reads text mode, where
+    the narration and the answer are the same stream, so the stored reply is every "I'm now running the check"
+    line too. `opencode run --format json` emits typed `text` and `tool_use` events with a `sessionID`, which is
+    the fix — chips, a last-message reply and a real `--session` instead of "the last one in this directory" —
+    and a recorded transcript is in hand. Left until it is decided whether OpenAI models should run under
+    OpenCode at all, or under Codex, the harness they were trained against.
+
 
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
   publishing sandbox. `docs/deploy-plan.md` §6 lists what to reconcile, in order.
-- **`OpenCodeAgent`** — written against the documented interface of `opencode run`, never executed.
-- **`DockerSandboxProvider` and `E2bSandboxProvider`** — only `local` has run. They all speak the contract
-  `tools/e2e` exercises, which is what makes that cheap to find out.
-- **The real agent inside the app.** The `claude` CLI has run under `tools/e2e/run.mjs` and its transcript is
-  the parser's fixture, but every turn through the running app has been the mock.
+- **`E2bSandboxProvider`** — never run. `local` and `docker` have; they all speak the contract `tools/e2e`
+  exercises, which is what makes that cheap to find out.
+- **`ClaudeCodeAgent` inside the app.** The `claude` CLI has run under `tools/e2e/run.mjs` and its transcript
+  is the parser's fixture, but no Claude turn has gone through the running app. **`OpenCodeAgent` has**, on
+  `openai/gpt-5.5` — five turns and a publish, 66–70 above.
 - **The sandbox image has never been built**, for want of a Docker daemon.
 - **Google sign-in and Resend**, absent by design without their configuration.
 
@@ -998,6 +1076,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
 `Agent:ClaudeCode:ApiKey` in user secrets, then a conversation — not a message. Ask for something that needs
 a fact the agent does not have ("we do repairs, we're in Utrecht") and watch it ask rather than invent; answer
 it; watch the second turn build on the first.
+
+**Done with OpenCode on an OpenAI model** (66–70): it asked rather than invented, built on its earlier turns
+warm and cold, and the publish said only what the owner had. What is left is the same conversation on
+`claude-code`, the default — and reading its first reply for the word "Webly", which is how 67 showed itself.
+`BuildPrompt` and the `SUMMARY:` line are the two things it can still get wrong that OpenCode could not tell
+us.
 
 The mock agent is a stand-in for the model, not for the plumbing, so what is genuinely untested here is
 narrow: whether `BuildPrompt` produces a turn worth having, and whether the `SUMMARY:` line survives a long

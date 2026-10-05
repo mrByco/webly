@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 176-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 183-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -76,16 +76,18 @@ Two harnesses drive it, and they answer different questions:
 
 **What is still unrun**, and treat each as the plan rather than as working code:
 
-- **`OpenCodeAgent` and `VercelDeploymentTarget`** — written against another product's documented interface,
-  never executed. `docs/deploy-plan.md` §6 says what to reconcile in the Vercel one first.
+- **`VercelDeploymentTarget`** — written against another product's documented interface, never executed.
+  `docs/deploy-plan.md` §6 says what to reconcile first.
 - **`E2bSandboxProvider`** — never run. The contract every provider speaks is the one `tools/e2e` exercises,
   which is the point of having it. **`DockerSandboxProvider` has now run**: a container started, published a
   loopback port, answered `/health`, took a seeded tree, ran a turn's agent and handed the tree back, and a
   version was committed from it. Two things it had wrong are fixed below. What has still not run in it is a
   `next dev` — see the note on the font.
-- **The real agent inside the app.** `ClaudeStreamJsonParser` is covered by a recorded transcript and the
-  `claude` CLI has run under `tools/e2e/run.mjs`, but every turn through the running app so far has been the
-  mock. That needs `Agent:ClaudeCode:ApiKey` in user secrets and nothing else.
+- **`ClaudeCodeAgent` inside the app.** `ClaudeStreamJsonParser` is covered by a recorded transcript and the
+  `claude` CLI has run under `tools/e2e/run.mjs`, but no Claude turn has gone through the running app. That
+  needs `Agent:ClaudeCode:ApiKey` in user secrets and nothing else. **`OpenCodeAgent` has**, on
+  `openai/gpt-5.5` (`Agent:Default=opencode`, `Agent:OpenCode:Model`, `Agent:OpenCode:ApiKey`): five turns and a
+  publish, and four defects it found are in `whats_next.md` 66–70.
 - **Google sign-in and Resend**, which are configuration away and absent by design without it.
 
 ### Docker here, and what it is actually good for
@@ -208,9 +210,17 @@ more than one restating what the line does.
   ever. Sixteen of them is what a wedged development machine looks like, and nothing says why.
 - **Editing a site needs `node` and `git` on PATH**, and by default nothing else. `Sandbox:Provider` is
   `local`, so a turn spawns `tools/sandbox-agent` as a child process with a workspace under
-  `.run/workspaces`; set it to `docker` for real isolation (build the image first — see the table above) or
-  the first message fails with "the sandbox container never became reachable". Idle sandboxes are reaped
-  after ten minutes either way.
+  `{temp}/webly-workspaces-{checkout}`; set it to `docker` for real isolation (build the image first — see the
+  table above) or the first message fails with "the sandbox container never became reachable". Idle sandboxes
+  are reaped after ten minutes either way.
+- **A local workspace must not be inside a git repository, and a command's `PWD` must be its workspace.** Both
+  were wrong, and the first real agent through the app took the whole Webly checkout for the site: it searched
+  `.run`, and on its second turn checked a site's bare repository out by itself and committed to its branch, with
+  no version row behind the commit. OpenCode believes `PWD` over its real directory, and anything that walks up
+  for a `.git` (OpenCode's project root, Claude Code's `CLAUDE.md` loading) found Webly's from
+  `.run/workspaces`. The sandbox agent sets `PWD` per command, the default root is outside the checkout, and
+  `whats_next.md` 67 is the whole story. Still not isolation: an agent that goes looking can reach
+  `.run/repositories` by absolute path, which is what the `docker` provider is for.
 - **A site's repository is `.run/repositories/{nanoid}.git`** locally, which is gitignored: a developer's
   test sites are their own, and they are not backed up. `git --git-dir … log --stat` is how to see what a
   turn actually did.
@@ -309,7 +319,9 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   requests in parallel, so when the access token dies they all arrive carrying the same live refresh cookie:
   one rotates and the rest are replays of a token revoked a millisecond ago. Inside `RotateRefreshToken.
   ReuseGrace` a replay is served an access token and **no new refresh token**, so the successor stays the only
-  live one. The window is keyed on `RefreshToken.ReplacedAt`, not `RevokedAt`, because both a rotation and a
+  live one — and `CookieAuthenticationMiddleware` then sets the access cookie alone, which it did not: it wrote
+  the missing refresh token with a `!`, so every request of the batch but one answered 500.
+  `AuthEndpointTests` drives that path over HTTP now. The window is keyed on `RefreshToken.ReplacedAt`, not `RevokedAt`, because both a rotation and a
   sign-out revoke — and a sign-out that keeps working for another thirty seconds is not a sign-out. Only the
   HMAC hash is stored.
 - **The verification gate lives in the accessors, not in an attribute.** `GetUserId()` /
