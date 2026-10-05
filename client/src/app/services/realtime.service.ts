@@ -234,11 +234,13 @@ export class RealtimeService {
 
         entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
       } catch {
-        // The run finished and was evicted while the connection was down. Its terminal event was in the
-        // replay the reconnect just missed, so the page is left showing a turn that ended — which the
-        // next reload corrects from the persisted thread.
+        // The run is not on the server any more: it finished and was evicted while the connection was down, or
+        // the server restarted under it. Either way the events that would have said how it ended are not coming,
+        // so the stream *errors* rather than completing — completing is what unwatching and signing out do on
+        // purpose, and the page has to be able to tell "I stopped watching" from "there is nothing to watch".
+        // The chat answers it by re-reading the thread, which is the record of how the turn ended either way.
         this.watched.delete(runId);
-        entry.events.complete();
+        entry.events.error(new Error('The run is no longer on the server.'));
       }
     }
   }

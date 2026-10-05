@@ -900,6 +900,15 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   writing the site — the one thing this product does that nothing else does, a page changing as it is described,
   happening behind a spinner. The dev server may still be compiling when it arrives; the proxy's
   "your site is compiling" page retries by itself. Measured: preview on screen at 13 seconds rather than 94.
+- **A turn the process dies under is finished by the next process.** Nothing in a dead process can say how its
+  turn ended, so a restart mid-turn — any deploy, to whoever is mid-sentence — left the thread ending on the
+  person's own message for good, and the open editor simply lost its spinner. `InterruptedTurnSweeper` runs once
+  at startup and notes every thread whose last message is the person's ("This was interrupted when Webly
+  restarted. Nothing was changed — please send it again."): every ending inside a live process writes something
+  after that message, so at startup those are exactly the cut-off turns. On the client, a run that is not there
+  to re-subscribe to after a reconnect **errors** its stream (completing is what unwatching and signing out do on
+  purpose), and the chat re-reads its thread; the editor then asks whether a preview exists rather than assuming
+  the turn left one.
 - **The log is in memory, not a table.** A chat run cannot outlive its process and the log exists only to
   serve a reconnect. `IRunEventSink` is the seam if that changes.
 - **`RunWriter` flushes before any non-text event**, or a file chip arrives before the sentence that
@@ -1165,7 +1174,7 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
   alone, because a form whose names *are* its labels is allowed. **The notification email applies the same
   rule** (`FieldLabel` beside the templates, whose tests are the client spec's cases): the defect was found by
   reading the inbox, and the fix had gone only to the screen, so the email went on printing `name` and
-  `preferred-date` for months.
+  `preferred-date`.
 - **`App:BaseUrl` is where the endpoint's address comes from**, the same setting the links in mail are built
   from: a form action and a verification link are one fact about one host. `AppOptions.FormEndpointFor` is the
   one place it is composed, and both the dev server and the publish read it — a preview whose form posts
@@ -1514,5 +1523,6 @@ start, not a build error.
 - **Four things are per-process and commented as such**: `IAccessTokenBlacklist`, `RunRegistry`,
   `AgentBudget` and `SiteWorkspaceRegistry`. The last one is the newest and the sharpest: two instances
   would each hold a warm sandbox for the same site, editing two working trees and committing over each
-  other. Plus `DeploymentJobRunner`, which polls rather than leasing. Scaling out means addressing all five,
+  other. Plus `DeploymentJobRunner`, which polls rather than leasing, and `InterruptedTurnSweeper`, which
+  assumes that no other process can be mid-turn when this one starts. Scaling out means addressing all six,
   and each one says so where it is.

@@ -1303,6 +1303,15 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     that the intruder was out too. It now says which device stays, and that a reset removes that one as well.
     Both checked by sending the published contact form as a stranger and changing the password in the app.
 
+84. **A restart in the middle of a turn.** Killing the backend while a turn was waking a site, with the editor
+    open: the spinner and Stop button vanished, and the thread ended on the person's own message — live, after a
+    reload, and for good, since nothing in a dead process can say how its turn ended. That is what every deploy
+    does to whoever is mid-sentence. The next process now says it as it starts (`InterruptedTurnSweeper`), the
+    client re-reads its thread when a run it was watching is gone after a reconnect, and the editor asks whether a
+    preview exists instead of assuming the turn left one. Driven again the same way: ten seconds after the
+    restart the open editor read "This was interrupted when Webly restarted. Nothing was changed — please send it
+    again.", and so did a reload. `InterruptedTurnTests` was red with the sweep disabled.
+
 
 ## What is still intent
 

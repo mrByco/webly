@@ -120,13 +120,20 @@ export class SiteEditorPage {
   }
 
   /**
-   * A turn ended. The workspace it warmed up outlives it, so the preview can load now — and the site row
-   * is re-read for the same reason the header needs it: publishing state may have moved.
+   * A turn ended. The site row is re-read for the header — publishing state may have moved — and whether the
+   * preview can be shown is taken from that answer rather than assumed.
+   *
+   * It used to be assumed: "the workspace a turn warmed up outlives it". Not when the turn ended because the server
+   * restarted under it — the workspace went with the process, and the pane drew a frame over a sandbox that no
+   * longer existed. The answer is the sandbox's own (`workspaceReady` asks it), and after an ordinary turn it is
+   * the same yes the assumption gave.
    */
-  protected onTurnFinished(): void {
+  protected async onTurnFinished(): Promise<void> {
     this.workspaceProgress.set(undefined);
-    this.workspaceReady.set(true);
-    void this.sites.reload();
+
+    await this.sites.reload();
+
+    this.workspaceReady.set(this.site()?.workspaceReady ?? false);
   }
 
   /**
@@ -285,7 +292,23 @@ export class SiteEditorPage {
 
     const events = await this.realtime.watch('Deploy', nanoid);
 
-    events.subscribe({ next: event => this.applyDeployEvent(event) });
+    events.subscribe({ next: event => this.applyDeployEvent(event), error: () => void this.rejoinDeployment() });
+  }
+
+  /**
+   * The publish run went away while the connection was down — it finished and was evicted, or the server restarted.
+   * The deployment row is the durable record, so the site is re-read: a publish still live is joined again, and
+   * otherwise the header shows whatever that row ended as.
+   */
+  private async rejoinDeployment(): Promise<void> {
+    this.publishing.set(false);
+    this.publishStatus.set(undefined);
+
+    await this.sites.reload();
+
+    const active = this.site()?.activeDeploymentNanoid;
+
+    if (active) await this.watchDeployment(active, 'Publishing');
   }
 
   /**

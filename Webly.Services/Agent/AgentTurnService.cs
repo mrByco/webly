@@ -97,6 +97,14 @@ public class AgentTurnService(
     public const string StoppedNote = "Stopped. Nothing was changed.";
 
     /// <summary>
+    /// What a turn the process died under says, written by <c>InterruptedTurnSweeper</c> when the app comes back.
+    /// "Nothing was changed" holds for the same reason it does in <see cref="FailureNote"/>: the reply is appended
+    /// before the commit, so a thread whose last message is the person's own never reached it.
+    /// </summary>
+    public const string InterruptedNote =
+        "This was interrupted when Webly restarted. Nothing was changed — please send it again.";
+
+    /// <summary>
     /// How much of a compiler's opinion reaches the chat. Long enough for an error with its import trace, short
     /// enough that the thread is still a conversation.
     /// </summary>

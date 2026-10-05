@@ -343,7 +343,20 @@ export class SiteChat {
     // watching, so subscribing twice to it is not a second stream — it is every event applied twice, which is
     // how coming back to a site mid-turn drew its last two entries in duplicate.
     this.events?.unsubscribe();
-    this.events = events.subscribe({ next: event => this.apply(event) });
+    this.events = events.subscribe({ next: event => this.apply(event), error: () => void this.reread() });
+  }
+
+  /**
+   * The run went away while the connection was down — finished and evicted, or the server restarted under it — so
+   * the events that would have ended it on this screen are not coming. Before this the spinner simply vanished and
+   * the transcript ended on the person's own message, which reads as being ignored. The thread is the record of
+   * how a turn ended in every case, the restart included (the server notes those as it starts), so it is read
+   * again.
+   */
+  private async reread(): Promise<void> {
+    this.turnFinished.emit();
+
+    await this.load(this.siteNanoid());
   }
 
   /**

@@ -133,6 +133,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRunEventSink, RunEventSink>();
         services.AddScoped<RunWriter>();
 
+        services.AddHostedService<InterruptedTurnSweeper>();
         services.AddHostedService<OrphanRunReaper>();
         services.AddHostedService<WorkspaceReaper>();
         services.AddHostedService<Services.Deployments.DeploymentJobRunner>();

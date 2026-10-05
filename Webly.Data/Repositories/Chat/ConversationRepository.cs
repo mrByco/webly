@@ -58,6 +58,16 @@ public class ConversationRepository(WeblyDbContext dbContext) : IConversationRep
         dbContext.Conversations
             .FirstOrDefaultAsync(x => x.Nanoid == nanoid && x.SiteId == siteId, cancellationToken);
 
+    public Task<List<int>> ListAwaitingReplyAsync(CancellationToken cancellationToken = default) =>
+        dbContext.Conversations
+            .Where(conversation => dbContext.ConversationMessages
+                .Where(message => message.ConversationId == conversation.Id)
+                .OrderByDescending(message => message.Sequence)
+                .Select(message => (MessageRole?)message.Role)
+                .FirstOrDefault() == MessageRole.User)
+            .Select(conversation => conversation.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<List<ConversationMessage>> ListMessagesAsync(
         int conversationId,
         int take,
