@@ -1364,7 +1364,9 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     Messages pane to 2,320px on a phone, the same link in a chat message did it to the transcript (1,674px), and a
     lockfile's integrity hashes did it to the Code view. `wrap-anywhere` on all three, checked at both widths;
     the History diff keeps its deliberate per-file sideways scroll. Also on Messages: dates in the app's one
-    format rather than Angular's US `medium`.
+    format rather than Angular's US `medium`. And the enquiry's **email** had it worst: 2,747px wide at a phone's
+    width, so a mail app would shrink the whole message to illegibility. Its value cells break long words now, and
+    the next such enquiry's email measured exactly 375px at 375px.
 
 
 ## What is still intent

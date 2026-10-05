@@ -191,7 +191,8 @@ public static class EmailLayout
     /// A table rather than paragraphs because the labels are the form's own — "How can we help?" is a field
     /// name here — and a message whose questions and answers run together is one the owner has to decode. The
     /// value keeps its line breaks: somebody typed a paragraph into a textarea and collapsing it loses what
-    /// they meant.
+    /// they meant. And it breaks long words: a pasted link is one, and it stretched the whole message to 2,747px
+    /// at a phone's width — which a mail app shows zoomed out to illegibility or scrolling sideways.
     /// </summary>
     public static string Fields(IReadOnlyList<(string Name, string Value)> fields) =>
         $"""
@@ -201,7 +202,7 @@ public static class EmailLayout
             <td style="padding:0 0 4px;font:600 13px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Muted};">{Escape(field.Name)}</td>
           </tr>
           <tr>
-            <td style="padding:0 0 16px;font:400 15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Ink};white-space:pre-wrap;">{Escape(field.Value)}</td>
+            <td style="padding:0 0 16px;font:400 15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:{Ink};white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;">{Escape(field.Value)}</td>
           </tr>
           """))}
         </table>
