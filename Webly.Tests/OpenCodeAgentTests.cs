@@ -1,6 +1,10 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using System.Text.Json.Nodes;
 using Webly.Services.Agent;
 using Webly.Services.Agent.Agents;
+using Webly.Services.Services.Sandboxes;
+using Webly.Services.Services.Repositories;
 
 namespace Webly.Tests;
 
@@ -28,6 +32,58 @@ public class OpenCodeAgentTests
             Assert.That(config["provider"]!.AsObject().Count, Is.EqualTo(1), "and to no other provider");
             Assert.That(environment.Keys, Has.None.EndsWith("_API_KEY"), "and not under any one provider's own name");
         });
+    }
+
+    /// <summary>
+    /// A run that dies halfway has already printed prose, and that is what an OpenAI account running out of credit
+    /// mid-turn looked like: the exit code said so and nothing else did, so three half-built sites were committed
+    /// as successful turns under their owners' own messages, each with a reply that stopped mid-sentence.
+    /// </summary>
+    [Test]
+    public void A_run_that_fails_after_saying_something_is_still_a_failure()
+    {
+        var agent = new OpenCodeAgent(
+            Options.Create(new CodingAgentOptions
+            {
+                OpenCode = new CodingAgentOptions.OpenCodeOptions { ApiKey = "sk-test", Model = "openai/gpt-5.5" }
+            }),
+            NullLogger<OpenCodeAgent>.Instance);
+
+        var sandbox = new ScriptedSandbox(
+            exitCode: 1,
+            "I'm applying the content and page changes now.\n");
+
+        Assert.That(
+            async () => await agent.RunAsync(sandbox, new CodingAgentRequest("Build a menu page", [], null), _ => Task.CompletedTask),
+            Throws.InstanceOf<SandboxException>());
+    }
+
+    /// <summary>A sandbox whose one command prints what it is given and exits as it is told.</summary>
+    private sealed class ScriptedSandbox(int exitCode, params string[] stdout) : ISandbox
+    {
+        public string Id => "scripted";
+        public Uri AgentUrl => new("http://127.0.0.1/");
+        public string AgentToken => string.Empty;
+
+        public async Task<SandboxCommandResult> RunAsync(
+            SandboxCommand command,
+            Func<SandboxOutput, Task>? onOutput = null,
+            CancellationToken cancellationToken = default)
+        {
+            foreach (var line in stdout)
+                if (onOutput is not null) await onOutput(new SandboxOutput(IsError: false, line));
+
+            return new SandboxCommandResult(exitCode, string.Concat(stdout));
+        }
+
+        public Task WriteTreeAsync(WorkspaceTree tree, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task StartDevServerAsync(string basePath, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task TouchPreviewAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<DevServerLog> ReadDevServerLogAsync(long since = 0, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SandboxHealth> ReadHealthAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     [Test]

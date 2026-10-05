@@ -145,6 +145,7 @@ public class AgentTurnService(
         }
         catch (OperationCanceledException)
         {
+            await DiscardAsync(site);
             await NoteAsync(conversation.Id, StoppedNote);
             throw;
         }
@@ -153,13 +154,34 @@ public class AgentTurnService(
             // The one failure whose own sentence is better than ours: something else changed the site while this
             // turn was working, so nothing was written. "Something went wrong" would be true and useless — the
             // person knows what else they did, and asking again is all this needs.
+            await DiscardAsync(site);
             await NoteAsync(conversation.Id, conflict.Message);
             throw;
         }
         catch (Exception)
         {
+            await DiscardAsync(site);
             await NoteAsync(conversation.Id, FailureNote);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Makes "nothing was changed" true of the workspace as well as the history: an agent that failed or was
+    /// stopped halfway has usually written something, and it stayed — in the preview, and in the next turn's
+    /// commit, under that turn's message. Found when an OpenAI account ran out of credit mid-turn on three sites
+    /// at once. Best-effort, with <see cref="CancellationToken.None"/> for the reason <see cref="NoteAsync"/>
+    /// uses it: the usual reason to be here is that the turn's own token has tripped.
+    /// </summary>
+    private async Task DiscardAsync(Site site)
+    {
+        try
+        {
+            await workspaces.DiscardAsync(site, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not discard what a failed turn left in {Site}'s workspace.", site.Nanoid);
         }
     }
 

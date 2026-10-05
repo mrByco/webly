@@ -57,6 +57,14 @@ public interface ISiteWorkspaceRegistry
     /// </summary>
     Task ReseedAsync(Site site, string headSha, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Puts a warm workspace back on the branch head, discarding whatever a turn that committed nothing left in
+    /// it. What a failed or stopped turn calls, because both tell the person "nothing was changed" — and without
+    /// this the agent's half-finished edits stayed in the workspace, on screen in the preview, until the next
+    /// turn committed them under that turn's message.
+    /// </summary>
+    Task DiscardAsync(Site site, CancellationToken cancellationToken = default);
+
     /// <summary>Stops a workspace and forgets it. Called by the reaper, and when a site is deleted.</summary>
     Task ReleaseAsync(string siteNanoid);
 

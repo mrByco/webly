@@ -158,6 +158,17 @@ public class SiteWorkspaceRegistry(
         return workspace;
     }
 
+    public async Task DiscardAsync(Site site, CancellationToken cancellationToken = default)
+    {
+        if (!_workspaces.ContainsKey(site.Nanoid)) return;
+
+        // The branch rather than the workspace's own commit, for the reason AcquireAsync resolves it: something may
+        // have committed while the turn ran, and that is what the workspace should hold now.
+        var headSha = await repositories.ResolveHeadAsync(site.Nanoid, site.DefaultBranch, cancellationToken);
+
+        if (headSha is not null) await ReseedAsync(site, headSha, cancellationToken);
+    }
+
     public async Task ReseedAsync(Site site, string headSha, CancellationToken cancellationToken = default)
     {
         if (!_workspaces.TryGetValue(site.Nanoid, out var workspace)) return;

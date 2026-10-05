@@ -81,7 +81,11 @@ public class OpenCodeAgent(
             await onEvent(new CodingAgentEvent.Text(output.Text));
         }, cancellationToken);
 
-        if (!result.Succeeded && reply.Length == 0)
+        // Any failed exit, not only a silent one. Text mode has no typed error event, so the exit code is the only
+        // signal — and it used to be ignored whenever some prose had come out first, which is what a run that dies
+        // halfway looks like: an OpenAI account that ran out of credit mid-turn produced three "successful" turns,
+        // each committing half a website under the owner's own message, with a reply that stopped mid-sentence.
+        if (!result.Succeeded)
             throw new SandboxException(
                 "The editing agent could not finish.",
                 $"opencode exited {result.ExitCode}: {result.Output}");

@@ -12,7 +12,7 @@
  * would be a second way to start one. So the only way to press this button is a SignalR client, and this is
  * the smallest one that presses it.
  *
- *   node tools/e2e/turn.mjs --site <nanoid> --cookies <jar> "make the headline say ..."
+ *   node tools/e2e/turn.mjs --site <nanoid> --cookies <jar> [--stop-after <seconds>] "make the headline say ..."
  *
  * `--cookies` is a curl cookie jar from a signed-in session; the two Webly cookies are read out of it and
  * sent as a header, which a browser could not do on a WebSocket upgrade and a script can.
@@ -126,6 +126,17 @@ const runId = started.runId ?? started.RunId;
 
 console.log(`run ${runId}`);
 await connection.invoke('Subscribe', 'Chat', runId, 0);
+
+// Pressing Stop, for the path a run only has because it outlives its connection: what a stopped turn leaves in the
+// workspace, and what the thread says about it.
+const stopAfter = Number(option('stop-after', 0));
+
+if (stopAfter > 0) {
+    setTimeout(async () => {
+        console.log(`\n  ■ stopping after ${stopAfter}s`);
+        await connection.invoke('Cancel', runId);
+    }, stopAfter * 1000);
+}
 
 // Generous: a cold workspace installs the site's dependencies before the agent sees it.
 const timeout = setTimeout(() => {
