@@ -2,13 +2,13 @@
   <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
     <div>
       <h2 class="text-base font-bold">Settings</h2>
-      <p class="text-sm text-base-content/60">
+      <p class="text-sm text-muted">
         The name is yours to change, on the site as well if you want it there; the web address is not.
       </p>
     </div>
 
     @if (error()) {
-      <div class="alert alert-error">
+      <div class="alert alert-error" role="alert">
         <app-icon class="size-5" name="circle-alert" />
         <span>{{ error() }}</span>
       </div>
@@ -41,7 +41,7 @@
         <input class="checkbox checkbox-primary checkbox-sm mt-0.5" name="applyToSite" type="checkbox" [(ngModel)]="applyToSite" />
         <span>
           Say this on the site too
-          <span class="block text-xs text-base-content/60">
+          <span class="block text-xs text-muted">
             Writes it into the pages as a new version. Leave it off to rename only what this dashboard calls
             it.
           </span>
@@ -60,7 +60,7 @@
         <p>
           Your pages say <span class="font-semibold">{{ pagesName() }}</span>, which is what visitors see.
         </p>
-        <p class="mt-1 text-xs text-base-content/60">
+        <p class="mt-1 text-xs text-muted">
           Save the name above with “Say this on the site too” ticked to change it, or ask the assistant for
           something more specific.
         </p>
@@ -78,7 +78,7 @@
              reachable at its deployment's own URL until its address is serving, and the difference between the
              two is not something anybody should have to infer from a 404. -->
         @if (detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.url) {
-          <p class="mt-2 text-xs text-base-content/60">
+          <p class="mt-2 text-xs text-muted">
             This address is still being set up. Your site is live at
             <a class="link" target="_blank" rel="noopener" [href]="detail.summary.liveUrl">{{ detail.summary.liveUrl }}</a>
             in the meantime.
@@ -92,7 +92,7 @@
     <div class="surface flex flex-wrap items-center gap-3 p-4">
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-bold">Take your site with you</h3>
-        <p class="text-sm text-base-content/65">
+        <p class="text-sm text-muted">
           It is a real Next.js project in a git repository. Download it and every version comes too.
         </p>
       </div>
@@ -127,7 +127,7 @@
 
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{{ image.fileName }}</p>
-                <p class="font-mono text-xs text-base-content/55">{{ image.url }} · {{ image.bytes / 1024 | number: '1.0-0' }} KB</p>
+                <p class="font-mono text-xs text-muted">{{ image.url }} · {{ image.bytes / 1024 | number: '1.0-0' }} KB</p>
               </div>
 
               <button
@@ -154,17 +154,67 @@
       wrongly shapes every page written afterwards. Folded away, because on a normal visit to this screen it
       is not what somebody came for.
     -->
-    @if (brand(); as facts) {
-      <details class="surface p-4" [open]="brandOpen()" (toggle)="brandOpen.set($any($event.target).open)">
-        <summary class="cursor-pointer list-none">
-          <span class="text-sm font-bold">What Webly knows about your business</span>
-          <p class="text-sm text-base-content/65">
-            The assistant reads this before it writes anything. Tell it in the chat if something here is
-            wrong.
-          </p>
+    @if (brandBlocks(); as facts) {
+      <!--
+        The chevron is the only thing saying this opens. `list-none` takes the browser's own marker away, and with
+        nothing in its place the panel read as a card with two sentences on it — a pointer over it on a desktop
+        was the only hint, and a phone has no pointer.
+      -->
+      <details class="group surface p-4" [open]="brandOpen()" (toggle)="brandOpen.set($any($event.target).open)">
+        <summary class="flex cursor-pointer list-none items-start gap-3">
+          <span class="min-w-0 flex-1">
+            <span class="text-sm font-bold">What Webly knows about your business</span>
+            <span class="block text-sm text-muted">
+              The assistant reads this before it writes anything. Tell it in the chat if something here is
+              wrong.
+            </span>
+          </span>
+          <app-icon class="mt-0.5 size-4 text-muted transition-transform group-open:rotate-90" name="chevron-right" />
         </summary>
 
-        <pre class="mt-3 overflow-x-auto rounded-field bg-base-200/60 p-3 text-xs leading-relaxed whitespace-pre-wrap">{{ facts }}</pre>
+        <!--
+          Formatted rather than verbatim: the file is Markdown, and the person reading it does not read Markdown.
+          Bound as text throughout, never as HTML, because a model wrote it — see `brandFacts`. Headings are
+          `role="heading"` paragraphs rather than `<h1>`s, since the file's own `#` would otherwise be a second
+          top-level heading on the page.
+        -->
+        <div class="mt-3 space-y-2.5 rounded-field bg-base-200/60 p-4 text-sm leading-relaxed">
+          @for (block of facts; track $index) {
+            @switch (block.kind) {
+              @case ('heading') {
+                <p class="font-bold" [class.pt-1]="$index > 0" role="heading" [attr.aria-level]="block.level + 3">
+                  {{ block.text }}
+                </p>
+              }
+              @case ('paragraph') {
+                <p class="text-base-content/80">
+                  @for (part of block.parts; track $index) {
+                    @if (part.bold) {
+                      <strong>{{ part.text }}</strong>
+                    } @else {
+                      {{ part.text }}
+                    }
+                  }
+                </p>
+              }
+              @case ('list') {
+                <ul class="list-disc space-y-1 pl-5">
+                  @for (item of block.items; track $index) {
+                    <li>
+                      @for (part of item; track $index) {
+                        @if (part.bold) {
+                          <strong>{{ part.text }}</strong>
+                        } @else {
+                          {{ part.text }}
+                        }
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+            }
+          }
+        </div>
       </details>
     }
 
@@ -190,7 +240,7 @@
       </div>
 
       @if (history().length === 0) {
-        <p class="text-sm text-base-content/60">Nothing published yet.</p>
+        <p class="text-sm text-muted">Nothing published yet.</p>
       } @else {
         <ul class="flex flex-col gap-2">
           @for (deployment of history(); track deployment.nanoid) {
@@ -199,14 +249,14 @@
                 @switch (deployment.status) {
                   @case ('Ready') { <app-icon class="size-4 text-success" name="check" /> }
                   @case ('Failed') { <app-icon class="size-4 text-error" name="circle-alert" /> }
-                  @default { <app-icon class="size-4 text-base-content/50" name="clock" /> }
+                  @default { <app-icon class="size-4 text-muted" name="clock" /> }
                 }
 
                 <span class="min-w-0 flex-1 truncate">{{ deployment.siteVersionSummary }}</span>
 
                 <!-- When, because a list of publishes with no times is not a history. The finish, or the start
                      for one that is still going. -->
-                <span class="shrink-0 text-xs text-base-content/55">
+                <span class="shrink-0 text-xs text-muted">
                   {{ (deployment.finishedAt ?? deployment.createdAt) | date: 'd MMM, HH:mm' }}
                 </span>
 
@@ -242,7 +292,7 @@
               -->
               @if (deployment.errorDetail) {
                 <details class="text-xs">
-                  <summary class="cursor-pointer font-semibold text-base-content/60">Build log</summary>
+                  <summary class="cursor-pointer font-semibold text-muted">Build log</summary>
                   <pre class="mt-1 overflow-x-auto rounded-field bg-base-300 p-2 font-mono text-[0.7rem] leading-snug whitespace-pre-wrap">{{ deployment.errorDetail }}</pre>
                 </details>
               }
@@ -256,7 +306,7 @@
          setting. -->
     <div class="rounded-box border border-error/40 p-4">
       <h3 class="text-sm font-bold text-error">Delete this site</h3>
-      <p class="mb-3 text-sm text-base-content/65">
+      <p class="mb-3 text-sm text-muted">
         The site, its history and its domains go. If it is published, it stops being reachable. This cannot
         be undone.
       </p>
@@ -269,7 +319,12 @@
   </div>
 </div>
 
-<app-modal [open]="confirmingDelete()" (close)="confirmingDelete.set(false)">
+<!--
+  The dialog stays until the delete has finished, and says it is working. A delete waits for a turn running on the
+  site to stop first, which can be ten seconds; a button that only greyed out for that long, beside a "Keep it" that
+  still closed the dialog, read as a delete that had been called off while it carried on.
+-->
+<app-modal [open]="confirmingDelete()" (close)="closeDelete()">
   <h3 class="text-lg font-bold">Delete {{ site()?.summary.name }}?</h3>
   <p class="py-3 text-sm text-base-content/70">
     Everything goes: the pages, every version in the history, and the domains you connected. There is no way
@@ -277,7 +332,14 @@
   </p>
 
   <div class="flex justify-end gap-2">
-    <button class="btn btn-ghost" type="button" (click)="confirmingDelete.set(false)">Keep it</button>
-    <button class="btn btn-error" type="button" [disabled]="saving()" (click)="remove()">Delete</button>
+    <button class="btn btn-ghost" type="button" [disabled]="saving()" (click)="closeDelete()">Keep it</button>
+    <button class="btn btn-error" type="button" [disabled]="saving()" (click)="remove()">
+      @if (saving()) {
+        <span class="loading loading-spinner loading-xs"></span>
+        Deleting…
+      } @else {
+        Delete
+      }
+    </button>
   </div>
 </app-modal>

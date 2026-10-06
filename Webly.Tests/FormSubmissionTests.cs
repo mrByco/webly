@@ -171,7 +171,44 @@ public class FormSubmissionTests : AuthEndpointTestBase
         var response = await PostAsync(site, [new("_form", "contact"), new("_next", "#sent")]);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        await AssertVisitorPageAsync(response, "Nothing was filled in");
         Assert.That((await SubmissionsAsync(owner, site)).GetArrayLength(), Is.Zero);
+    }
+
+    /// <summary>
+    /// What a visitor's browser is given when it is refused: a page saying so, never JSON — a contact form is an
+    /// ordinary browser post, and a ProblemDetails body is printed across the screen of somebody's customer.
+    /// </summary>
+    private static async Task AssertVisitorPageAsync(HttpResponseMessage response, string saying)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.Content.Headers.ContentType?.MediaType, Is.EqualTo("text/html"), body);
+            Assert.That(body, Does.Contain(saying));
+        });
+    }
+
+    /// <summary>
+    /// The rate limit's refusal is a page too, with when to try again — it was an empty 429, which a browser shows
+    /// as a blank screen. The limit is per address and per site, so this site's eleventh post in ten minutes is the
+    /// one refused.
+    /// </summary>
+    [Test]
+    public async Task A_visitor_over_the_rate_limit_is_told_so_on_a_page()
+    {
+        var owner = await AccountAsync("owner@example.com");
+        var site = await SiteAsync(owner, "Koopman Cycles");
+
+        HttpResponseMessage response = null!;
+
+        for (var i = 0; i < 11; i++)
+            response = await PostAsync(site, [new("message", $"Hello number {i}")]);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.TooManyRequests));
+        await AssertVisitorPageAsync(response, "Too many messages from here");
+        Assert.That(response.Headers.RetryAfter, Is.Not.Null, "and when to try again");
     }
 
     [Test]
@@ -239,6 +276,7 @@ public class FormSubmissionTests : AuthEndpointTestBase
         var response = await PostAsync("not-a-site-at-all", [new("message", "hello")]);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        await AssertVisitorPageAsync(response, "not connected to a website");
     }
 
     /// <summary>The site as the editor loads it, which is where the unread count lives.</summary>

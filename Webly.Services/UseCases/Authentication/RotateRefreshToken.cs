@@ -46,15 +46,25 @@ public class RotateRefreshToken(
 
         if (existing.RevokedAt is not null)
         {
-            // Replay of a spent token. Drop every live session of this user rather than only
-            // refusing this one request — whoever holds the leaked cookie also holds its successor.
+            // Revoked on purpose — signed out, or every session ended by a password change or a reset — and so
+            // with no successor anywhere: whoever presents it is simply signed out, and refusing this one request
+            // is the whole answer. It used to count as theft, which made changing a password sign out the device
+            // that changed it: the *other* device's next request presented its revoked cookie, "replay" ended
+            // every session, and the one the change had just created went with them. That waited for the other
+            // device's access token to expire, a quarter of an hour later, until revoking a session began
+            // refusing its access tokens at once — and then it was immediate.
+            if (existing.ReplacedAt is not { } replacedAt)
+                return AuthResult.Fail(AuthError.InvalidCredentials);
+
+            // Rotated, and presented again: a replay of a spent token. Drop every live session of this user rather
+            // than only refusing this one request — whoever holds the leaked cookie also holds its successor.
             //
             // `ReplacedAt`, not `RevokedAt`: the grace window belongs to a token that was *rotated*, and a
             // token revoked by signing out has to stop working immediately. Reading the wrong one of these
             // makes logout last thirty seconds longer than the person asked for.
-            if (existing.ReplacedAt is not { } replacedAt || now - replacedAt > ReuseGrace)
+            if (now - replacedAt > ReuseGrace)
             {
-                await refreshTokenRepository.RevokeAllForUserAsync(existing.UserId, now, cancellationToken);
+                await authSessionService.EndAllAsync(existing.UserId, cancellationToken);
                 return AuthResult.Fail(AuthError.InvalidCredentials);
             }
 

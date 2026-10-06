@@ -8,6 +8,7 @@ import { SiteService } from '../../services/site.service';
 import { messageOf } from '../../models/problem-details';
 import { contactLink } from '../../models/contact-link';
 import { fieldLabel } from '../../models/field-label';
+import { onReturn } from '../../shared/on-return';
 import { FormSubmissionResponse } from '../../api/models/form-submission-response';
 
 /**
@@ -18,7 +19,8 @@ import { FormSubmissionResponse } from '../../api/models/form-submission-respons
  * this app chose. The labels are the site's own — the agent wrote the form — so a fixed "Name / Email /
  * Message" layout would be wrong for the first site that asks a fourth question.
  *
- * Loaded once when the screen opens and reloaded by a button, with no polling: an enquiry arrives every few
+ * Loaded when the screen opens, and again when somebody comes back to the tab — the moment they are about to read
+ * it, which is when an enquiry that arrived meanwhile should be on it. No polling: an enquiry arrives every few
  * days on a site like this, the owner is notified by email, and a request a minute for the rest of the session
  * would be paid by every open editor tab in the product.
  *
@@ -32,6 +34,9 @@ import { FormSubmissionResponse } from '../../api/models/form-submission-respons
   selector: 'app-site-messages',
   imports: [DatePipe, Icon, Modal],
   templateUrl: './site-messages.html',
+  // Fills the editor's pane, so this page scrolls inside it rather than the whole editor scrolling — see the
+  // history page, where it was found.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteMessagesPage {
   private readonly route = inject(ActivatedRoute);
@@ -52,6 +57,10 @@ export class SiteMessagesPage {
 
   constructor() {
     void this.load();
+
+    onReturn(() => {
+      if (!this.loading() && !this.removing()) void this.load();
+    });
   }
 
   protected async load(): Promise<void> {

@@ -1,7 +1,7 @@
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
-import { Subject } from 'rxjs';
+import { HttpError, HubConnection, HubConnectionBuilder, HubConnectionState, IRetryPolicy } from '@microsoft/signalr';
+import { Observer, Subject, Subscription } from 'rxjs';
 import { RunEvent } from '../api/models/run-event';
 import { RunEventEnvelope } from '../api/models/run-event-envelope';
 import { RunKind } from '../api/models/run-kind';
@@ -77,24 +77,43 @@ export class RealtimeService {
   }
 
   /**
-   * Subscribes to a run and returns its event stream. Replays everything since `lastSeq`, so calling
-   * this after a reload plays the turn back from wherever the page left off.
+   * Follows a run: `observer` is given everything the run has said so far and then everything it says next, so
+   * calling this after a reload plays the turn back from the start. Ending the subscription stops this caller
+   * listening; `unwatch` is what leaves the run.
+   *
+   * <b>The observer is attached before the hub is asked</b> — the hub's own "join, then replay" rule, one layer
+   * out. The hub sends the replay *before* `Subscribe` returns, and this used to hand back a stream for the caller
+   * to subscribe to afterwards, so the replay went into a Subject nobody was listening to yet while `lastSeq`
+   * moved past it. Reloading during a turn showed the person's message and a Stop button with nothing about the
+   * turn so far; coming back to a publish said "Publishing" over a build already under way; and a run that ended
+   * in the moment between being found and being joined never ended on screen at all.
    */
-  async watch(kind: RunKind, runId: string): Promise<Subject<RunEvent>> {
+  async watch(kind: RunKind, runId: string, observer: Partial<Observer<RunEvent>>): Promise<Subscription> {
     const hub = await this.ensureConnected();
     const existing = this.watched.get(runId);
 
     if (existing) {
-      return existing.events;
+      return existing.events.subscribe(observer);
     }
 
     const entry: Watched = { kind, events: new Subject<RunEvent>(), lastSeq: 0 };
     this.watched.set(runId, entry);
 
-    const subscription = await hub.invoke<RunSubscription>('Subscribe', kind, runId, entry.lastSeq);
-    entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
+    const subscription = entry.events.subscribe(observer);
 
-    return entry.events;
+    try {
+      const answer = await hub.invoke<RunSubscription>('Subscribe', kind, runId, entry.lastSeq);
+      entry.lastSeq = Math.max(entry.lastSeq, answer.lastSeq ?? 0);
+    } catch (failure) {
+      // Not joined, so not watched: a later `watch` of the same run has to ask the hub again, rather than be
+      // handed a stream that nothing will ever write to.
+      if (this.watched.get(runId) === entry) this.watched.delete(runId);
+
+      subscription.unsubscribe();
+      throw failure;
+    }
+
+    return subscription;
   }
 
   async unwatch(runId: string): Promise<void> {
@@ -140,6 +159,9 @@ export class RealtimeService {
       .then(() => {
         this.connected.set(true);
       })
+      .catch((failure: unknown) => {
+        throw connectionFailure(failure);
+      })
       .finally(() => (this.starting = undefined));
 
     await this.starting;
@@ -153,7 +175,7 @@ export class RealtimeService {
     // the cookie — see CookieAuthenticationMiddleware.
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/realtime')
-      .withAutomaticReconnect()
+      .withAutomaticReconnect(RECONNECT)
       .build();
 
     connection.on('RunEvent', (envelope: RunEventEnvelope) => this.dispatch(envelope));
@@ -234,12 +256,47 @@ export class RealtimeService {
 
         entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
       } catch {
-        // The run finished and was evicted while the connection was down. Its terminal event was in the
-        // replay the reconnect just missed, so the page is left showing a turn that ended — which the
-        // next reload corrects from the persisted thread.
+        // The run is not on the server any more: it finished and was evicted while the connection was down, or
+        // the server restarted under it. Either way the events that would have said how it ended are not coming,
+        // so the stream *errors* rather than completing — completing is what unwatching and signing out do on
+        // purpose, and the page has to be able to tell "I stopped watching" from "there is nothing to watch".
+        // The chat answers it by re-reading the thread, which is the record of how the turn ended either way.
         this.watched.delete(runId);
-        entry.events.complete();
+        entry.events.error(new Error('The run is no longer on the server.'));
       }
     }
   }
+}
+
+/**
+ * When to try the hub again after losing it: at once, then soon, then every fifteen seconds or so — and never giving
+ * up.
+ *
+ * SignalR's default schedule stops after about forty seconds, and Webly can take longer than that to come back from
+ * a deploy. A page watching a turn was then left on "Reconnecting…" for good, long after the server was back, with a
+ * Stop button for a turn the restart had already ended: measured with a sixty-second outage. Reconnecting is what
+ * re-subscribes, and re-subscribing is what tells the page how the turn ended either way. The jitter is so every
+ * open editor does not knock in the same second when Webly returns. A session that has ended does not loop here:
+ * signing out closes the socket from the server in a way the client does not reconnect from.
+ */
+const RECONNECT: IRetryPolicy = {
+  nextRetryDelayInMilliseconds: ({ previousRetryCount }) =>
+    [0, 2_000, 5_000, 10_000][previousRetryCount] ?? 15_000 + Math.random() * 5_000,
+};
+
+/**
+ * A connection that could not be made, described the way an HTTP failure is: `status` 0 when nothing answered — the
+ * handshake never got a response, or SignalR is still reconnecting and refuses to start — and the handshake's own
+ * status when something did. So `messageOf` says Webly cannot be reached for a message sent while it is down, where
+ * it said "That could not be saved." about something nobody was saving, and `unreachable` can tell a caller it is
+ * the kind of failure worth trying again.
+ */
+function connectionFailure(failure: unknown): Error & { status: number } {
+  // The negotiation's own HTTP failure arrives wrapped, with its status only in the message — "Failed to complete
+  // negotiation with the server: Error: Unauthorized: Status code '401'" — and a 401 there is a session that has
+  // ended, not a Webly that cannot be reached.
+  const wrapped = /Status code '(\d{3})'/.exec(String(failure))?.[1];
+  const status = failure instanceof HttpError ? failure.statusCode : wrapped ? Number(wrapped) : 0;
+
+  return Object.assign(new Error('The realtime connection could not be made.', { cause: failure }), { status });
 }

@@ -5,6 +5,7 @@ using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Assets;
 using Webly.Services.DTO.Common;
+using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Workspaces;
 using Webly.Services.UseCases.Sites;
@@ -38,6 +39,7 @@ public class UploadSiteImages(
     IUserRepository users,
     ISiteRepositoryStore repositories,
     ISiteWorkspaceRegistry workspaces,
+    SiteTurns turns,
     CommitSiteVersion commitSiteVersion,
     IOptions<RepositoryOptions> repositoryOptions,
     ILogger<UploadSiteImages> logger)
@@ -68,6 +70,9 @@ public class UploadSiteImages(
         var user = await users.FindByIdAsync(userId, cancellationToken);
 
         if (head is null || user is null) return Fail(AssetError.SiteNotFound);
+
+        // See SiteTurns. The chat's own attach button is already off while a turn runs; this is the second tab.
+        if (await turns.IsRunningAsync(site.Id, cancellationToken)) return Fail(AssetError.TurnInProgress);
 
         var tree = await repositories.ReadTreeAsync(site.Nanoid, head.CommitSha, cancellationToken);
         var files = tree.Files.ToList();

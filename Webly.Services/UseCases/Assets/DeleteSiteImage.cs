@@ -3,6 +3,7 @@ using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
+using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Workspaces;
 using Webly.Services.UseCases.Sites;
@@ -28,6 +29,7 @@ public class DeleteSiteImage(
     IUserRepository users,
     ISiteRepositoryStore repositories,
     ISiteWorkspaceRegistry workspaces,
+    SiteTurns turns,
     CommitSiteVersion commitSiteVersion,
     ILogger<DeleteSiteImage> logger)
 {
@@ -44,6 +46,10 @@ public class DeleteSiteImage(
         var user = await users.FindByIdAsync(userId, cancellationToken);
 
         if (user is null) return Result<AssetError>.Fail(AssetError.SiteNotFound);
+
+        // See SiteTurns.
+        if (await turns.IsRunningAsync(site.Id, cancellationToken))
+            return Result<AssetError>.Fail(AssetError.TurnInProgress);
 
         var path = $"{UploadSiteImages.Directory}/{fileName}";
         var tree = await repositories.ReadTreeAsync(site.Nanoid, site.HeadVersion.CommitSha, cancellationToken);

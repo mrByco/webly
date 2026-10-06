@@ -1,6 +1,5 @@
 using Webly.Data;
 using Webly.Data.Models.Authentication;
-using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.SecurityTokens;
 using Webly.Services.DTO.Authentication;
 using Webly.Services.Services.Authentication;
@@ -12,7 +11,6 @@ namespace Webly.Services.UseCases.Authentication;
 public class ResetPassword(
     ISecurityTokenService securityTokenService,
     ISecurityTokenRepository securityTokenRepository,
-    IRefreshTokenRepository refreshTokenRepository,
     IPasswordHasher passwordHasher,
     IAuthSessionService authSessionService,
     IEmailSender emailSender,
@@ -41,8 +39,8 @@ public class ResetPassword(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // A reset is what you do when you suspect someone else is in your account, so every existing
-        // session goes — including, deliberately, the one doing the reset.
-        await refreshTokenRepository.RevokeAllForUserAsync(token.UserId, now, cancellationToken);
+        // session goes — including, deliberately, the one doing the reset — and everything it holds with it.
+        await authSessionService.EndAllAsync(token.UserId, cancellationToken);
 
         await emailSender.SendAsync(
             WeblyEmails.PasswordChanged(token.User.Email, token.User.DisplayName),

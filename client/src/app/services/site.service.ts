@@ -40,17 +40,47 @@ export class SiteService {
    */
   readonly current = signal<SiteDetailResponse | undefined>(undefined);
 
+  /**
+   * The person's sites, as the sidebar lists them — held here beside `current` for the same reason `current` is
+   * held at all: two copies of one fact disagree. The shell used to fetch its own list once, and the editor's
+   * shell lives through a rename, every commit and every publish, so renaming a site changed its header and left
+   * the sidebar on the old name, and publishing left the dot beside it saying there were changes nobody had
+   * published. Every re-read of the open site now patches its entry here, which costs no second request.
+   */
+  readonly mine = signal<SiteSummaryResponse[]>([]);
+
   list(): Promise<SiteSummaryResponse[]> {
     return this.api.invoke(apiSitesGet$Json);
   }
 
-  create(name: string): Promise<SiteSummaryResponse> {
-    return this.api.invoke(apiSitesPost$Json, { body: { name } });
+  /** Fetches `mine` afresh — what a newly drawn shell does, since a site may have been created or deleted. */
+  async refreshMine(): Promise<void> {
+    this.mine.set(await this.list());
   }
 
+  async create(name: string): Promise<SiteSummaryResponse> {
+    const site = await this.api.invoke(apiSitesPost$Json, { body: { name } });
+    this.mine.update(sites => [...sites, site]);
+
+    return site;
+  }
+
+  /** Which `load` was asked for last. See below. */
+  private latestLoad = 0;
+
+  /**
+   * Fetches a site and makes it the open one — unless another load was asked for after this one, whose answer is
+   * the one that counts. Two can be on the wire at once: somebody clicks from one site to the next while a request
+   * for the first is still out, and whichever answered second used to win, which put the site being left back on
+   * the screen of the one just opened — its header, its preview, and its chat, so the next message went to it.
+   */
   async load(nanoid: string): Promise<SiteDetailResponse> {
+    const ticket = ++this.latestLoad;
     const site = await this.api.invoke(apiSitesNanoidGet$Json, { nanoid });
-    this.current.set(site);
+
+    if (ticket === this.latestLoad) this.current.set(site);
+
+    this.mine.update(sites => sites.map(entry => (entry.nanoid === site.summary.nanoid ? site.summary : entry)));
 
     await this.issuePreviewAccess(nanoid);
 
@@ -113,8 +143,9 @@ export class SiteService {
     return this.api.invoke(apiSitesNanoidOpenPost, { nanoid });
   }
 
-  delete(nanoid: string): Promise<void> {
-    return this.api.invoke(apiSitesNanoidDelete, { nanoid });
+  async delete(nanoid: string): Promise<void> {
+    await this.api.invoke(apiSitesNanoidDelete, { nanoid });
+    this.mine.update(sites => sites.filter(site => site.nanoid !== nanoid));
   }
 
   versions(nanoid: string, skip = 0, take = 50): Promise<SiteVersionResponse[]> {

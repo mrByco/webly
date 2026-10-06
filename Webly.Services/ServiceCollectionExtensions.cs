@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<RequestPasswordReset>();
         services.AddScoped<ResetPassword>();
         services.AddScoped<ChangePassword>();
+        services.AddScoped<ChangeName>();
         services.AddScoped<DeleteAccount>();
 
         // A site's source: one bare git repository each, and the starter project every one begins as.
@@ -81,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<GetSite>();
         services.AddScoped<RenameSite>();
         services.AddScoped<SwitchCurrentSite>();
+        services.AddScoped<SiteTurns>();
         services.AddScoped<DeleteSite>();
         services.AddScoped<ListSiteVersions>();
         services.AddScoped<GetSiteVersion>();
@@ -133,6 +135,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRunEventSink, RunEventSink>();
         services.AddScoped<RunWriter>();
 
+        services.AddHostedService<InterruptedTurnSweeper>();
         services.AddHostedService<OrphanRunReaper>();
         services.AddHostedService<WorkspaceReaper>();
         services.AddHostedService<Services.Deployments.DeploymentJobRunner>();

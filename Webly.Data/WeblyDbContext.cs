@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NanoidDotNet;
-using System.Text.Json.Nodes;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Chat;
 using Webly.Data.Models.Deployments;
@@ -268,10 +265,6 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
 
             message.Property(x => x.Role).HasConversion<string>();
 
-            message.Property(x => x.Parts)
-                .HasColumnType("jsonb")
-                .HasConversion(PartsConverter, PartsComparer);
-
             message.HasOne(x => x.Conversation)
                 .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.ConversationId)
@@ -338,15 +331,6 @@ public class WeblyDbContext(DbContextOptions<WeblyDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }
-
-    private static readonly ValueConverter<JsonArray?, string?> PartsConverter = new(
-        parts => parts == null ? null : parts.ToJsonString(),
-        json => json == null ? null : JsonNode.Parse(json)!.AsArray());
-
-    private static readonly ValueComparer<JsonArray?> PartsComparer = new(
-        (left, right) => left == null ? right == null : right != null && left.ToJsonString() == right.ToJsonString(),
-        parts => parts == null ? 0 : parts.ToJsonString().GetHashCode(),
-        parts => parts == null ? null : JsonNode.Parse(parts.ToJsonString())!.AsArray());
 
     /// <summary>
     /// Fills in <see cref="IHasNanoid.Nanoid"/> on insert and stamps <see cref="IHasTimestamps"/> on

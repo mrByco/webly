@@ -53,14 +53,14 @@ public class OrphanRunReaper(RunRegistry registry, ILogger<OrphanRunReaper> logg
                 if (run.Kind == RunKind.Chat && run.SubscriberCount == 0 && now - run.UnwatchedSince > OrphanGrace)
                 {
                     logger.LogInformation("Cancelling run {RunId}: nobody has watched it for {Grace}.", run.RunId, OrphanGrace);
-                    registry.TryCancel(run.RunId, run.UserId);
+                    registry.TryCancel(run.RunId, run.UserId, CancelReason.Unwatched);
                     continue;
                 }
 
                 if (now - run.StartedAt > MaxLifetime)
                 {
                     logger.LogWarning("Cancelling run {RunId}: it has been running for over {Max}.", run.RunId, MaxLifetime);
-                    registry.TryCancel(run.RunId, run.UserId);
+                    registry.TryCancel(run.RunId, run.UserId, CancelReason.TooLong);
                 }
             }
         }

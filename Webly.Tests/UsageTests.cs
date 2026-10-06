@@ -94,13 +94,16 @@ public class UsageTests : PostgresTestBase
             services.GetRequiredService<IUsageRecorder>(),
             Options.Create(new SandboxOptions { CostPerHour = 3600m }));
 
+        var watched = System.Diagnostics.Stopwatch.StartNew();
+
         var sandbox = await provider.StartAsync(new SandboxSpec(site.Nanoid, new Dictionary<string, string>())
         {
             Meter = new SandboxMeter(UsageKind.EditingSandbox, user.Id, site.Id, site.Name)
         });
 
-        await Task.Delay(50);
+        await Task.Delay(100);
         await sandbox.DisposeAsync();
+        var open = watched.ElapsedMilliseconds;
         await sandbox.DisposeAsync();
 
         await using var db = CreateContext();
@@ -109,7 +112,10 @@ public class UsageTests : PostgresTestBase
         Assert.Multiple(() =>
         {
             Assert.That(row.Kind, Is.EqualTo(UsageKind.EditingSandbox));
-            Assert.That(row.DurationMs, Is.GreaterThanOrEqualTo(50));
+            // Between most of the wait and everything this test saw, rather than "at least the wait": `Task.Delay`
+            // runs on a millisecond tick and can come back a fraction early by a Stopwatch, which then truncates —
+            // this read 49 for a 50ms wait once, and failed a suite that had nothing wrong with it.
+            Assert.That(row.DurationMs, Is.InRange(90, open));
             Assert.That(row.CostUsd, Is.EqualTo(Math.Round(row.DurationMs / 1000m, 2)).Within(0.02m),
                 "a dollar a second at 3600 an hour");
             Assert.That(row.SiteId, Is.EqualTo(site.Id));

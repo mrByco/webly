@@ -58,6 +58,16 @@ public class ConversationRepository(WeblyDbContext dbContext) : IConversationRep
         dbContext.Conversations
             .FirstOrDefaultAsync(x => x.Nanoid == nanoid && x.SiteId == siteId, cancellationToken);
 
+    public Task<List<int>> ListAwaitingReplyAsync(CancellationToken cancellationToken = default) =>
+        dbContext.Conversations
+            .Where(conversation => dbContext.ConversationMessages
+                .Where(message => message.ConversationId == conversation.Id)
+                .OrderByDescending(message => message.Sequence)
+                .Select(message => (MessageRole?)message.Role)
+                .FirstOrDefault() == MessageRole.User)
+            .Select(conversation => conversation.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<List<ConversationMessage>> ListMessagesAsync(
         int conversationId,
         int take,
@@ -80,12 +90,6 @@ public class ConversationRepository(WeblyDbContext dbContext) : IConversationRep
         return newest;
     }
 
-    /// <summary>
-    /// Namespaces this repository's advisory locks, so that a lock on conversation 7 cannot collide with some
-    /// other part of the system locking on the number 7. Arbitrary and constant; only its uniqueness matters.
-    /// </summary>
-    private const int MessageLockClass = 8_141;
-
     public async Task AppendMessageAsync(
         ConversationMessage message,
         CancellationToken cancellationToken = default)
@@ -98,7 +102,8 @@ public class ConversationRepository(WeblyDbContext dbContext) : IConversationRep
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         await dbContext.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock({MessageLockClass}, {message.ConversationId})", cancellationToken);
+            $"SELECT pg_advisory_xact_lock({AdvisoryLocks.ConversationMessages}, {message.ConversationId})",
+            cancellationToken);
 
         message.Sequence = await NextSequenceAsync(message.ConversationId, cancellationToken);
 

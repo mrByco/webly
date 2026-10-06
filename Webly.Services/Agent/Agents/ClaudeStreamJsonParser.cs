@@ -255,37 +255,13 @@ internal sealed class ClaudeStreamJsonParser(Func<CodingAgentEvent, Task> onEven
     };
 
     /// <summary>
-    /// Splits the reply into what the person sees and the one line Webly commits with. A convention in the
-    /// prompt rather than a structured output, because the same convention has to work for a second agent
-    /// with a different interface — and a missing line is recoverable: the person's own request is a
-    /// perfectly good commit subject.
-    ///
-    /// The recorded turn followed it, which is the only evidence that matters here.
+    /// The reply and the one line Webly commits with, split the way every agent's are — see <see cref="TurnPrompt"/>.
+    /// The recorded turn followed the convention, which is the only evidence that matters here.
     /// </summary>
     public CodingAgentOutcome ToOutcome(string fallbackSummary)
     {
-        var reply = Reply.Trim();
-        var summary = Shorten(fallbackSummary);
-        var lines = reply.Split('\n');
-
-        for (var index = lines.Length - 1; index >= 0; index--)
-        {
-            var line = lines[index].Trim();
-
-            if (!line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var value = line["SUMMARY:".Length..].Trim();
-
-            if (value.Length > 0 && !value.Equals("none", StringComparison.OrdinalIgnoreCase))
-                summary = Shorten(value);
-
-            reply = string.Join('\n', lines.Take(index)).TrimEnd();
-            break;
-        }
+        var (reply, summary) = TurnPrompt.Split(Reply, fallbackSummary);
 
         return new CodingAgentOutcome(reply, summary, Details: null, SessionId);
     }
-
-    /// <summary>A commit subject's length. Git's own convention is 50; 70 is where a history list wraps.</summary>
-    private static string Shorten(string value) => value.Length <= 70 ? value : $"{value[..67]}...";
 }

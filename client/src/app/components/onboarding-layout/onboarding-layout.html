@@ -19,7 +19,7 @@
       <div class="mb-6">
         <h1 class="text-3xl font-bold tracking-tight">{{ heading() }}</h1>
         @if (subheading()) {
-          <p class="mt-1.5 text-base-content/60">{{ subheading() }}</p>
+          <p class="mt-1.5 text-muted">{{ subheading() }}</p>
         }
       </div>
 
@@ -27,7 +27,7 @@
     </div>
   </main>
 
-  <footer class="px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-sm text-base-content/55">
+  <footer class="px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-center text-sm text-muted">
     {{ me().email }} ·
     <button class="link" type="button" (click)="signOut()">Sign out</button>
   </footer>

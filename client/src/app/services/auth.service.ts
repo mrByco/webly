@@ -8,6 +8,7 @@ import { apiAuthAccountDelete } from '../api/fn/auth/api-auth-account-delete';
 import { apiAuthLoginPost$Json } from '../api/fn/auth/api-auth-login-post-json';
 import { apiAuthLogoutPost } from '../api/fn/auth/api-auth-logout-post';
 import { apiAuthMeGet$Json } from '../api/fn/auth/api-auth-me-get-json';
+import { apiAuthMePut$Json } from '../api/fn/auth/api-auth-me-put-json';
 import { apiAuthProvidersGet$Json } from '../api/fn/auth/api-auth-providers-get-json';
 import { apiAuthRegisterPost$Json } from '../api/fn/auth/api-auth-register-post-json';
 import { apiAuthEmailResendPost } from '../api/fn/email-verification/api-auth-email-resend-post';
@@ -191,6 +192,31 @@ export class AuthService {
     }
   }
 
+  /** Set while `sessionEnded` is working, so the burst of 401s an open editor produces is answered once. */
+  private ending = false;
+
+  /**
+   * The session ended somewhere else — a password changed or reset on another device — so this browser stops
+   * behaving as if it were signed in and goes to sign in again, with a way back to where it was. What
+   * `sessionInterceptor` calls on a 401.
+   */
+  async sessionEnded(): Promise<void> {
+    if (this.ending || !this.isBrowser) return;
+
+    this.ending = true;
+
+    try {
+      this.me.set(ANONYMOUS);
+      await this.realtime.disconnect();
+
+      const here = this.router.url;
+
+      if (!here.startsWith('/login')) await this.router.navigateByUrl(AppRoutes.login.build(here, true));
+    } finally {
+      this.ending = false;
+    }
+  }
+
   /**
    * Ends the session and lands on login. Where sign-out goes is decided here rather than in each
    * component that offers it — the header and the onboarding footer must not disagree.
@@ -214,6 +240,11 @@ export class AuthService {
 
   async resendVerification(): Promise<void> {
     await this.api.invoke(apiAuthEmailResendPost);
+  }
+
+  /** Changes the name the account is called by, and holds the profile the server answers with. */
+  async changeName(displayName: string): Promise<void> {
+    this.me.set(await this.api.invoke(apiAuthMePut$Json, { body: { displayName } }));
   }
 
   async forgotPassword(email: string): Promise<void> {

@@ -29,6 +29,19 @@ public enum RunEventType
     WorkspaceProgress,
 
     /// <summary>
+    /// The slow steps are over: the workspace is up and its dev server has been started, so the preview can be
+    /// shown now, while the agent works, rather than when the turn ends. Sent only after a
+    /// <see cref="WorkspaceProgress"/>, because a warm workspace's preview is already on screen.
+    ///
+    /// It exists because nothing said this before, and the editor took the end of the turn as its cue — so on a
+    /// site's first turn the preview pane span "Starting the preview" for the whole minute and a half the agent
+    /// spent writing the site, and the one thing this product does that nothing else does, a page changing by
+    /// itself as it is described, happened behind a spinner. The dev server may still be compiling when this
+    /// arrives; the preview proxy answers that with a page that retries by itself.
+    /// </summary>
+    WorkspaceReady,
+
+    /// <summary>
     /// The turn committed a new version. Carries the version nanoid, so the editor can refresh the preview and
     /// the history without polling.
     /// </summary>

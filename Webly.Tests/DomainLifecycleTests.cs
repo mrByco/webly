@@ -101,4 +101,35 @@ public class DomainLifecycleTests : AuthEndpointTestBase
             Assert.That(after.GetProperty("domains").GetArrayLength(), Is.Zero);
         });
     }
+
+    /// <summary>
+    /// Webly's own zone is refused whichever way it is typed, and nothing is attached or stored for it: the provider
+    /// already serves that zone for this account, so an attach would have been live at once.
+    /// </summary>
+    [Test]
+    public async Task An_address_in_the_zone_Webly_gives_out_cannot_be_connected()
+    {
+        var owner = await AccountAsync("squatter@example.com");
+        var site = (await SendAsync(owner, HttpMethod.Post, "/api/sites", new { name = "Ridgeway Cycles" }))
+            .GetProperty("nanoid").GetString()!;
+
+        foreach (var hostname in new[] { "brightwater-florist.webly.site", "https://WEBLY.SITE./", "www.webly.site" })
+        {
+            var request = Request(HttpMethod.Post, $"/api/sites/{site}/domains", (AuthCookies.AccessTokenName, owner));
+            request.Content = Json(new { hostname });
+
+            var response = await Client.SendAsync(request);
+            var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest), hostname);
+                Assert.That(problem.GetProperty("title").GetString(), Is.EqualTo("That address is one of Webly's."));
+            });
+        }
+
+        var domains = (await SendAsync(owner, HttpMethod.Get, $"/api/sites/{site}")).GetProperty("domains");
+
+        Assert.That(domains.GetArrayLength(), Is.Zero, "nothing was stored for any of them");
+    }
 }

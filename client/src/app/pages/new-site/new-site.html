@@ -1,40 +1,50 @@
+<!-- At the limit the heading says so itself: a page that asks "what are we building?" over a refusal is asking a
+     question it has already answered. -->
 <app-onboarding-layout
-  heading="What are we building?"
-  subheading="Just a name for now — the bakery, the studio, your own name. Everything else you will do by asking.">
+  [heading]="atLimit() ? 'No room for another site' : 'What are we building?'"
+  [subheading]="
+    atLimit()
+      ? limitSentence()
+      : 'Just a name for now — the bakery, the studio, your own name. Everything else you will do by asking.'
+  ">
   <div class="w-full">
-    <form class="flex flex-col gap-4" (ngSubmit)="create()">
-      <label class="floating-label">
-        <span>Site name</span>
-        <input
-          class="input input-lg w-full"
-          name="name"
-          type="text"
-          maxlength="80"
-          autocomplete="off"
-          placeholder="Ridgeway Cycles"
-          required
-          [(ngModel)]="name" />
-      </label>
+    @if (atLimit()) {
+      <a class="btn btn-primary w-full" [routerLink]="routes.home.build()">Back to your sites</a>
+    } @else {
+      <form class="flex flex-col gap-4" (ngSubmit)="create()">
+        <label class="floating-label">
+          <span>Site name</span>
+          <input
+            class="input input-lg w-full"
+            name="name"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            placeholder="Ridgeway Cycles"
+            required
+            [(ngModel)]="name" />
+        </label>
 
-      @if (error()) {
-        <p class="text-sm font-semibold text-error">{{ error() }}</p>
-      }
+        @if (error()) {
+          <p class="text-sm font-semibold text-error" role="alert">{{ error() }}</p>
+        }
 
-      <button class="btn btn-primary btn-lg" type="submit" [disabled]="saving() || !name.trim()">
-        {{ saving() ? 'Creating…' : 'Create site' }}
-      </button>
+        <button class="btn btn-primary btn-lg" type="submit" [disabled]="saving() || !name.trim()">
+          {{ saving() ? 'Creating…' : 'Create site' }}
+        </button>
 
-      <!--
-        A way out, but only for somebody who has somewhere to go back to.
+        <!--
+          A way out, but only for somebody who has somewhere to go back to.
 
-        This screen is full-screen on purpose: for most people it is the last step of signing up, and a nav
-        bar offering three ways out is an invitation to leave halfway through. For the second site it is a
-        page reached by pressing "New site" in the sidebar, and then the same design is a room with no door —
-        the only way out was the browser's back button.
-      -->
-      @if (hasSite()) {
-        <a class="btn btn-ghost" [routerLink]="routes.home.build()">Back to your sites</a>
-      }
-    </form>
+          This screen is full-screen on purpose: for most people it is the last step of signing up, and a nav
+          bar offering three ways out is an invitation to leave halfway through. For the second site it is a
+          page reached by pressing "New site" in the sidebar, and then the same design is a room with no door —
+          the only way out was the browser's back button.
+        -->
+        @if (hasSite()) {
+          <a class="btn btn-ghost" [routerLink]="routes.home.build()">Back to your sites</a>
+        }
+      </form>
+    }
   </div>
 </app-onboarding-layout>

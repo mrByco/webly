@@ -1,9 +1,10 @@
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { Icon } from '../../shared/icon';
 import { AutoGrow } from '../../shared/auto-grow';
+import { onReturn } from '../../shared/on-return';
 import { ChatService } from '../../services/chat.service';
 import { Subscription } from 'rxjs';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
@@ -11,6 +12,7 @@ import { messageOf } from '../../models/problem-details';
 import { shrinkImage } from '../../models/image-file';
 import { ImageService } from '../../services/image.service';
 import { ChatMessageResponse } from '../../api/models/chat-message-response';
+import { ConversationResponse } from '../../api/models/conversation-response';
 
 /** A line in the transcript. One shape for everything the stream can produce. */
 export interface ChatEntry {
@@ -93,6 +95,18 @@ export class SiteChat {
   readonly workspaceProgress = output<string>();
 
   /**
+   * Raised when the workspace a turn was waiting for is up, so the preview can be shown while the agent works —
+   * which is when there is something to watch. See `RunEventType.WorkspaceReady`.
+   */
+  readonly workspaceReady = output<void>();
+
+  /**
+   * Raised when a message starts being written — the first character in an empty box — so the editor can wake the
+   * site while it is typed rather than after it is sent. Not raised during a turn, which has a workspace already.
+   */
+  readonly composing = output<void>();
+
+  /**
    * Raised when a turn ends, however it ended. The editor re-reads the site on it — a turn that wrote
    * nothing still left a warm workspace behind, and that is what the preview needs to know.
    */
@@ -102,6 +116,7 @@ export class SiteChat {
   private readonly injector = inject(Injector);
   private readonly images = inject(ImageService);
   private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly entries = signal<ChatEntry[]>([]);
   protected readonly enabled = signal(true);
@@ -112,7 +127,25 @@ export class SiteChat {
 
   protected message = '';
 
+  /**
+   * What a screen reader is told as a turn goes: one line per thing worth hearing, said once, when it is complete.
+   *
+   * Nothing was told anything before this — the transcript is not a live region, so somebody who cannot see the
+   * screen pressed Send and heard silence, whatever happened next. And it cannot simply become one, because it
+   * streams: a reply arrives a few words at a time and is then replaced whole, which a live region reads out as a
+   * dozen fragments and then everything again. So this is a separate, visually hidden log beside it. Emptied when
+   * a turn starts, and never filled from a loaded thread — history is for reading, not for announcing.
+   */
+  protected readonly spoken = signal<string[]>([]);
+
   private runId?: string;
+
+  /**
+   * The newest message of the thread that this transcript already shows — read from the server, because the live
+   * stream builds its entries from events and never learns the ids of the messages they became. What `catchUp`
+   * compares against to tell "nothing happened while you were away" from "somebody used another tab".
+   */
+  private seen?: string;
 
   /**
    * The subscription to the watched run, held so that leaving can end it.
@@ -131,6 +164,27 @@ export class SiteChat {
       const nanoid = this.siteNanoid();
       void this.load(nanoid);
     });
+
+    onReturn(() => void this.catchUp());
+
+    // Back at the newest entry whenever the chat is shown again. Below `lg` the editor shows the chat or the
+    // preview, never both, and a transcript that was `display: none` while a turn wrote into it comes back
+    // scrolled to its top: hidden, it had no height to scroll, and the browser does not remember a position it
+    // could not have. Only on the way back from hidden, so somebody scrolled up to read is left where they are.
+    afterNextRender(() => {
+      let hidden = false;
+
+      const observer = new ResizeObserver(([entry]) => {
+        const nowHidden = entry.contentRect.height === 0;
+
+        if (hidden && !nowHidden) this.scrollToEnd();
+
+        hidden = nowHidden;
+      });
+
+      observer.observe(this.host.nativeElement);
+      this.destroyRef.onDestroy(() => observer.disconnect());
+    });
   }
 
   private async load(siteNanoid: string): Promise<void> {
@@ -146,31 +200,46 @@ export class SiteChat {
     }
 
     try {
-      const conversation = await this.chat.conversation(siteNanoid);
-
-      this.entries.set(
-        conversation.messages.map((message: ChatMessageResponse) => ({
-          kind: KIND_OF_ROLE[message.role] ?? 'assistant',
-          text: message.text,
-          versionNanoid: message.producedVersionNanoid ?? undefined,
-        })),
-      );
-
-      // The newest message, which is what somebody opening a site came to read. Without it the transcript
-      // opened at the *oldest* — 2200px of history above the fold on a desktop and 2600px on a phone — so the
-      // last thing the assistant said, whether it committed anything, and whether the site is broken were all
-      // below the composer. `scrollToEnd` existed and was only ever called from the run-event handler, so it
-      // looked right the moment anybody typed and wrong every time they arrived. Measured rather than judged
-      // by eye: `scrollTop` was 0 with the pane two and a half screens short of its end.
-      this.scrollToEnd();
-
-      // A turn that is still running: re-attach and let the replay finish the transcript.
-      if (conversation.activeRunId) {
-        await this.attach(conversation.activeRunId);
-      }
+      await this.show(await this.chat.conversation(siteNanoid));
     } catch (failure) {
       this.error.set(messageOf(failure));
     }
+  }
+
+  /** Draws a thread as the server has it, and joins its turn if one is running. */
+  private async show(conversation: ConversationResponse): Promise<void> {
+    this.entries.set(
+      conversation.messages.map((message: ChatMessageResponse) => ({
+        kind: KIND_OF_ROLE[message.role] ?? 'assistant',
+        text: message.text,
+        versionNanoid: message.producedVersionNanoid ?? undefined,
+      })),
+    );
+    this.seen = conversation.messages.at(-1)?.nanoid;
+
+    // The newest message, which is what somebody opening a site came to read. Without it the transcript
+    // opened at the *oldest* — 2200px of history above the fold on a desktop and 2600px on a phone — so the
+    // last thing the assistant said, whether it committed anything, and whether the site is broken were all
+    // below the composer. `scrollToEnd` existed and was only ever called from the run-event handler, so it
+    // looked right the moment anybody typed and wrong every time they arrived. Measured rather than judged
+    // by eye: `scrollTop` was 0 with the pane two and a half screens short of its end.
+    this.scrollToEnd();
+
+    // A turn that is still running: re-attach and let the replay finish the transcript.
+    if (conversation.activeRunId) {
+      await this.attach(conversation.activeRunId);
+    }
+  }
+
+  /**
+   * What the composer reports as it is typed into. The first character of a message is the earliest anybody can
+   * know a turn is coming, and a cold site takes as long to wake as a sentence takes to write — so the waking can
+   * happen during the writing instead of after Send, where it was a quarter of a minute of watching a spinner.
+   */
+  protected onInput(value: string): void {
+    if (!this.message && value && !this.running()) this.composing.emit();
+
+    this.message = value;
   }
 
   /**
@@ -181,6 +250,8 @@ export class SiteChat {
    * the same shape and the same comment.
    */
   protected suggest(text: string): void {
+    if (!this.message && text && !this.running()) this.composing.emit();
+
     this.message = text;
 
     const composer = (this.host.nativeElement as HTMLElement).querySelector('textarea');
@@ -218,10 +289,16 @@ export class SiteChat {
       const result = await this.images.upload(this.siteNanoid(), files);
       const urls = result.images.map(image => image.url);
 
-      this.entries.update(entries => [
-        ...entries,
-        { kind: 'files', text: urls.length === 1 ? 'Added an image' : `Added ${urls.length} images`, paths: urls },
-      ]);
+      this.append({
+        kind: 'files',
+        text: urls.length === 1 ? 'Added an image' : `Added ${urls.length} images`,
+        paths: urls,
+      });
+
+      // Brought into view, which nothing did: a turn scrolls on every event it applies, and an upload is not a
+      // turn — so on any thread longer than the pane, the line saying the photograph had arrived was drawn below
+      // the composer, and the only visible sign of the upload was its path appearing in the box.
+      this.scrollToEnd();
 
       this.suggest(`${this.message.trim()} ${urls.join(' ')} `.trimStart());
 
@@ -262,12 +339,32 @@ export class SiteChat {
       return;
     }
 
+    const sent: ChatEntry = { kind: 'user', text };
+
     this.message = '';
     this.error.set(undefined);
-    this.append({ kind: 'user', text });
+    this.spoken.set([]);
+    this.append(sent);
+
+    let runId: string;
 
     try {
-      const runId = await this.realtime.startChat(this.siteNanoid(), text);
+      runId = await this.realtime.startChat(this.siteNanoid(), text);
+    } catch (failure) {
+      // Not sent — refused, or never heard. So it comes back out of the transcript and back into the box, and
+      // sending it again is one Enter. It used to stay in the transcript as if it had gone, over an empty composer,
+      // so the Enter that should have retried it did nothing and the person had to notice and type it all again.
+      this.entries.update(entries => entries.filter(entry => entry !== sent));
+      if (!this.message.trim()) this.message = text;
+
+      this.error.set(messageOf(failure, 'Your message was not sent.'));
+      this.running.set(false);
+
+      return;
+    }
+
+    // Sent, whatever happens next: the turn is running on the server, so the message stays where it is.
+    try {
       await this.attach(runId);
     } catch (failure) {
       this.error.set(messageOf(failure));
@@ -286,13 +383,52 @@ export class SiteChat {
     this.runId = runId;
     this.running.set(true);
 
-    const events = await this.realtime.watch('Chat', runId);
+    const events = await this.realtime.watch('Chat', runId, {
+      next: event => this.apply(event),
+      error: () => void this.reread(),
+    });
 
-    // Kept, and the previous one ended first. `watch` hands back the *same* stream for a run it is already
-    // watching, so subscribing twice to it is not a second stream — it is every event applied twice, which is
-    // how coming back to a site mid-turn drew its last two entries in duplicate.
+    // Kept, and the previous one ended. `watch` attaches to the *same* stream for a run it is already watching, so
+    // a second subscription is not a second stream — it is every event applied twice, which is how coming back to
+    // a site mid-turn drew its last two entries in duplicate.
     this.events?.unsubscribe();
-    this.events = events.subscribe({ next: event => this.apply(event) });
+    this.events = events;
+  }
+
+  /**
+   * The run went away while the connection was down — finished and evicted, or the server restarted under it — so
+   * the events that would have ended it on this screen are not coming. Before this the spinner simply vanished and
+   * the transcript ended on the person's own message, which reads as being ignored. The thread is the record of
+   * how a turn ended in every case, the restart included (the server notes those as it starts), so it is read
+   * again.
+   */
+  /**
+   * Somebody came back to this tab. When the thread moved on without it — a turn sent from another tab or another
+   * device, finished or still going — it is loaded again, which joins a running turn through its replay exactly as
+   * a reload does. When it did not, nothing is touched: a reload draws a turn more plainly than the live stream did,
+   * and the transcript somebody was reading should not change under them for nothing.
+   */
+  private async catchUp(): Promise<void> {
+    const siteNanoid = this.siteNanoid();
+
+    if (!this.enabled() || this.running()) return;
+
+    const conversation = await this.chat.conversation(siteNanoid).catch(() => undefined);
+
+    if (!conversation || this.siteNanoid() !== siteNanoid || this.running()) return;
+
+    if (conversation.activeRunId || conversation.messages.at(-1)?.nanoid !== this.seen) await this.show(conversation);
+  }
+
+  private async reread(): Promise<void> {
+    this.turnFinished.emit();
+
+    await this.load(this.siteNanoid());
+
+    // The one line of a reloaded thread that is news: how the turn that was running ended.
+    const last = this.entries().at(-1);
+
+    if (last?.kind === 'notice') this.say(last.text);
   }
 
   /**
@@ -326,18 +462,36 @@ export class SiteChat {
         // The whole message, which replaces whatever the deltas built: a client that joined mid-turn has
         // the tail and not the head, and rebuilding from deltas is more fragile than being told.
         this.replaceAssistant(event.text ?? '');
+        if (event.text) this.say(event.text);
         break;
 
       case 'WorkspaceProgress':
         // Replaced rather than appended: this is one step with several stages, and a line per stage reads
         // like something going wrong.
+        if (!this.entries().some(entry => entry.kind === 'waking')) this.say('Waking up your site.');
         this.replaceLatest('waking', event.detail ?? 'Waking up your site');
         this.workspaceProgress.emit(event.detail ?? '');
         break;
 
-      case 'Activity':
-        this.append({ kind: 'activity', text: event.detail ?? 'Working' });
+      case 'WorkspaceReady':
+        // The waiting is over, so the line that said what it was waiting for goes. Left in place it kept its
+        // spinner above everything the agent did next, and read as the site still starting a minute later.
+        this.entries.update(entries => entries.filter(entry => entry.kind !== 'waking'));
+        this.workspaceReady.emit();
         break;
+
+      case 'Activity': {
+        // Once for a run of the same thing. An agent reads three files to answer one question and clicks
+        // through a page ten times to check it, and a line for each buried the sentences between them under
+        // "Reading your site" three times over. A different activity, or anything else, starts a new line.
+        const text = event.detail ?? 'Working';
+        const last = this.entries().at(-1);
+
+        if (last?.kind !== 'activity' || last.text !== text) {
+          this.append({ kind: 'activity', text });
+        }
+        break;
+      }
 
       case 'FileChanged':
         // Collected into one growing entry. A turn touches a dozen files and a chip each would bury the
@@ -352,6 +506,7 @@ export class SiteChat {
           versionNanoid: event.versionNanoid ?? undefined,
         });
         this.versionCommitted.emit(event.versionNanoid ?? '');
+        this.say(`Saved as a new version: ${event.detail ?? 'your site was updated'}.`);
         break;
 
       case 'BuildFailed':
@@ -362,6 +517,7 @@ export class SiteChat {
           heading: 'Your site is not compiling',
           text: event.detail ?? 'The site is not compiling.',
         });
+        this.say('Your site is not compiling. The error is in the chat.');
         break;
 
       case 'TypesFailed':
@@ -372,10 +528,12 @@ export class SiteChat {
           heading: 'This will stop your site publishing',
           text: event.detail ?? 'The types do not check.',
         });
+        this.say('This will stop your site publishing. The error is in the chat.');
         break;
 
       case 'Failed':
         this.append({ kind: 'error', text: event.error ?? 'Something went wrong.' });
+        this.say(event.error ?? 'Something went wrong.');
         this.finish();
         break;
 
@@ -387,6 +545,7 @@ export class SiteChat {
         // stopped moving.
         if (event.detail) {
           this.append({ kind: 'notice', text: event.detail });
+          this.say(event.detail);
         }
 
         this.finish();
@@ -400,6 +559,11 @@ export class SiteChat {
     this.running.set(false);
     this.turnFinished.emit();
 
+    // A turn that ended while its site was still waking — stopped, failed, or cut off by a restart — left the waking
+    // line and its spinner above the sentence saying it was over, still turning. `WorkspaceReady` removes it in the
+    // ordinary case; this is every other way the wait can end.
+    this.entries.update(entries => entries.filter(entry => entry.kind !== 'waking'));
+
     this.events?.unsubscribe();
     this.events = undefined;
 
@@ -407,6 +571,20 @@ export class SiteChat {
       void this.realtime.unwatch(this.runId);
       this.runId = undefined;
     }
+
+    // What this turn wrote into the thread, so coming back to the tab later does not mistake it for news.
+    const siteNanoid = this.siteNanoid();
+
+    void this.chat
+      .conversation(siteNanoid)
+      .then(conversation => {
+        if (this.siteNanoid() === siteNanoid) this.seen = conversation.messages.at(-1)?.nanoid;
+      })
+      .catch(() => undefined);
+  }
+
+  private say(line: string): void {
+    this.spoken.update(lines => [...lines, line]);
   }
 
   private append(entry: ChatEntry): void {

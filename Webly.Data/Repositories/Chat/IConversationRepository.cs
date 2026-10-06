@@ -51,5 +51,12 @@ public interface IConversationRepository
         string title,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The threads whose last message is the person's own: a turn that was started and never finished. Every way
+    /// a turn ends in a running process writes something after that message — the reply, a stopped note, a failure
+    /// note — so at startup, when no turn can be running, these are exactly the turns a process death cut off.
+    /// </summary>
+    Task<List<int>> ListAwaitingReplyAsync(CancellationToken cancellationToken = default);
+
     void Add(Conversation conversation);
 }

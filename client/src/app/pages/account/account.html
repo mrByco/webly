@@ -2,16 +2,55 @@
   <main class="flex w-full max-w-2xl flex-col px-5 pt-6 pb-10 sm:px-8 xl:px-10 xl:pt-10">
     <header>
       <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Account</h1>
-      <p class="mt-0.5 text-base-content/60">{{ me().email }}</p>
+      <p class="mt-0.5 text-muted">{{ me().email }}</p>
     </header>
 
     <!-- The way to the usage report on a phone, where the sidebar that carries it is not drawn. -->
     @if (isAdmin()) {
       <a class="surface mt-6 flex items-center justify-between gap-3 p-4 font-semibold" [routerLink]="routes.usage.build()">
         Usage and costs
-        <span class="text-base-content/50" aria-hidden="true">→</span>
+        <span class="text-muted" aria-hidden="true">→</span>
       </a>
     }
+
+    <!--
+      The name every email opens with and every version's author carries. There was no way to change it, so a typo
+      made in the first minute of signing up stayed in all of those for good.
+    -->
+    <h2 class="section-label mt-8 mb-2.5">Your name</h2>
+
+    <section class="surface p-5">
+      <!-- The native submit event, not `ngSubmit`: that is an output of a forms directive, and this form has none
+           — it is one field bound by hand — so it never fired and the browser submitted the page instead. -->
+      <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); saveName()">
+        <p class="text-sm text-muted">What Webly calls you in its emails, and the author of every change you ask for.</p>
+
+        @if (nameSaved()) {
+          <div role="status" class="alert alert-success alert-soft text-sm">Saved.</div>
+        }
+
+        @if (nameError(); as message) {
+          <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
+        }
+
+        <div class="flex items-end gap-2 sm:max-w-sm">
+          <label class="floating-label min-w-0 flex-1">
+            <span>Your name</span>
+            <input
+              class="input input-bordered w-full"
+              type="text"
+              name="displayName"
+              autocomplete="name"
+              maxlength="100"
+              placeholder="Your name"
+              [value]="name()"
+              (input)="name.set($any($event.target).value); nameSaved.set(false)" />
+          </label>
+
+          <button class="btn" type="submit" [disabled]="savingName() || !name().trim() || nameUnchanged()">Save</button>
+        </div>
+      </form>
+    </section>
 
     <h2 class="section-label mt-8 mb-2.5">How you sign in</h2>
 
@@ -36,7 +75,7 @@
     <section class="surface p-5">
       <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
         @if (settingFirstPassword()) {
-          <p class="text-sm text-base-content/65">
+          <p class="text-sm text-muted">
             Your account has no password — you sign in with Google. Set one and you will be able to
             sign in either way.
           </p>
@@ -76,7 +115,7 @@
                 autocomplete="new-password"
                 required />
             </label>
-            <p class="mt-1.5 text-xs text-base-content/55">At least 8 characters.</p>
+            <p class="mt-1.5 text-xs text-muted">At least 8 characters.</p>
           </div>
         </div>
 
@@ -96,9 +135,9 @@
       Deliberately flatter than the panel above it and last on the page, the same shape a site's settings use
       for the same reason: a destructive action that looks like a setting reads as one.
     -->
-    <section class="rounded-box border border-error/40 p-4">
+    <section class="mt-8 rounded-box border border-error/40 p-4">
       <h2 class="text-sm font-bold text-error">Close your account</h2>
-      <p class="mb-3 max-w-xl text-sm text-base-content/65">
+      <p class="mb-3 max-w-xl text-sm text-muted">
         Your sites go with it — the pages, every version of them, the domains you connected and anything
         published. Take a copy first if you want one: each site's settings has a Download.
       </p>
@@ -131,7 +170,7 @@
   }
 
   @if (deleteError()) {
-    <p class="mt-2 text-sm font-semibold text-error">{{ deleteError() }}</p>
+    <p class="mt-2 text-sm font-semibold text-error" role="alert">{{ deleteError() }}</p>
   }
 
   <div class="mt-4 flex justify-end gap-2">

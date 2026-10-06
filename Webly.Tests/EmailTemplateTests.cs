@@ -127,6 +127,25 @@ public class EmailTemplateTests
     }
 
     /// <summary>
+    /// The field names a browser posts, as the owner reads them: the inbox showed <c>name</c>, <c>email</c> and
+    /// <c>preferred-date</c> in lower case long after the Messages screen had stopped doing so.
+    /// </summary>
+    [Test]
+    public void A_form_notification_reads_its_field_names_the_way_the_messages_screen_does()
+    {
+        var message = WeblyEmails.FormSubmitted(
+            "a@example.com", "Ada", "Ridgeway Cycles",
+            [("email", "jan@example.nl"), ("preferred-date", "Thursday")], replyTo: null, link: "https://webly.test/messages");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(message.HtmlBody, Does.Contain(">Email<").And.Contain(">Preferred date<"));
+            Assert.That(message.HtmlBody, Does.Not.Contain(">preferred-date<"));
+            Assert.That(message.TextBody, Does.Contain("Preferred date:\nThursday"));
+        });
+    }
+
+    /// <summary>
     /// No message carries our own notes to the customer.
     ///
     /// An HTML comment renders as nothing, which is exactly why this needed a test rather than a reading: three

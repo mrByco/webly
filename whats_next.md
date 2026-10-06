@@ -1205,6 +1205,378 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     too. Self-hosting it with `next/font/local` would remove the question.
 
 
+78. **A new customer's first hour, walked and refined.** A fresh account through the real UI — sign-up, the code,
+    a first site, two real OpenCode turns, publishing, the published site's contact form as a stranger, the
+    owner's Messages, every screen at both widths and the main ones in dark mode — and then fixed what it showed:
+
+    - **The end of every narrated turn repeated itself.** The live screen drew the agent's narration twice, with
+      the `SUMMARY:` line meant for the commit under it, while a reload showed the clean answer: `RunWriter` sent
+      the streamed text and the turn stored the reply. It sends the reply now.
+    - **The preview sat behind a spinner for the whole first turn** — 94 seconds of "Starting the preview" while
+      the agent wrote the site. `RunEventType.WorkspaceReady` ends the wait as soon as the workspace is up: the
+      next first turn had its preview on screen at 13 seconds, with the agent's edits arriving in it.
+    - **Repeated activity lines** ("Reading your site" three times) are one line now.
+    - **Starter text reached published sites.** The contact page told visitors to "tell Webly what this page should
+      say", and the description every search result and shared link shows said the same, beside a home page the
+      agent had already written. The contact copy is a visitor's, the description starts empty, and `AGENTS.md`
+      rule 12 asks the agent to clear starter text — which an older site's next, unrelated turn then did, its
+      description included.
+    - **Publishing** shows a working button with a spinner rather than a grey one, and ends with "Your site is
+      live" and a link.
+    - **Phones** get the chat or the preview, each a whole screen, with a switch; they had 290px and 180px.
+    - **The facts panel** in Settings shows a chevron, and renders `content/brand.md` as formatted text rather than
+      Markdown (`models/brand-facts.ts`); the template's copy of that file is written for the owner throughout.
+    - **The app's font is self-hosted**, so no page asks Google for anything.
+    - **History entries are specific**: one shared `TurnPrompt` for both agents, with an example of a good
+      summary. "Ridgeway Cycles home page was updated." became "Added second-hand bike sales to the home page".
+
+    **Tried and reverted**: letting webpack's hot-update manifest through the preview proxy like a font, so edits
+    would apply in place instead of reloading the frame. Client components did; pages stopped updating at all,
+    because Next applies a Server Component change by writing `document.cookie`, which the sandboxed frame may
+    not. `PreviewController.IsFont` and `CLAUDE.md` say so. The real answer is still the preview's own origin.
+
+    **Not changed, worth knowing**: a turn's first reload of the preview logs a 502 in the console — that is the
+    "your site is compiling" page doing its job while `next dev` starts.
+
+79. **A cold site wakes while its first message is written.** The first character typed into an empty composer
+    starts the workspace — the same wake as the preview's button — so the thirteen seconds a cold start takes
+    overlap the writing instead of following Send. Measured on two cold sites with the mock agent: a message typed
+    over twelve seconds had its edit **2.0s** after Send; one sent at once, **12.9s**. A turn that arrives while
+    the wake is still going waits on the registry's start lock and says "Waking up your site" in the chat, which it
+    did not — it went quiet for the rest of the start. Only when nothing is warm yet, since the lock is also held
+    for the instant it takes to check a warm workspace is alive.
+
+    **Found on the way: why a turn failed was logged nowhere.** The first measurement was a real OpenCode turn,
+    and it died two minutes in with "Something went wrong" on screen and "The editing agent could not finish" in
+    the log. The reason — **the OpenAI account has run out of credit**, mid-turn, after the agent had already
+    started replying — was only in OpenCode's own log inside the sandbox. `SandboxException.ToString()` now
+    carries the detail, so every log line that records one says why. The real-agent half of this entry needs the
+    account topped up; the mock drove the rest.
+
+    Also: the phone's chat/preview switch is a labelled group of `aria-pressed` buttons rather than ARIA tabs it
+    did not behave like.
+
+80. **The second hour, walked: a photograph, History, a rename, domains, Stop, a second site, deleting it, and a
+    forgotten password.** All of them work. Four things were wrong on the way:
+
+    - **History and Code scrolled the whole editor.** The pages routed into the editor's pane had no host
+      styles, so each sized to its content and the shell's column scrolled instead of the list — clicking a
+      version low in the list moved the site's name and the tabs off the top of the window. Settings did the same
+      on a phone. They fill the pane now, and `screens.mjs` has a rule for it that was red on all five cases
+      before the fix and green after.
+    - **Stop after the commit said nothing had changed.** Pressed during the typecheck that follows a commit, it
+      wrote "Stopped. Nothing was changed." under the link to the version just made. The checks are what stop
+      now; the version stands.
+    - **A rename did not reach the sidebar**, which fetched its list once per shell; it reads `SiteService.mine`
+      now, which every re-read of the open site keeps current — the status dot after a publish included.
+    - **A photograph's upload line was drawn below the fold** on any thread longer than the pane; the chat
+      scrolls to it.
+
+81. **The app's quiet text was too quiet to read, and the sweep now measures text.** A probe of every visible
+    piece of text against its composited background found 184 failures of WCAG 1.4.3 in the light theme and 46 in
+    the dark: the four muted opacities in the templates (3.1–4.1:1), section labels, the green "see what changed",
+    the danger zone's red, soft badges, the avatar's initial, the sign-in screen's left column, and the compiler's
+    words in the amber of a warning fill (1.7:1). One `text-muted` token at 68% replaces the four shades; info,
+    success, error and secondary are darkened in the light theme until they pass as text and as fills; warning's
+    words get their own ink. Both themes then measured zero, and the sweep's new text rule was red in 38 places
+    with the change stashed and green with it back.
+
+    And the history's origin words: "Updated the editing instructions" and a rename both said **created**, the word
+    for a site's first commit, because the owned-file sync wrote the first commit's origin. It writes a new `Webly`
+    origin now ("by Webly"), a rename says "by you", and a data migration moved the eleven existing rows here —
+    "Template with a parent" is exactly the misfiled set, since only a first commit has none.
+
+82. **A keyboard walk.** Tab order through the editor is sidebar, header, tabs, Publish, the chat's links, the
+    photo button, the composer, the preview's toolbar — and every stop draws a ring, including the photo button
+    whose real control is a visually hidden file input. The dialogs were the gap: a `div` with `role="dialog"`
+    that left focus behind it, let Tab wander the page underneath, ignored Escape and dropped focus on close.
+    They are native `<dialog>`s opened with `showModal()` now — driven by keyboard on the delete-site and
+    close-account dialogs: focus lands on "Keep it" (the password, for the account), stays inside, Escape closes
+    and focus returns to the button that opened it.
+
+83. **The emails, read rather than tested.** Two said something untrue. The enquiry notification printed the
+    raw field names — `name`, `email`, `message` — though the comment on the Messages screen's label rule says
+    the defect was found *in the inbox*; the fix had gone to the screen only. `FieldLabel` is the same rule for
+    the email, tested with the client spec's cases. And "your password changed" said every device had been
+    signed out, while a change and a reset both sign the device that made them straight back in — so it told the
+    owner something false about the browser in front of them, and told somebody whose account had been taken
+    that the intruder was out too. It now says which device stays, and that a reset removes that one as well.
+    Both checked by sending the published contact form as a stranger and changing the password in the app.
+
+84. **A restart in the middle of a turn.** Killing the backend while a turn was waking a site, with the editor
+    open: the spinner and Stop button vanished, and the thread ended on the person's own message — live, after a
+    reload, and for good, since nothing in a dead process can say how its turn ended. That is what every deploy
+    does to whoever is mid-sentence. The next process now says it as it starts (`InterruptedTurnSweeper`), the
+    client re-reads its thread when a run it was watching is gone after a reconnect, and the editor asks whether a
+    preview exists instead of assuming the turn left one. Driven again the same way: ten seconds after the
+    restart the open editor read "This was interrupted when Webly restarted. Nothing was changed — please send it
+    again.", and so did a reload. `InterruptedTurnTests` was red with the sweep disabled.
+
+85. **And a restart in the middle of a publish, which was worse.** The runner only ever picks up `Queued`, so the
+    deployment stayed `Preparing` for good, and because a site has one live publish at a time, that site could
+    never publish again — the editor said "Publishing…" after every reload. The runner now fails what a previous
+    process left in progress before it starts polling (and mails the owner, who may have closed the tab); the
+    editor, finding its publish run gone, reads the row and says "Webly restarted while your site was being built,
+    so nothing was published."; and the next publish went live. Two things on the way: while the server was down
+    the editor said "That could not be saved." over a page that was loading — `messageOf` now says Webly cannot be
+    reached when nothing of ours answered — and in development the test kept being defeated by Vite reloading the
+    page, which production never does (see `CLAUDE.md`). Also a timing assertion in `UsageTests` that read 49ms for
+    a 50ms wait and failed a clean suite; it brackets the duration now instead. `InterruptedPublishTests` pins the
+    runner's half — red with the startup pass disabled.
+
+86. **A screen reader hears the turn.** Nothing in the chat was a live region, so pressing Send was followed by
+    silence for anybody listening rather than looking. A visually hidden log beside the transcript now says each
+    thing once, when it is complete — checked on a mock turn: "Waking up your site.", the reply, "Saved as a new
+    version: …". Not the transcript itself, which streams and would be read as fragments.
+
+87. **The site limit, said up front.** At three sites the sidebar hid "New site" without a word, the All-sites
+    page kept its button, and the form took a name and then refused it. The profile carries the limit now and all
+    three screens say it before anybody types; `/new` says "No room for another site" as its heading. Walked by
+    creating a third site and deleting it again. The preview's Phone/Tablet/Full buttons say which is pressed.
+
+88. **The usage report on a phone.** The sweep never visits it (its account is not an administrator), so it was
+    walked by hand at both widths and in dark mode. Two things: the small line explaining a $0.00 sandbox figure
+    ("no hourly rate set") was truncated to "no hourl…" — the tiles' lines wrap now. *(A correction: this entry first
+    said the report had no way in on a phone and added it to the bottom bar. It had one all along — "Usage and
+    costs" on the Account page, written for exactly that — so the bottom bar is back to its two destinations.)*
+
+89. **The template's font is a file now.** `next/font/google` was the open item from 77: a sandbox with no route
+    to Google drew the preview in a fallback face — and, measured now rather than assumed, the production build does
+    not fall back at all: `next build` exits 1 on `getaddrinfo EAI_AGAIN fonts.googleapis.com`, so the publish
+    itself failed. Inter's Latin variable subset is committed in the template (`src/app/fonts/`, 48 KB, OFL) and
+    loaded with `next/font/local`; built inside `unshare -n`, the old template fails and the new one exports Inter
+    and its fallback. `tools/e2e/run.mjs` passes all 20 steps on it. Existing sites keep their own layout.
+
+90. **Publishing the starter page asks first.** Seen on the site that proved the font: a site published before
+    anybody chats goes live saying "Tell Webly what this site is about, and this page will be rewritten for you" to
+    its visitors. The first publish of a site with no version from the assistant now asks — "Publish the starter
+    page?" — with Keep editing as the easy way out.
+
+91. **A name can be corrected.** There was no way to change one's own name, and it is in every email, the sidebar
+    and the author line of every version. `PUT /api/auth/me` with registration's rule, a field on the Account page,
+    three HTTP tests; walked in the browser — saved, the sidebar followed, the next version was authored under the
+    new name, and it went back. The first attempt saved nothing: the form used `ngSubmit` on a page whose forms
+    module has no directive for it, so the browser submitted the page instead. Also from that sweep, now that the
+    walk account administers: two daisyUI defaults under 4.5:1 on the usage report (a table header, and a soft
+    warning badge at 1.9:1), overridden for every table and badge.
+
+92. **One unbroken word scrolled three screens sideways.** An enquiry carrying a pasted link stretched the
+    Messages pane to 2,320px on a phone, the same link in a chat message did it to the transcript (1,674px), and a
+    lockfile's integrity hashes did it to the Code view. `wrap-anywhere` on all three, checked at both widths;
+    the History diff keeps its deliberate per-file sideways scroll. Also on Messages: dates in the app's one
+    format rather than Angular's US `medium`. And the enquiry's **email** had it worst: 2,747px wide at a phone's
+    width, so a mail app would shrink the whole message to illegibility. Its value cells break long words now, and
+    the next such enquiry's email measured exactly 375px at 375px.
+
+93. **The sweep asks its colour questions in the dark theme too.** Every number in the palette was chosen to pass
+    both themes, and until now only a hand measurement could say whether it still did. Each screen gets a second,
+    colour-only pass at desktop width with the dark scheme emulated. Proved by dimming the dark theme's text on
+    purpose: 46 failures, every one marked "(dark)", and green again once restored.
+
+94. **A transparent logo came out on a black rectangle.** The browser shrinks an upload to 2,000px and re-encodes
+    it as JPEG, which has no transparency — a canvas encodes a transparent pixel as black. Measured: a 2,400px
+    transparent PNG was stored as `logo.jpg` with its corner at rgba(0,0,0,255). Images with transparent pixels
+    stay PNGs now (`logo-clear.png`, corner rgba(0,0,0,0)); an opaque PNG still becomes a JPEG
+    (`banner-opaque.jpg`). Also checked on the way: a document renamed `.jpg` is refused with "menu.jpg is not a
+    JPEG, PNG, GIF or WebP".
+
+95. **Removing the main domain promised an address that was not there yet.** The confirmation said the site's
+    Webly address "has been working all along" while the row above it read "Being set up" — true only once
+    `addressReadyAt` is stamped, which can lag a publish in production and never happens in development. It says
+    "which is still being set up" until then. Walked both ways in the browser, the second by stamping the column
+    by hand. The rest of the custom-domain path checked out: promote, the settings screen naming the customer's
+    domain as the address with no "still being set up" note under it, remove, fall back.
+
+96. **Waking one site and switching to another put the first one back on screen.** The preview's wake polls for
+    two minutes, and each poll made the site it was waking the open one — so after clicking on to Brightwater
+    Florist the address said Brightwater while the header, the preview and the chat said Ridgeway Cycles, for
+    good, and a message typed there went to Ridgeway. The loop ends when the route moves on, and only the most
+    recently requested load says which site is open. Walked: the header stays Brightwater with its own preview
+    asleep. **And a restart in the middle of a wake** ended it at the first failed poll, with "Webly cannot be
+    reached" left over the editor for the 100 seconds the walk watched after Webly was back, above a preview still
+    asleep. It now says "Reconnecting to Webly", asks for the start again once Webly answers — the restart took the
+    first one with it — and the preview arrived 16 seconds after the backend did. A wake that fails outright says
+    so in the preview pane beside "Try again" (5.5:1 light, 5.9:1 dark), and pressing it clears it.
+
+97. **Three ways a publish or a turn reached the wrong screen, or none.** Publishing one site and clicking on to
+    another put the first one's "Preparing… / Building…" on the second site's button and ended with "Your site is
+    live" over a site nobody had published — the editor never let go of a publish. A finished publish was never
+    let go of either, so after a backend restart the stream of the evicted run errored and a dismissed "Your site
+    is live" came back three seconds later; in production that is every Webly deploy. And **no replay ever reached
+    the page**: the hub sends it before `Subscribe` returns and the stream was subscribed to afterwards, so a
+    reload mid-turn showed a Stop button and nothing else, although the hub's frames had the "Waking up your site"
+    event on the wire. `watch` takes the observer now. Walked all three: the second site keeps its own button,
+    no banner returns after a restart, a reload mid-wake shows the waking line at once, and coming back to a
+    publish shows its real stage ("Preparing…") instead of a generic "Publishing…".
+
+98. **Sending while Webly was down lost the message.** It stayed in the transcript as if it had gone, the
+    composer was emptied, and the error said "That could not be saved." — so once Webly was back, Enter did
+    nothing and the message had to be typed again. Now it goes back in the box with "Webly cannot be reached
+    right now", and one Enter sends it. Walked twice: with no hub connection yet, and with one open that SignalR
+    was still trying to reconnect when Send was pressed.
+
+99. **A second tab on the same site never heard about the first.** A turn sent from one tab left the other showing
+    the thread as it was when it loaded, and its Publish button read "Published" over changes the other tab had
+    made — however often it was brought forward. Coming back to a tab now catches it up: walked with two tabs, the
+    second joined the first one's turn mid-wake (waking line, Stop button) and followed it to the end; joined a
+    publish at its real stage ("Preparing…") and ended on "Your site is live" in both; and redrew nothing when
+    nothing had changed. Headless Chromium does not reliably fire `focus` on `bringToFront`, so the walk fires it
+    where a real browser would.
+
+100. **A column that promised something nothing did.** `ConversationMessages.Parts` was documented, on the entity
+    and on the response, as what let a reload redraw a turn's activity — and nothing ever wrote it or read it: null
+    in all 121 rows here. Found while deciding what "catching up" a tab should draw. Dropped, with its converter,
+    its field on the API and the generated client's two `JsonNode` models; the entity now says what a reloaded
+    thread is instead — the reply and a link to its version.
+
+101. **Anybody could connect another site's Webly address to their own.** The domains screen refused nothing
+    under `webly.site`: the uniqueness check only knows the `Domain` table, and a site's own subdomain is arranged
+    by the publish, not stored there. In production every site is in one provider account whose zone already
+    points at it, so `brightwater-florist.webly.site` attached to Ridgeway would have been served at once — a slug
+    squatted before its owner signs up, or the zone itself claimed. Refused now, with the app's own host, and
+    walked: the zone in any spelling is refused, `notwebly.site` is not. **And the screen had never said why
+    anything was refused** — `messageOf` read the title and dropped every `Detail` the API writes, so "That does
+    not look like a domain name." arrived without "Enter it without https://…". It says both now. Two smaller
+    things on the way: a trailing dot inside a pasted URL (`https://example.com./`) was refused, and a
+    `DeployError.BuildFailed` with its own sentence existed that nothing could produce.
+
+102. **An enquiry that arrived while the Messages tab sat open stayed invisible** until somebody pressed its
+    reload button, which nobody does in a tab they have just come back to. It reloads on return now: walked by
+    sending one from the published contact page as a stranger, then focusing the owner's tab — five messages
+    became six and the tab's unread badge cleared.
+
+103. **A deploy of Webly told everybody mid-turn that they had pressed Stop.** A graceful shutdown cancels a turn
+    through the same token Stop does, so the thread said "Stopped. Nothing was changed." — which only a `kill -9`
+    had ever avoided, because then the startup sweep wrote the right note. The handle now records who cancelled
+    (Stop, unwatched, too long; nobody, for a shutdown) and the thread and the live event read the same sentence
+    from it. Walked both: a polite stop mid-wake ends on "This was interrupted when Webly restarted… please send it
+    again", once; pressing Stop still says "Stopped". **And a page whose hub was down for more than ~40 seconds
+    never recovered**: SignalR stopped retrying, and the chat sat on "Reconnecting… your changes are still running"
+    a minute after Webly was back. It retries for ever now and resolved within five seconds of Webly returning.
+    Also: the waking line's spinner no longer keeps turning above a turn that has ended.
+
+104. **And a deploy of Webly told somebody mid-publish that their publish had "failed unexpectedly".** The same
+    polite shutdown, on the publish side: it cancelled the build's token, the runner's generic catch recorded
+    "Publishing failed unexpectedly. Your live site is unchanged." with "The operation was canceled." as the build
+    log, and emailed both. Reproduced by stopping the backend while a publish said "Preparing…"; now the editor,
+    Settings and the email all say "Webly restarted while your site was being built, so nothing was published."
+    — the sentence the startup sweep already used for a process that died — with no build log. A stop during
+    "Building…" usually lets `next build` finish within the thirty-second shutdown, and the site goes live.
+
+105. **Pressing Publish just before a restart lost the publish on screen.** The row was queued, then following its
+    run failed because Webly was down, and the editor treated that as the publish failing: "Publish" under "Webly
+    cannot be reached", while the new process picked the row up and built and published it unwatched. Following
+    is now retried against the row until it can join or knows the ending; walked by pressing Publish and stopping
+    Webly in the same second — "Building…" after the restart, then "Published" and "Your site is live".
+
+106. **A password reset left the other browsers signed in.** It revoked their refresh tokens and nothing else, so —
+    walked with a second browser signed in before the reset — that browser went on answering 200; its preview
+    cookie would have lasted twelve hours and an open hub socket, which starts turns, indefinitely. The same was
+    true of a password change, a detected token theft, the Google takeover of an unverified account and a cookie-less
+    sign-out. All five now go through one `EndAllAsync` that blacklists each session and closes the user's sockets,
+    and a token is refused when its session has ended. **Fixing it exposed an older defect**: the other device's
+    next request then carried a refresh cookie the change had revoked, the refresh path read any revoked token as a
+    stolen one, and ended every session — including the one the change had just made, so the laptop that changed
+    the password was signed out by the phone. It used to take fifteen minutes to happen. Only a *rotated* token
+    counts as theft now. Walked: after a reset both old browsers get 401 and the new password works; after a change
+    the laptop stays signed in and the phone lands on the sign-in page. Five tests, all red on the old code.
+
+107. **The editor's errors were silent to a screen reader.** Every in-app error banner and line — the chat's,
+    the editor's, Settings, Domains, History, Code, Messages, the sites list, a new site, closing an account — was
+    plain text that appeared, where the sign-in screens' were `role="alert"`. Ten of them are now; checked by finding
+    the Domains refusal through its role in the browser.
+
+108. **Every screen was titled "Webly".** Two sites open meant two identical tabs, the browser history was a column
+    of "Webly", and a screen reader's first words about any page said nothing about it. Routes carry their screen's
+    name now and a title strategy adds the open site's: "History · Ridgeway Cycles · Webly", following a switch
+    and the back button, and "Sign in · Webly" in the prerendered HTML. The sweep fails a page titled only "Webly",
+    and did on 14 screens before the change. A navigation inside the app is also announced now, through a polite
+    live region that says the new title — sampled every 50ms through a site switch, the title never names the site
+    being left.
+
+109. **A refused enquiry printed JSON on a customer's website.** The form endpoint answered its refusals as
+    ProblemDetails, and a contact form is a browser post — so a visitor who sent an empty form saw
+    `{"title":"Nothing was filled in, so nothing was sent.","status":400}` as the page, and one over the rate limit
+    saw a blank page. They are small pages in the thank-you page's style now, with `Retry-After` on the limit; the
+    app's own 429s say what was done too often instead of "That could not be saved." Three tests, red on the old code.
+
+110. **Deleting a site in the middle of a turn left the turn running for a site that was gone.** The delete
+    answered in 0.1s, the turn went on to start a sandbox, install and run, then crashed on a foreign key writing
+    its reply into the deleted conversation — and the sandbox kept running. The delete now stops the turn and waits
+    for it (10s in the walk, while it was installing): the thread ends "Stopped. Nothing was changed.", the run is
+    cancelled, the workspace released, nothing left in the process list or on disk. The Settings dialog says
+    "Deleting…" meanwhile and cannot be dismissed into looking like a cancelled delete.
+
+111. **And deleting a site while it published put it back online.** The publish runner worked on the shutdown
+    token alone, so nothing could stop a publish: one building when its site was deleted finished a moment later,
+    wrote the export into the published directory the delete had just emptied, and crashed on the rows that were
+    gone — the deleted site answered 200 a minute after the delete. The runner works on the run's token now, the
+    delete cancels it and waits (0.7s in the walk), and an abandoned publish records and emails nothing; the
+    deleted site stays a 404. Pinned by a test that times out on the old runner.
+
+112. **An editor whose session ended elsewhere said the wrong thing.** With the password changed on another device,
+    the laptop's next click on History said "That could not be saved." and sending a message said "Webly cannot be
+    reached" — only a reload revealed it had been signed out. A 401 from the app's API now takes it to the sign-in
+    page with the reason and a way back: walked, History → "You have been signed out — your password was changed or
+    your session ended elsewhere", and signing in with the new password returned to History. A wrong password at
+    sign-in still gets its own message, because `/api/auth/` is left alone.
+
+113. **The preview could be stopped while somebody was using it.** Only a turn, a wake or a re-seed counted as
+    using a workspace; requests through the preview proxy did not. So waking the preview to look at the site and
+    clicking around in it ended, ten minutes after the wake, with the sandbox stopped mid-browse. A preview request
+    counts now. Walked with `Sandbox:IdleTimeout` at one minute: clicking between Home and Contact every fifteen
+    seconds kept it for 152 seconds, and once the clicking stopped the reaper took it 86 seconds later.
+114. **Five wrong codes was not a limit when they arrived together.** The confirmation code's count of tries was
+    read, the code compared, and the count written back — so every request of a burst read the same count. Sixty
+    wrong codes sent at once against the running app left it at four and the right code was accepted after them,
+    which is a verified account for an address nobody proved, and with it Google sign-in linking onto an account
+    whose password somebody else set. A try is now claimed before it is compared, in one conditional `UPDATE`;
+    the same burst, and one of two hundred, leaves exactly five and refuses the right code. The column is
+    `CodeAttempts`, since a correct code is a try too. `EmailCodeTests` is the first test of the code path at all,
+    and its burst is red on the old order. A cap across every code an account is sent was written and taken out
+    again: deleting the account and registering the address afresh resets anything counted per account, so it
+    bounded nothing the per-IP mail limit does not.
+115. **With Webly unreachable, the signed-out screens blamed the person.** Walked by failing each request in a
+    real browser: sign-in said "That email address and password do not match", forgotten-password said the reset
+    link was on its way, a valid reset link was "not valid any more", and the confirmation screen wiped a correct
+    code and called it wrong. Each sentence was the screen's one refusal, said for every failure. Each now answers
+    its own status and hands the rest to `messageOf`; the two that deliberately answer alike — forgotten password
+    and resending the code — say only the failures that cannot depend on the address (`notActedOn`: unreachable,
+    or rate limited), and a code survives a failure that was not about it. The real refusals were walked again
+    afterwards and read exactly as they did.
+116. **Nothing limited signing in or signing up.** Forty wrong passwords in a row against one account from one
+    address were forty plain refusals, and fifteen sign-ups in a row sent fifteen confirmation emails to fifteen
+    strangers — the mail limit covered resend and forgotten-password and not the endpoint that mails whatever
+    address it is given. `SignIn` (ten per five minutes) and `SignUp` (ten per quarter hour) are per-IP policies of
+    their own, each refusing with a sentence about itself: the first cut shared the mail budget and told somebody
+    creating an account that "a lot of email has been asked for". The limits became configuration on the way,
+    because the tests send everything from one address and a fixture registering an account per test would have
+    met the sign-up limit by its eleventh; `AccountLimitTests` keeps the real ones and is red without them.
+117. **A burst of requests answered some of itself with 500s.** Found by the code burst in 114: one of two hundred
+    failed with Postgres's "sorry, too many clients already". Npgsql's pool defaults to a hundred connections and
+    so does Postgres's `max_connections`, so the request wanting the hundred-and-first was refused by the server
+    rather than queued in the pool. Three hundred signed-in site lists at once reproduced it — two 500s, every
+    time. `ConnectionPool` caps the pool at fifty unless the connection string chooses a size; the same bursts,
+    three in a row, answered nine hundred 200s, and about a third faster.
+118. **An account allowed three sites could have twenty.** `CreateSite` counted the owner's sites and then spent a
+    second on git before inserting, so twenty creations sent at once all read "none yet": twenty sites, twenty
+    repositories, twenty subdomains claimed — which makes the limit a way to squat every business name anybody
+    might want, a burst at a time. It now takes a transaction-scoped advisory lock on the owner before counting and
+    holds it to the insert; the same burst made three and refused seventeen. The two saves are one transaction as
+    a side effect, so a failure between them can no longer leave a row with no head. `SiteLimitTests` is the first
+    test of the limit at all, and its burst is red without the lock. CLAUDE.md said `CreateSite` saved the row
+    first; it has written the repository first for a long time, and says so now.
+119. **"Bring this back" pressed while the assistant worked hung, and then broke the turn.** A restore commits and
+    re-seeds the workspace, and the re-seed waits on the turn's gate: the request sat for the rest of the turn, and
+    the turn's commit then found the head moved and was refused — "Your site changed while this was being saved",
+    the minute somebody paid for thrown away. Renaming with the pages ticked, and adding or removing a photograph
+    from a second tab, do the same. They refuse at once now while a turn runs, with a sentence naming wait or
+    Stop (`SiteTurns`). Reproducing it needed a turn longer than fifty milliseconds without a model key, so the mock
+    takes "take your time" literally: twenty seconds between reading the site and writing it. Driven both ways —
+    the probe's restore answered after 13.7 seconds and failed the turn; afterwards it answered 409 in no time and
+    the turn committed, and the same press in History worked once it had.
+
+
 ## What is still intent
 
 - **`VercelDeploymentTarget`** — both halves, the REST calls from this process and the CLI inside the
@@ -1243,9 +1615,11 @@ line in the thread.
 ### 2. The sandbox in a container
 
 **Mostly done** (77): the image builds from the real Dockerfile, the prebaked dependencies hold, `next dev` and
-the preview work through the app, and a mock turn commits. What is left needs a container with a route out: a
-real agent's turn in it, and editing a file inside it by hand to confirm the browser updates by itself — the
-WebSocket forward is the one part of the proxy that fails silently rather than loudly.
+the preview work through the app, and a mock turn commits. **And the live update is confirmed**: with
+`Sandbox:Provider=docker`, a line of the home page edited by hand inside the container (`docker exec … sed`)
+showed in the open preview 0.7 s later with nobody pressing anything — the hot-reload WebSocket through the
+proxy, the one part that would fail silently. (As a frame reload rather than in place, which is the sandboxed
+frame's documented price.) What is left needs a container with a route out: a real agent's turn in it.
 
 ### 3. Vercel
 

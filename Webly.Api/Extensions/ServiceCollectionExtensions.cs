@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Webly.Services.Services.Usage;
 using Webly.Api.Infrastructure;
@@ -98,6 +100,7 @@ public static class ServiceCollectionExtensions
                     OnTokenValidated = context =>
                     {
                         var tokenId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                        var sessionId = context.Principal?.FindFirstValue(JwtTokenService.SessionIdClaim);
                         var userId = context.Principal.GetUserIdUnverified();
                         var emailVerified = context.Principal.IsEmailVerified();
 
@@ -109,6 +112,11 @@ public static class ServiceCollectionExtensions
                         {
                             context.Fail("This access token was revoked.");
                         }
+
+                        // The session as well as the token: ending every session of a user — a password reset —
+                        // names sessions, not the ids of the access tokens each of them happens to hold.
+                        if (sessionId is not null && blacklist.IsSessionRevoked(sessionId))
+                            context.Fail("This session has ended.");
 
                         return Task.CompletedTask;
                     }
@@ -139,7 +147,7 @@ public static class ServiceCollectionExtensions
             });
         }
 
-        services.AddWeblyRateLimiting();
+        services.AddWeblyRateLimiting(configuration);
 
         services.AddAuthorization(options =>
         {
@@ -173,10 +181,16 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddWeblyRateLimiting(this IServiceCollection services) =>
-        services.AddRateLimiter(options =>
+    private static IServiceCollection AddWeblyRateLimiting(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
+
+        return services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = WriteRejectionAsync;
 
             // Per IP rather than per address: the address is attacker-supplied, so limiting on it
             // alone would let someone walk through a list of victims unimpeded. The per-address
@@ -184,12 +198,19 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(RateLimitPolicies.Mail, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(15),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Mail.ToLimiterOptions()));
+
+            options.AddPolicy(RateLimitPolicies.SignUp, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => Limits(context).SignUp.ToLimiterOptions()));
+
+            // Per IP, for the reason RateLimitPolicies.SignIn gives: the account is the one thing here the caller
+            // chooses, so a limit on it would be a way to lock somebody else out.
+            options.AddPolicy(RateLimitPolicies.SignIn, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => Limits(context).SignIn.ToLimiterOptions()));
 
             // Per user, not per IP: reaching this already takes a verified account, and an office behind one NAT must
             // not share a single budget. See RateLimitPolicies for what it is fencing.
@@ -202,23 +223,21 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(RateLimitPolicies.Forms, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     $"{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}|{context.Request.Path}",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(10),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Forms.ToLimiterOptions()));
 
             options.AddPolicy(RateLimitPolicies.Deploy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     PartitionByUser(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 20,
-                        Window = TimeSpan.FromHours(1),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Deploy.ToLimiterOptions()));
         });
+    }
+
+    /// <summary>
+    /// Read when a partition is first made rather than once at startup, because the test host adds its configuration
+    /// after <c>Program.cs</c> has run — a value captured here would never see it.
+    /// </summary>
+    private static RateLimitOptions Limits(HttpContext context) =>
+        context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
 
     /// <summary>
     /// Everything a site's source and its hosting need: where repositories live, where the starter template is,
@@ -374,5 +393,53 @@ public static class ServiceCollectionExtensions
     {
         if (identity is not null && payload.TryGetProperty(name, out var value))
             identity.AddClaim(new Claim(name, value.ToString()));
+    }
+
+    /// <summary>
+    /// A refusal with something to read. Left to the default it was an empty 429: every screen fell back to its
+    /// generic sentence — a publish refused for being the twenty-first in an hour said "That could not be saved." —
+    /// and a visitor posting a customer's contact form once too often was shown a blank page. The form endpoint gets
+    /// a page, because a browser posted to it; everything else gets a sentence naming what was done too often, and
+    /// when to try again, which is also sent as <c>Retry-After</c>.
+    /// </summary>
+    private static async ValueTask WriteRejectionAsync(OnRejectedContext context, CancellationToken cancellationToken)
+    {
+        var http = context.HttpContext;
+        var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) ? retryAfter : (TimeSpan?)null;
+
+        if (wait is { } seconds)
+            http.Response.Headers.RetryAfter = ((int)Math.Ceiling(seconds.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+
+        var minutes = wait is { } span ? Math.Max(1, (int)Math.Ceiling(span.TotalMinutes)) : (int?)null;
+        var when = minutes switch { null => "in a few minutes", 1 => "in a minute", var m => $"in {m} minutes" };
+
+        var policy = http.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+
+        if (policy == RateLimitPolicies.Forms)
+        {
+            await VisitorPage.WriteAsync(
+                http.Response,
+                StatusCodes.Status429TooManyRequests,
+                "Message not sent",
+                "Too many messages from here in a short time.",
+                $"Your message was not sent. Please wait, then press back and send it again {when}.");
+
+            return;
+        }
+
+        var title = policy switch
+        {
+            RateLimitPolicies.Deploy => "This account has published a lot in the last hour.",
+            RateLimitPolicies.Mail => "A lot of email has been asked for from here recently.",
+            RateLimitPolicies.SignUp => "A lot of accounts have been created from here recently.",
+            RateLimitPolicies.SignIn => "There have been a lot of sign-in attempts from here.",
+            _ => "That has been done a lot in a short time."
+        };
+
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        await http.Response.WriteAsJsonAsync(
+            new ProblemDetails { Status = StatusCodes.Status429TooManyRequests, Title = title, Detail = $"Please try again {when}." },
+            cancellationToken);
     }
 }

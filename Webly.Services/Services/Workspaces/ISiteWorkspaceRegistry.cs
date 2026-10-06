@@ -30,8 +30,13 @@ public interface ISiteWorkspaceRegistry
         Func<string, Task>? onProgress = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>The workspace for a site if one is live, without starting one. What the preview proxy asks.</summary>
-    SiteWorkspace? Find(string siteNanoid);
+    /// <summary>
+    /// The workspace for a site if one is live, without starting one — and counted as in use, because somebody is
+    /// looking at it. What the preview proxy asks, per request. It did not count, so only a turn or a wake kept a
+    /// workspace warm: somebody who woke their preview to look at their site, and was clicking around in it, had
+    /// the sandbox stopped under them by the reaper ten minutes after the wake.
+    /// </summary>
+    SiteWorkspace? FindForPreview(string siteNanoid);
 
     /// <summary>
     /// Whether the site's preview can actually be shown: a workspace, a sandbox that answers, and a dev server
@@ -65,7 +70,10 @@ public interface ISiteWorkspaceRegistry
     /// </summary>
     Task DiscardAsync(Site site, CancellationToken cancellationToken = default);
 
-    /// <summary>Stops a workspace and forgets it. Called by the reaper, and when a site is deleted.</summary>
+    /// <summary>
+    /// Stops a workspace and forgets it — after any start in progress for the site has finished, so that one is
+    /// stopped too. Called by the reaper, and when a site is deleted.
+    /// </summary>
     Task ReleaseAsync(string siteNanoid);
 
     /// <summary>

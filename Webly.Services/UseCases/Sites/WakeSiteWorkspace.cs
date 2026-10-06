@@ -42,8 +42,9 @@ public class WakeSiteWorkspace(
             return Result<SiteError, WakeWorkspaceResponse>.Ok(new WakeWorkspaceResponse { AlreadyRunning = true });
 
         // Fire and forget, deliberately: nothing waits on this and nothing should. A second request while it is
-        // starting finds the workspace in the registry and answers `alreadyRunning`, and one that arrives a moment
-        // too early is harmless — the registry's own lock makes a second start wait for the first.
+        // starting is harmless and is not refused: the registry's per-site start lock makes its start wait for the
+        // first, which it then finds. The editor relies on that — it asks again after losing touch with Webly,
+        // because a restart takes the start with it and nothing else would ever ask the new process for one.
         _ = Task.Run(async () =>
         {
             using var scope = scopeFactory.CreateScope();

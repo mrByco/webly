@@ -8,6 +8,7 @@ import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
 import { ImageService } from '../../services/image.service';
 import { SiteService } from '../../services/site.service';
+import { brandFacts } from '../../models/brand-facts';
 import { messageOf } from '../../models/problem-details';
 import { DeploymentResponse } from '../../api/models/deployment-response';
 import { SiteImageResponse } from '../../api/models/site-image-response';
@@ -23,6 +24,9 @@ import { SiteImageResponse } from '../../api/models/site-image-response';
   selector: 'app-site-settings',
   imports: [DatePipe, DecimalPipe, FormsModule, Icon, Modal],
   templateUrl: './site-settings.html',
+  // Fills the editor's pane, so this page scrolls inside it rather than the whole editor scrolling — see the
+  // history page, where it was found.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
 })
 export class SiteSettingsPage {
   private readonly route = inject(ActivatedRoute);
@@ -68,6 +72,13 @@ export class SiteSettingsPage {
    * definition of a version. Correcting it is a sentence in the chat, which is also how it got there.
    */
   protected readonly brand = signal<string | undefined>(undefined);
+
+  /** That file as somebody who does not read Markdown would want to see it. See `brandFacts`. */
+  protected readonly brandBlocks = computed(() => {
+    const text = this.brand();
+
+    return text === undefined ? undefined : brandFacts(text);
+  });
 
   /**
    * The name the site's own pages say, read from its source.
@@ -213,6 +224,11 @@ export class SiteSettingsPage {
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /** Closes the delete dialog, except while the delete is under way — it goes on regardless. */
+  protected closeDelete(): void {
+    if (!this.saving()) this.confirmingDelete.set(false);
   }
 
   protected async remove(): Promise<void> {

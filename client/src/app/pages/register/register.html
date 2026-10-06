@@ -37,7 +37,7 @@
           autocomplete="new-password"
           required />
       </label>
-      <p class="mt-1.5 text-xs text-base-content/50">At least 8 characters.</p>
+      <p class="mt-1.5 text-xs text-muted">At least 8 characters.</p>
     </div>
 
     <button class="btn btn-primary w-full" type="submit" [disabled]="form.invalid || submitting()">
@@ -48,7 +48,7 @@
     </button>
 
     @if (googleEnabled()) {
-      <div class="divider my-0 text-xs text-base-content/50">or</div>
+      <div class="divider my-0 text-xs text-muted">or</div>
 
       <button class="btn btn-outline w-full" type="button" (click)="continueWithGoogle()">
         <svg class="size-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -61,7 +61,7 @@
       </button>
     }
 
-    <p class="text-sm text-center text-base-content/60">
+    <p class="text-sm text-center text-muted">
       Already have an account?
       <a class="link link-primary font-medium" [routerLink]="routes.login.build()">Sign in</a>
     </p>

@@ -14,15 +14,38 @@
 export function messageOf(error: unknown, fallback = 'That could not be saved.'): string {
   const body = (error as { error?: unknown })?.error;
 
+  if (unreachable(error)) return UNREACHABLE;
+
+  // A 401 with nothing of ours in it is a session that ended — on another device, usually. The page is on its way to
+  // the sign-in screen by then (see `sessionInterceptor`); this is the sentence for the moment before it gets there.
+  if ((error as { status?: unknown })?.status === 401 && !sentenceOf(body)) return SIGNED_OUT;
+
   if (typeof body === 'string') {
     try {
-      return (JSON.parse(body) as { title?: string }).title ?? fallback;
+      return sentenceOf(JSON.parse(body)) ?? fallback;
     } catch {
       return fallback;
     }
   }
 
-  return (body as { title?: string })?.title ?? hubMessageOf(error) ?? fallback;
+  return sentenceOf(body) ?? hubMessageOf(error) ?? fallback;
+}
+
+/**
+ * The title, and the detail after it when there is one.
+ *
+ * The API writes both for whoever is reading — "That domain is already connected to a site." and then "If it is one
+ * of yours, remove it there first." — and the second half is usually the one that says what to do. Only the first
+ * ever reached a screen: every `Detail` in the controllers, from "Enter it without https://" to "Delete one you no
+ * longer need to make room for another", was written, sent, and dropped here. Nothing technical is ever put in a
+ * detail — the one place that could have, git's stderr, deliberately is not — so all of it is for people.
+ */
+function sentenceOf(problem: unknown): string | undefined {
+  const { title, detail } = (problem ?? {}) as { title?: unknown; detail?: unknown };
+
+  if (typeof title !== 'string' || !title) return undefined;
+
+  return typeof detail === 'string' && detail ? `${title} ${detail}` : title;
 }
 
 /**
@@ -46,4 +69,44 @@ function hubMessageOf(error: unknown): string | undefined {
   const marker = message?.indexOf('HubException: ') ?? -1;
 
   return marker >= 0 ? message!.slice(marker + 'HubException: '.length).trim() : undefined;
+}
+
+/**
+ * Whether Webly did nothing with the request: it never arrived (see `unreachable`), or a rate limit turned it away
+ * before anything looked at it.
+ *
+ * The screens that deliberately answer alike whatever happened — a reset link "on its way" whether or not the
+ * address has an account — still have to say these two, and can. Neither depends on what was typed: a limit is
+ * counted per connection and runs before the endpoint does. And the alike answer is a lie about them: "on its way",
+ * for a request that never reached anybody, sends somebody to wait for an email that is not coming.
+ */
+export function notActedOn(error: unknown): boolean {
+  return unreachable(error) || (error as { status?: unknown })?.status === 429;
+}
+
+const UNREACHABLE = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
+
+const SIGNED_OUT = 'You have been signed out. Sign in again to carry on.';
+
+/**
+ * Whether the request never got an answer from Webly itself: no response at all (status 0 — offline, or the server
+ * down), or a gateway in front of it answering for it while it restarts (502, 503, 504), whose body is the proxy's
+ * page rather than our ProblemDetails.
+ *
+ * The fallback used to cover these too, which is how an editor whose server was restarting said "That could not be
+ * saved." over a page that had been trying to *load* something — the one sentence on screen, about the wrong verb,
+ * blaming the person's change. The truth is shorter and tells them what to do.
+ *
+ * Exported because it is also the question "is this worth waiting out?" — a restart answers it with yes, and
+ * anything carrying our own sentence with no.
+ */
+export function unreachable(error: unknown): boolean {
+  const failure = error as { status?: unknown; error?: unknown };
+
+  if (failure?.status === 0) return true;
+
+  const gateway = failure?.status === 502 || failure?.status === 503 || failure?.status === 504;
+  const ours = typeof failure?.error === 'object' && failure.error !== null && 'title' in failure.error;
+
+  return gateway && !ours;
 }

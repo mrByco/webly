@@ -29,6 +29,16 @@ public class SiteRepository(WeblyDbContext dbContext) : ISiteRepository
     public Task<int> CountForOwnerAsync(int userId, CancellationToken cancellationToken = default) =>
         dbContext.Sites.CountAsync(x => x.OwnerId == userId, cancellationToken);
 
+    public async Task LockOwnerAsync(int ownerId, CancellationToken cancellationToken = default)
+    {
+        if (dbContext.Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "An owner's sites can only be locked inside a transaction: outside one the lock ends with the statement.");
+
+        await dbContext.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({AdvisoryLocks.OwnerSites}, {ownerId})", cancellationToken);
+    }
+
     public Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken = default) =>
         dbContext.Sites.AnyAsync(x => x.Slug == slug, cancellationToken);
 

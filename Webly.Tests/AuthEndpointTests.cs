@@ -149,6 +149,45 @@ public class AuthEndpointTests : AuthEndpointTestBase
         Assert.That(body.RootElement.GetProperty("isAuthenticated").GetBoolean(), Is.False);
     }
 
+    /// <summary>
+    /// A password reset ends every other session at once, not only their refresh tokens. The other browser's access
+    /// cookie used to go on answering 200 for the rest of its fifteen minutes — its preview cookie for twelve hours,
+    /// its hub socket for as long as it stayed open — after somebody reset their password because they suspected
+    /// that browser was not theirs.
+    /// </summary>
+    [Test]
+    public async Task A_password_reset_ends_the_other_sessions_at_once()
+    {
+        await RegisterAsync();
+        await Client.PostAsync("/api/auth/email/verify", Json(new { token = LatestTokenFor("endre@example.com") }));
+
+        var other = await Client.PostAsync(
+            "/api/auth/login",
+            Json(new { email = "endre@example.com", password = "hunyadi-matyas-1458" }));
+        var otherAccess = CookieValue(other, AuthCookies.AccessTokenName)!;
+
+        var before = await Client.SendAsync(Request(HttpMethod.Get, "/api/sites", (AuthCookies.AccessTokenName, otherAccess)));
+
+        await Client.PostAsync("/api/auth/password/forgot", Json(new { email = "endre@example.com" }));
+        var reset = await Client.PostAsync(
+            "/api/auth/password/reset",
+            Json(new { token = LatestTokenFor("endre@example.com"), newPassword = "a-new-password-2026" }));
+
+        var after = await Client.SendAsync(Request(HttpMethod.Get, "/api/sites", (AuthCookies.AccessTokenName, otherAccess)));
+        var resetter = await Client.SendAsync(Request(
+            HttpMethod.Get,
+            "/api/sites",
+            (AuthCookies.AccessTokenName, CookieValue(reset, AuthCookies.AccessTokenName)!)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(before.StatusCode, Is.EqualTo(HttpStatusCode.OK), "the other browser was signed in");
+            Assert.That(reset.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), "and is not, the moment the reset lands");
+            Assert.That(resetter.StatusCode, Is.EqualTo(HttpStatusCode.OK), "while the session the reset began works");
+        });
+    }
+
     [Test]
     public async Task A_replayed_access_token_stops_working_after_logout()
     {
@@ -223,5 +262,49 @@ public class AuthEndpointTests : AuthEndpointTestBase
         var app = await Client.GetAsync("/login");
 
         Assert.That(app.StatusCode, Is.Not.EqualTo(HttpStatusCode.Unauthorized));
+    }
+
+    /// <summary>
+    /// A name can be corrected. There was no way to, and a typo from the first minute of signing up was in every email,
+    /// the sidebar and every version's author for good.
+    /// </summary>
+    [Test]
+    public async Task A_name_can_be_corrected_and_is_stored_trimmed()
+    {
+        var registered = await RegisterAsync();
+        var access = CookieValue(registered, AuthCookies.AccessTokenName)!;
+
+        var change = Request(HttpMethod.Put, "/api/auth/me", (AuthCookies.AccessTokenName, access));
+        change.Content = Json(new { displayName = "  Ada Lovelace  " });
+        var changed = await Client.SendAsync(change);
+
+        var me = await Client.SendAsync(Request(HttpMethod.Get, "/api/auth/me", (AuthCookies.AccessTokenName, access)));
+        using var body = JsonDocument.Parse(await me.Content.ReadAsStringAsync());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(changed.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(body.RootElement.GetProperty("displayName").GetString(), Is.EqualTo("Ada Lovelace"));
+        });
+    }
+
+    [Test]
+    public async Task A_name_of_nothing_but_spaces_is_refused()
+    {
+        var registered = await RegisterAsync();
+        var access = CookieValue(registered, AuthCookies.AccessTokenName)!;
+
+        var change = Request(HttpMethod.Put, "/api/auth/me", (AuthCookies.AccessTokenName, access));
+        change.Content = Json(new { displayName = "   " });
+
+        Assert.That((await Client.SendAsync(change)).StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Changing_a_name_needs_somebody_signed_in()
+    {
+        var response = await Client.PutAsync("/api/auth/me", Json(new { displayName = "Nobody" }));
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
     }
 }

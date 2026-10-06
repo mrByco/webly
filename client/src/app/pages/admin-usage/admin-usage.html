@@ -3,7 +3,7 @@
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div class="min-w-0">
         <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Usage</h1>
-        <p class="mt-0.5 text-base-content/60">What running the sites has cost: the model's calls and the sandboxes' time.</p>
+        <p class="mt-0.5 text-muted">What running the sites has cost: the model's calls and the sandboxes' time.</p>
       </div>
 
       <!-- The one filter, in one row above everything it filters. -->
@@ -28,24 +28,26 @@
     @if (report(); as r) {
       <!-- The headline, and the two lines it is made of. -->
       <section class="surface mt-6 p-5 sm:p-6" [class.opacity-60]="loading()">
-        <p class="text-sm font-semibold text-base-content/60">Total, last {{ r.periodDays }} days</p>
+        <p class="text-sm font-semibold text-muted">Total, last {{ r.periodDays }} days</p>
         <p class="mt-1 text-5xl font-semibold tracking-tight">{{ money(total()) }}</p>
-        <p class="mt-1 text-sm text-base-content/55">Since {{ r.since | date: 'd MMM y' }}</p>
+        <p class="mt-1 text-sm text-muted">Since {{ r.since | date: 'd MMM y' }}</p>
 
+        <!-- The small lines wrap rather than truncate: on a phone "no hourly rate set" was cut to "no hourl…", and it
+             is the one caveat that explains why the sandbox figure reads $0.00. -->
         <div class="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
           <div class="min-w-0">
-            <p class="text-sm text-base-content/60">Model</p>
+            <p class="text-sm text-muted">Model</p>
             <p class="text-xl font-semibold">{{ money(r.totals.modelCostUsd) }}</p>
-            <p class="truncate text-xs text-base-content/55">
+            <p class="text-xs text-muted">
               {{ compact(r.totals.inputTokens + r.totals.cacheReadTokens + r.totals.cacheWriteTokens) }} in ·
               {{ compact(r.totals.outputTokens) }} out
             </p>
           </div>
 
           <div class="min-w-0">
-            <p class="text-sm text-base-content/60">Sandboxes</p>
+            <p class="text-sm text-muted">Sandboxes</p>
             <p class="text-xl font-semibold">{{ money(r.totals.sandboxCostUsd) }}</p>
-            <p class="truncate text-xs text-base-content/55">
+            <p class="text-xs text-muted">
               {{ duration(r.totals.sandboxSeconds) }} running
               @if (r.sandboxCostPerHour === 0) {
                 · no hourly rate set
@@ -54,21 +56,21 @@
           </div>
 
           <div class="min-w-0">
-            <p class="text-sm text-base-content/60">Turns</p>
+            <p class="text-sm text-muted">Turns</p>
             <p class="text-xl font-semibold">{{ r.totals.turns }}</p>
-            <p class="truncate text-xs text-base-content/55">
+            <p class="text-xs text-muted">
               {{ r.totals.unfinishedTurns }} failed or stopped
             </p>
           </div>
 
           <div class="min-w-0">
-            <p class="text-sm text-base-content/60">Per turn</p>
+            <p class="text-sm text-muted">Per turn</p>
             <p class="text-xl font-semibold">{{ money(averagePerTurn()) }}</p>
-            <p class="truncate text-xs text-base-content/55">model cost, on average</p>
+            <p class="text-xs text-muted">model cost, on average</p>
           </div>
         </div>
 
-        <p class="mt-5 text-xs text-base-content/55">
+        <p class="mt-5 text-xs text-muted">
           A sandbox's time is counted when it stops, so the ones running now are not in these numbers yet.
           @if (r.sandboxCostPerHour === 0) {
             It is priced at nothing until <code>Sandbox:CostPerHour</code> is set to the provider's hourly price; the
@@ -86,7 +88,7 @@
           <!-- Hairline gridlines at a clean top, its half and zero, with their values in a gutter on the left. -->
           @for (tick of c.ticks; track tick.at) {
             <div class="pointer-events-none absolute right-0 left-16 border-t border-base-300" [style.bottom.%]="tick.at">
-              <span class="absolute -top-2 -left-16 w-14 pr-2 text-right text-xs leading-none text-base-content/55 tabular-nums">{{ tick.label }}</span>
+              <span class="absolute -top-2 -left-16 w-14 pr-2 text-right text-xs leading-none text-muted tabular-nums">{{ tick.label }}</span>
             </div>
           }
 
@@ -112,7 +114,7 @@
                   [class.-translate-x-1/2]="index >= count / 3 && index < (count * 2) / 3">
                   <p class="font-semibold">{{ column.day | date: 'EEE d MMM' }}</p>
                   <p class="tabular-nums">{{ money(column.cost) }} · {{ column.turns }} {{ column.turns === 1 ? 'turn' : 'turns' }}</p>
-                  <p class="text-base-content/60 tabular-nums">
+                  <p class="text-muted tabular-nums">
                     model {{ money(column.modelCostUsd) }} · sandboxes {{ money(column.sandboxCostUsd) }}
                   </p>
                 </div>
@@ -122,7 +124,7 @@
         </div>
 
         @if (c.columns.length > 0) {
-          <div class="mt-2 ml-16 flex justify-between text-xs text-base-content/55">
+          <div class="mt-2 ml-16 flex justify-between text-xs text-muted">
             <span>{{ c.columns[0].day | date: 'd MMM' }}</span>
             <span>{{ c.columns[c.columns.length - 1].day | date: 'd MMM' }}</span>
           </div>
@@ -189,7 +191,7 @@
                 <td class="text-right font-semibold tabular-nums">{{ money(site.modelCostUsd + site.sandboxCostUsd) }}</td>
               </tr>
             } @empty {
-              <tr><td colspan="6" class="text-base-content/55">Nothing has cost anything in this period.</td></tr>
+              <tr><td colspan="6" class="text-muted">Nothing has cost anything in this period.</td></tr>
             }
           </tbody>
         </table>
@@ -213,7 +215,7 @@
               <tr>
                 <td>
                   <p class="font-semibold">{{ person.displayName }}</p>
-                  <p class="text-xs text-base-content/60">{{ person.email }}</p>
+                  <p class="text-xs text-muted">{{ person.email }}</p>
                 </td>
                 <td class="text-right tabular-nums">{{ person.turns }}</td>
                 <td class="text-right tabular-nums">{{ money(person.modelCostUsd) }}</td>
@@ -221,7 +223,7 @@
                 <td class="text-right font-semibold tabular-nums">{{ money(person.modelCostUsd + person.sandboxCostUsd) }}</td>
               </tr>
             } @empty {
-              <tr><td colspan="5" class="text-base-content/55">Nobody has spent anything in this period.</td></tr>
+              <tr><td colspan="5" class="text-muted">Nobody has spent anything in this period.</td></tr>
             }
           </tbody>
         </table>
@@ -251,20 +253,20 @@
                 <td class="max-w-72 min-w-48 text-base-content/80">{{ turn.description }}</td>
                 <td class="whitespace-nowrap">
                   <p>{{ turn.agent }}</p>
-                  <p class="text-xs text-base-content/60">{{ turn.model }}</p>
+                  <p class="text-xs text-muted">{{ turn.model }}</p>
                 </td>
                 <td><span class="badge badge-soft badge-sm" [class]="outcomeClass(turn.outcome)">{{ turn.outcome }}</span></td>
                 <td class="text-right whitespace-nowrap tabular-nums">
                   {{ compact(turn.inputTokens + turn.cacheReadTokens + turn.cacheWriteTokens) }} / {{ compact(turn.outputTokens) }}
                   @if (turn.cacheReadTokens > 0) {
-                    <p class="text-xs text-base-content/55">{{ compact(turn.cacheReadTokens) }} from cache</p>
+                    <p class="text-xs text-muted">{{ compact(turn.cacheReadTokens) }} from cache</p>
                   }
                 </td>
                 <td class="text-right whitespace-nowrap tabular-nums">{{ duration(turn.durationMs / 1000) }}</td>
                 <td class="text-right font-semibold tabular-nums">{{ money(turn.costUsd) }}</td>
               </tr>
             } @empty {
-              <tr><td colspan="8" class="text-base-content/55">No turns in this period.</td></tr>
+              <tr><td colspan="8" class="text-muted">No turns in this period.</td></tr>
             }
           </tbody>
         </table>

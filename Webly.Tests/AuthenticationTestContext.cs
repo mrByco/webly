@@ -10,6 +10,7 @@ using Webly.Services.UseCases.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Webly.Services.Services.Deployments;
 
 namespace Webly.Tests;
 
@@ -76,7 +77,14 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         Microsoft.Extensions.Options.Options.Create(new AdministratorOptions { Emails = AdministratorEmails }));
 
     private IAuthSessionService Sessions =>
-        new AuthSessionService(TokenService, RefreshTokens, AdminPolicy, Db);
+        new AuthSessionService(
+            TokenService,
+            RefreshTokens,
+            AdminPolicy,
+            AccessTokenBlacklist,
+            RealtimeSessions,
+            Microsoft.Extensions.Options.Options.Create(new SitesOptions()),
+            Db);
 
     private TimeSpan _resendCooldown = TimeSpan.Zero;
 
@@ -96,7 +104,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
     public RegisterUser RegisterUser => new(Users, PasswordHasher, Sessions, SendEmailVerification, Db);
     public SignInWithPassword SignInWithPassword => new(Users, PasswordHasher, Sessions);
     public SignInWithExternalLogin SignInWithExternalLogin =>
-        new(Users, RefreshTokens, Sessions, Emails, Db);
+        new(Users, Sessions, Emails, Db);
 
     public SendEmailVerification SendEmailVerification =>
         new(SecurityTokenService, SecurityTokens, Emails, App, TokenOptions, Db);
@@ -108,18 +116,18 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         new(SecurityTokenService, SecurityTokens, EmailVerification);
 
     public VerifyEmailWithCode VerifyEmailWithCode =>
-        new(SecurityTokenService, SecurityTokens, EmailVerification, TokenOptions, Db);
+        new(SecurityTokenService, SecurityTokens, EmailVerification, TokenOptions);
 
     public RequestPasswordReset RequestPasswordReset =>
         new(Users, SecurityTokenService, SecurityTokens, Emails, App, TokenOptions, Db);
 
     public ResetPassword ResetPassword =>
-        new(SecurityTokenService, SecurityTokens, RefreshTokens, PasswordHasher, Sessions, Emails, Db);
+        new(SecurityTokenService, SecurityTokens, PasswordHasher, Sessions, Emails, Db);
 
     public ChangePassword ChangePassword =>
-        new(Users, RefreshTokens, PasswordHasher, Sessions, Emails, Db);
+        new(Users, PasswordHasher, Sessions, Emails, Db);
     public RotateRefreshToken RotateRefreshToken => new(TokenService, RefreshTokens, Sessions, Db);
-    public SignOut SignOut => new(TokenService, RefreshTokens, AccessTokenBlacklist, RealtimeSessions);
+    public SignOut SignOut => new(TokenService, RefreshTokens, AccessTokenBlacklist, RealtimeSessions, Sessions);
     public GetCurrentUser GetCurrentUser => new(Users, Sessions);
 
     /// <summary>

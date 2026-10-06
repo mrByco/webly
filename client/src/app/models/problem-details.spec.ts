@@ -1,4 +1,4 @@
-import { messageOf } from './problem-details';
+import { messageOf, notActedOn, unreachable } from './problem-details';
 
 /**
  * The one place a failure becomes a sentence, and three of its four shapes were found by watching the app show
@@ -7,6 +7,16 @@ import { messageOf } from './problem-details';
 describe('messageOf', () => {
   it('reads a parsed ProblemDetails body', () => {
     expect(messageOf({ error: { title: 'That site could not be found.' } })).toBe('That site could not be found.');
+  });
+
+  // The detail is usually the half that says what to do, and it used to be dropped.
+  it('says the detail after the title', () => {
+    const problem = { title: 'That domain is already connected to a site.', detail: 'If it is one of yours, remove it there first.' };
+
+    expect(messageOf({ error: problem }))
+      .toBe('That domain is already connected to a site. If it is one of yours, remove it there first.');
+    expect(messageOf({ error: JSON.stringify(problem) }))
+      .toBe('That domain is already connected to a site. If it is one of yours, remove it there first.');
   });
 
   // The generated client asks for `responseType: 'text'` on every endpoint that answers 204, so a failure from
@@ -26,6 +36,28 @@ describe('messageOf', () => {
     expect(messageOf(failure)).toBe('You have made a lot of changes in the last hour. Try again shortly.');
   });
 
+  // No answer from Webly at all — offline, or the server restarting behind a proxy that answers for it. This used
+  // to read "That could not be saved." over a page that was loading, not saving.
+  it('says Webly cannot be reached when nothing of ours answered', () => {
+    const unreachable = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
+
+    expect(messageOf({ status: 0, error: { type: 'error' } })).toBe(unreachable);
+    expect(messageOf({ status: 502, error: '<html>Bad gateway</html>' })).toBe(unreachable);
+    expect(messageOf({ status: 503, error: null })).toBe(unreachable);
+  });
+
+  // A session that ended elsewhere answers 401 with no body, and used to read as "That could not be saved."
+  it('says somebody was signed out on a bare 401', () => {
+    expect(messageOf({ status: 401, error: null })).toBe('You have been signed out. Sign in again to carry on.');
+    expect(messageOf({ status: 401, error: { title: 'That email address and password do not match.' } }))
+      .toBe('That email address and password do not match.');
+  });
+
+  // A 503 that *is* ours — the preview's own sentence, say — carries its title and keeps it.
+  it('keeps our own sentence on a gateway status', () => {
+    expect(messageOf({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe('Your preview is asleep.');
+  });
+
   // Without the marker it is an unhandled server exception, whose message the server deliberately does not send.
   // Showing "An unexpected error occurred invoking 'Subscribe' on the server" to somebody naming a method they
   // have never heard of is worse than the generic sentence.
@@ -33,5 +65,39 @@ describe('messageOf', () => {
     expect(messageOf(new Error('Failed to fetch'))).toBe('That could not be saved.');
     expect(messageOf(undefined)).toBe('That could not be saved.');
     expect(messageOf({ error: 'not json at all' }, 'Nothing was published.')).toBe('Nothing was published.');
+  });
+});
+
+/** What a caller may wait out: no answer at all, or a gateway answering for a server that is not there. */
+describe('unreachable', () => {
+  it('is true when nothing of ours answered', () => {
+    expect(unreachable({ status: 0, error: { type: 'error' } })).toBe(true);
+    expect(unreachable({ status: 502, error: '<html>Bad gateway</html>' })).toBe(true);
+    expect(unreachable({ status: 504, error: null })).toBe(true);
+  });
+
+  it('is false for an answer that is ours, whatever its status', () => {
+    expect(unreachable({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe(false);
+    expect(unreachable({ status: 404, error: { title: 'That site could not be found.' } })).toBe(false);
+    expect(unreachable(undefined)).toBe(false);
+  });
+});
+
+/** What a screen that answers alike whatever happened must still say, because neither depends on what was typed. */
+describe('notActedOn', () => {
+  it('is true when the request never arrived or a limit turned it away', () => {
+    expect(notActedOn({ status: 0, error: { type: 'error' } })).toBe(true);
+    expect(notActedOn({ status: 503, error: '<html>Service unavailable</html>' })).toBe(true);
+    expect(notActedOn({ status: 429, error: { title: 'A lot of email has been asked for from here recently.' } })).toBe(
+      true,
+    );
+  });
+
+  it('is false for an answer Webly gave after looking', () => {
+    expect(notActedOn({ status: 400, error: { title: 'That link is not valid any more. Ask for a new one.' } })).toBe(
+      false,
+    );
+    expect(notActedOn({ status: 500, error: { title: 'Something went wrong.' } })).toBe(false);
+    expect(notActedOn(undefined)).toBe(false);
   });
 });

@@ -50,6 +50,16 @@ public class SecurityTokenRepository(WeblyDbContext dbContext) : ISecurityTokenR
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<bool> TryClaimCodeAttemptAsync(
+        int tokenId,
+        int maxAttempts,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.UserSecurityTokens
+            .Where(x => x.Id == tokenId && x.CodeAttempts < maxAttempts)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(x => x.CodeAttempts, x => x.CodeAttempts + 1),
+                cancellationToken) == 1;
+
     public Task<UserSecurityToken?> FindLatestAsync(
         int userId,
         SecurityTokenPurpose purpose,

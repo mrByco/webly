@@ -66,9 +66,13 @@ public class RealtimeHub(
     {
         var userId = Context.User.GetUserIdVerified();
         var tokenId = Context.User?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+        var sessionId = Context.User?.FindFirst(JwtTokenService.SessionIdClaim)?.Value;
         var verified = Context.User?.IsEmailVerified() ?? false;
 
         if (tokenId is not null && blacklist.IsRevoked(tokenId, userId, verified))
+            throw new HubException("You are not signed in.");
+
+        if (sessionId is not null && blacklist.IsSessionRevoked(sessionId))
             throw new HubException("You are not signed in.");
 
         return userId;

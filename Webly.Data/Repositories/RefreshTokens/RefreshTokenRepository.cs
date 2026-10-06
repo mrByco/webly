@@ -28,7 +28,7 @@ public class RefreshTokenRepository(WeblyDbContext dbContext) : IRefreshTokenRep
     /// accepted by the very next lookup. Revocation is a security action; it does not get to depend
     /// on the caller remembering to save.
     /// </summary>
-    public async Task RevokeAllForUserAsync(
+    public async Task<IReadOnlyList<string>> RevokeAllForUserAsync(
         int userId,
         DateTime revokedAt,
         CancellationToken cancellationToken = default)
@@ -41,5 +41,7 @@ public class RefreshTokenRepository(WeblyDbContext dbContext) : IRefreshTokenRep
             token.RevokedAt = revokedAt;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        return [.. live.Select(x => x.SessionId).Distinct()];
     }
 }

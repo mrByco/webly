@@ -34,4 +34,17 @@ public class AppOptions
     /// somewhere else than the published page is the kind of difference somebody finds after launch.
     /// </summary>
     public string FormEndpointFor(string siteNanoid) => $"{Origin}/api/public/forms/{siteNanoid}";
+
+    /// <summary>
+    /// Whether a normalized hostname is this deployment's own host or anything under it — which nobody may connect to
+    /// a site of theirs. Matched on a label boundary, like <see cref="Deployments.SitesOptions.IsInZone"/>.
+    /// </summary>
+    public bool IsOwnHost(string hostname)
+    {
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var origin)) return false;
+
+        var host = origin.Host.ToLowerInvariant();
+
+        return hostname == host || hostname.EndsWith($".{host}", StringComparison.Ordinal);
+    }
 }

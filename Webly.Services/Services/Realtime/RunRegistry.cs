@@ -35,6 +35,29 @@ public sealed class RunHandle
     internal CancellationTokenSource Cts { get; init; } = new();
     public CancellationToken Token => Cts.Token;
 
+    /// <summary>
+    /// Why it was cancelled, when something cancelled it on purpose; null when the token fired because the app is
+    /// shutting down, which is the one cancellation nobody asks for. See <see cref="CancelReason"/>.
+    /// </summary>
+    public CancelReason? CancelledBecause { get; private set; }
+
+    private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when the run has ended and said so — for something that has to wait for a turn to be over before
+    /// it can take the site away from under it. See <c>DeleteSite</c>.
+    /// </summary>
+    public Task Finished => _finished.Task;
+
+    internal void MarkFinished() => _finished.TrySetResult();
+
+    internal void Cancel(CancelReason reason)
+    {
+        // The first reason stands: a Stop pressed a moment before the reaper looked is still a Stop.
+        CancelledBecause ??= reason;
+        Cts.Cancel();
+    }
+
     private readonly List<RunEventEnvelope> _log = [];
     private long _seq;
 
@@ -145,8 +168,10 @@ public sealed class RunRegistry
     /// </summary>
     public void Finish(string runId)
     {
-        if (_runs.TryGetValue(runId, out var handle))
-            handle.FinishedAt = DateTime.UtcNow;
+        if (!_runs.TryGetValue(runId, out var handle)) return;
+
+        handle.FinishedAt = DateTime.UtcNow;
+        handle.MarkFinished();
     }
 
     public void Evict(string runId)
@@ -156,18 +181,18 @@ public sealed class RunRegistry
     }
 
     /// <summary>
-    /// Explicit cancellation — the person pressed Stop. False when the run is unknown (already finished) or
-    /// belongs to somebody else, which is the same answer on purpose: whether a stranger's run exists is not
-    /// something to confirm.
+    /// Explicit cancellation — the person pressed Stop, or the reaper gave up on the run, and the reason says which.
+    /// False when the run is unknown (already finished) or belongs to somebody else, which is the same answer on
+    /// purpose: whether a stranger's run exists is not something to confirm.
     /// </summary>
-    public bool TryCancel(string runId, int byUserId)
+    public bool TryCancel(string runId, int byUserId, CancelReason reason = CancelReason.Stopped)
     {
         if (!_runs.TryGetValue(runId, out var handle)) return false;
         if (handle.UserId != byUserId) return false;
 
         try
         {
-            handle.Cts.Cancel();
+            handle.Cancel(reason);
         }
         catch (ObjectDisposedException)
         {

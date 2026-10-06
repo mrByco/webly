@@ -104,7 +104,7 @@ else
 
 builder.Configuration["Database:ActiveSource"] = dbSource;
 
-builder.Services.AddDbContext<WeblyDbContext>(options => options.UseNpgsql(resolvedConnectionString));
+builder.Services.AddDbContext<WeblyDbContext>(options => options.UseNpgsql(ConnectionPool.Capped(resolvedConnectionString)));
 
 builder.Services.AddWeblyServices();
 builder.Services.AddWeblyEmail(builder.Configuration);

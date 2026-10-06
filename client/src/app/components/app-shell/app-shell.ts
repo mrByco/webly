@@ -1,11 +1,11 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { AuthService } from '../../services/auth.service';
 import { SiteService } from '../../services/site.service';
 import { Avatar } from '../avatar/avatar';
 import { Icon } from '../../shared/icon';
-import { SiteSummaryResponse } from '../../api/models/site-summary-response';
+import { siteLimitReached } from '../../models/site-limit';
 
 /**
  * The frame every signed-in screen sits in: a sidebar from `lg` up, a slim bottom bar below it.
@@ -35,18 +35,16 @@ export class AppShell {
   /** Administrators also see what the platform costs; nobody else has a reason to know the screen exists. */
   protected readonly isAdmin = this.auth.isAdmin;
 
-  protected readonly mySites = signal<SiteSummaryResponse[]>([]);
+  /** The service's list rather than a copy of it, so a rename or a publish in the editor reaches the sidebar. */
+  protected readonly mySites = this.sites.mine;
 
-  /** Whether to offer another site at all, so the limit is visible before it is hit. */
-  protected readonly canCreate = computed(() => this.mySites().length < 3);
+  /** Whether to offer another site at all — the account's own limit, from its profile. See `models/site-limit.ts`. */
+  protected readonly canCreate = computed(() => !siteLimitReached(this.mySites().length, this.me().maxSites));
 
   constructor() {
     // Failure is silence: the shell is drawn around every screen, and a site list that could not be
-    // fetched must not stop somebody reaching their account page to sign out.
-    void this.sites
-      .list()
-      .then(sites => this.mySites.set(sites))
-      .catch(() => this.mySites.set([]));
+    // fetched must not stop somebody reaching their account page to sign out. It keeps what it last knew.
+    this.sites.refreshMine().catch(() => undefined);
   }
 
   protected logout(): Promise<void> {

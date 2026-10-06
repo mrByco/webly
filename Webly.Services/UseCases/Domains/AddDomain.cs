@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Options;
 using Webly.Data;
 using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Sites;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Domains;
+using Webly.Services.Services;
 using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Domains;
 using Webly.Services.UseCases.Sites;
@@ -26,6 +28,8 @@ public class AddDomain(
     ISiteRepository siteRepository,
     IDomainRepository domainRepository,
     IDeploymentTarget deploymentTarget,
+    IOptions<SitesOptions> sites,
+    IOptions<AppOptions> app,
     WeblyDbContext dbContext)
 {
     public async Task<Result<DomainError, DomainResponse>> ExecuteAsync(
@@ -40,6 +44,15 @@ public class AddDomain(
 
         if (Hostname.TryNormalize(request.Hostname) is not { } hostname)
             return Result<DomainError, DomainResponse>.Fail(DomainError.InvalidHostname);
+
+        // Webly's own addresses are not anybody's to connect. Every site lives in one provider account, so the zone's
+        // records already point there and an attach of `brightwater.{zone}` would be served at once — a slug nobody
+        // has taken yet squatted before its owner arrives, somebody else's address contested, or the zone itself
+        // claimed. Nothing refused it: the uniqueness check below only knows about rows in this table, and a site's
+        // own subdomain is arranged by the publish rather than stored as one. The app's host and anything under it
+        // for the same reason, which includes the separate preview origin the plan has waiting.
+        if (sites.Value.IsInZone(hostname) || app.Value.IsOwnHost(hostname))
+            return Result<DomainError, DomainResponse>.Fail(DomainError.Reserved);
 
         // One answer whether it is this site's or a stranger's: which of the two would tell somebody whether a
         // domain they do not own is hosted on Webly.

@@ -17,6 +17,10 @@ export type { ApiAuthMeGet$Plain$Params as ApiAuthMeGet$Plain$Params } from './f
 export { apiAuthMeGet$Plain as apiAuthMeGet$Plain } from './fn/auth/api-auth-me-get-plain';
 export type { ApiAuthMeGet$Json$Params as ApiAuthMeGet$Json$Params } from './fn/auth/api-auth-me-get-json';
 export { apiAuthMeGet$Json as apiAuthMeGet$Json } from './fn/auth/api-auth-me-get-json';
+export type { ApiAuthMePut$Plain$Params as ApiAuthMePut$Plain$Params } from './fn/auth/api-auth-me-put-plain';
+export { apiAuthMePut$Plain as apiAuthMePut$Plain } from './fn/auth/api-auth-me-put-plain';
+export type { ApiAuthMePut$Json$Params as ApiAuthMePut$Json$Params } from './fn/auth/api-auth-me-put-json';
+export { apiAuthMePut$Json as apiAuthMePut$Json } from './fn/auth/api-auth-me-put-json';
 export type { ApiAuthProvidersGet$Plain$Params as ApiAuthProvidersGet$Plain$Params } from './fn/auth/api-auth-providers-get-plain';
 export { apiAuthProvidersGet$Plain as apiAuthProvidersGet$Plain } from './fn/auth/api-auth-providers-get-plain';
 export type { ApiAuthProvidersGet$Json$Params as ApiAuthProvidersGet$Json$Params } from './fn/auth/api-auth-providers-get-json';

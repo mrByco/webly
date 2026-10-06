@@ -37,6 +37,13 @@ public record MeResponse
     public string? CurrentSiteNanoid { get; init; }
 
     /// <summary>
+    /// How many sites this account may have (<c>Sites:MaxSitesPerUser</c>). On the profile so that the screens offering
+    /// "New site" can stop offering it at the limit and say why, rather than letting somebody name a site and then
+    /// refusing it — and so that the number lives in configuration rather than in three client templates.
+    /// </summary>
+    public int MaxSites { get; init; }
+
+    /// <summary>
     /// The open site's name, so the header can show it without a second round trip. Its pages,
     /// versions and domains are not here — those belong to the site endpoints.
     /// </summary>

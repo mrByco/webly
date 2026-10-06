@@ -11,7 +11,6 @@ public static class ChatMapper
         Role = message.Role,
         Text = message.Text,
         CreatedAt = message.CreatedAt,
-        Parts = message.Parts,
         ProducedVersionNanoid = message.ProducedVersion?.Nanoid
     };
 }

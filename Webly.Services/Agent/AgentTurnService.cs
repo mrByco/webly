@@ -37,10 +37,15 @@ public interface IAgentTurnService
     /// started it" design hangs off this line — without it a reload shows a finished-looking thread with a
     /// turn still writing files behind it.
     /// </param>
+    /// <param name="cancelledBecause">
+    /// Asked when the turn is cancelled, for the sentence the thread ends on — see <see cref="CancelReason"/>, and
+    /// <see cref="AgentTurnService.CancelledNote"/> for the sentences.
+    /// </param>
     Task RunAsync(
         SendMessageRequest request,
         int userId,
         Action<string> onConversation,
+        Func<CancelReason?> cancelledBecause,
         CancellationToken cancellationToken);
 }
 
@@ -96,6 +101,35 @@ public class AgentTurnService(
     /// <summary>What a stopped turn says. Not an error: the person asked for it, and nothing was committed.</summary>
     public const string StoppedNote = "Stopped. Nothing was changed.";
 
+    /// <summary>What a turn the reaper ended says, because the page that asked for it was gone for minutes.</summary>
+    public const string UnwatchedNote =
+        "This stopped because the page that asked for it went away. Nothing was changed — please send it again.";
+
+    /// <summary>What a turn says that ran past the reaper's lifetime cap.</summary>
+    public const string TooLongNote =
+        "This was stopped because it ran for too long. Nothing was changed — try asking for it in smaller steps.";
+
+    /// <summary>
+    /// The sentence a cancelled turn ends on, in the thread and in the run's terminal event alike. A shutdown has no
+    /// reason and gets <see cref="InterruptedNote"/> — the sentence <c>InterruptedTurnSweeper</c> writes when a
+    /// process died without the chance to, because it is the same event seen from the other side.
+    /// </summary>
+    public static string CancelledNote(CancelReason? because) => because switch
+    {
+        CancelReason.Stopped or CancelReason.SiteDeleted => StoppedNote,
+        CancelReason.Unwatched => UnwatchedNote,
+        CancelReason.TooLong => TooLongNote,
+        _ => InterruptedNote
+    };
+
+    /// <summary>
+    /// What a turn the process died under says, written by <c>InterruptedTurnSweeper</c> when the app comes back.
+    /// "Nothing was changed" holds for the same reason it does in <see cref="FailureNote"/>: the reply is appended
+    /// before the commit, so a thread whose last message is the person's own never reached it.
+    /// </summary>
+    public const string InterruptedNote =
+        "This was interrupted when Webly restarted. Nothing was changed — please send it again.";
+
     /// <summary>
     /// How much of a compiler's opinion reaches the chat. Long enough for an error with its import trace, short
     /// enough that the thread is still a conversation.
@@ -106,6 +140,7 @@ public class AgentTurnService(
         SendMessageRequest request,
         int userId,
         Action<string> onConversation,
+        Func<CancelReason?> cancelledBecause,
         CancellationToken cancellationToken)
     {
         var site = await siteRepository.FindForOwnerAsync(request.SiteNanoid, userId, cancellationToken)
@@ -153,7 +188,7 @@ public class AgentTurnService(
         {
             outcome = UsageOutcome.Stopped;
             await DiscardAsync(site);
-            await NoteAsync(conversation.Id, StoppedNote);
+            await NoteAsync(conversation.Id, CancelledNote(cancelledBecause()));
             throw;
         }
         catch (RepositoryConflictException conflict)
@@ -252,11 +287,23 @@ public class AgentTurnService(
         await syncOwnedFiles.ExecuteAsync(
             site, new CommitAuthor(user.DisplayName, user.Email), user.Id, cancellationToken);
 
+        var waited = false;
+
         await using var lease = await workspaces.AcquireAsync(
             site,
-            progress => writer.WriteAsync(
-                new RunEvent { Type = RunEventType.WorkspaceProgress, Detail = progress }, cancellationToken),
+            progress =>
+            {
+                waited = true;
+
+                return writer.WriteAsync(
+                    new RunEvent { Type = RunEventType.WorkspaceProgress, Detail = progress }, cancellationToken);
+            },
             cancellationToken);
+
+        // The preview can be shown from here on, so the agent's edits appear in it as they are made. Only after a
+        // wait: a warm workspace's preview is already on screen. See RunEventType.WorkspaceReady.
+        if (waited)
+            await writer.WriteAsync(new RunEvent { Type = RunEventType.WorkspaceReady }, cancellationToken);
 
         var workspace = lease.Workspace;
         var changedFiles = new HashSet<string>(StringComparer.Ordinal);
@@ -315,11 +362,10 @@ public class AgentTurnService(
         workspace.AgentSessionId = outcome.SessionId;
         workspace.AgentKey = agent.Key;
 
-        var reply = await writer.CompleteMessageAsync(cancellationToken);
-
         // The agent's own final text wins over the accumulated deltas: a stream can be partial, and the outcome
-        // is what the CLI says it said.
-        if (outcome.Reply.Length > 0) reply = outcome.Reply;
+        // is what the CLI says it said. Decided inside the writer, so the screen is told the same thing the thread
+        // stores.
+        var reply = await writer.CompleteMessageAsync(outcome.Reply, cancellationToken);
 
         var assistantMessage = new ConversationMessage
         {
@@ -332,20 +378,34 @@ public class AgentTurnService(
 
         var version = await CommitAsync(site, workspace, user, outcome, assistantMessage.Id, cancellationToken);
 
+        // From here the change is made, and nothing after this line may say otherwise. Stop used to land here as
+        // easily as anywhere — the checks below take seconds, the typecheck most of them — and a stopped turn writes
+        // "Stopped. Nothing was changed." into the thread: directly beneath the link to the version it had just
+        // committed, on the live screen and after every reload. So linking the version and announcing it are not
+        // cancellable, and a Stop during the checks ends the checks rather than the turn. The version stands; if
+        // it is not wanted, History brings back the one before it, which is what undoing anything here means.
         if (version is not null)
         {
             assistantMessage.ProducedVersionId = version.Id;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(CancellationToken.None);
 
             await writer.WriteAsync(new RunEvent
             {
                 Type = RunEventType.VersionCommitted,
                 VersionNanoid = version.Nanoid,
                 Detail = version.Summary
-            }, cancellationToken);
+            }, CancellationToken.None);
         }
 
-        await ReportBreakageAsync(workspace, conversation.Id, logOffset, version is not null, cancellationToken);
+        try
+        {
+            await ReportBreakageAsync(workspace, conversation.Id, logOffset, version is not null, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                "Stopped during the checks after a turn on {Site}; what it committed stands.", site.Nanoid);
+        }
     }
 
     /// <summary>

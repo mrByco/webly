@@ -1,5 +1,9 @@
 <app-auth-layout heading="Sign in" subheading="Welcome back — pick up where you left off.">
   <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
+    @if (notice(); as message) {
+      <div role="status" class="alert alert-info alert-soft text-sm">{{ message }}</div>
+    }
+
     @if (error(); as message) {
       <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
     }
@@ -28,7 +32,7 @@
 
     <div class="-mt-3 text-right">
       <a
-        class="link link-hover text-sm text-base-content/60"
+        class="link link-hover text-sm text-muted"
         [routerLink]="routes.forgotPassword.build()">
         Forgotten your password?
       </a>
@@ -42,7 +46,7 @@
     </button>
 
     @if (googleEnabled()) {
-      <div class="divider my-0 text-xs text-base-content/50">or</div>
+      <div class="divider my-0 text-xs text-muted">or</div>
 
       <button class="btn btn-outline w-full" type="button" (click)="continueWithGoogle()">
         <svg class="size-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -55,7 +59,7 @@
       </button>
     }
 
-    <p class="text-sm text-center text-base-content/60">
+    <p class="text-sm text-center text-muted">
       No account yet?
       <a class="link link-primary font-medium" [routerLink]="routes.register.build()">Create one</a>
     </p>

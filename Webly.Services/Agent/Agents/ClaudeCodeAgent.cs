@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text;
 using System.Text.Json.Nodes;
 using Webly.Services.Services.Sandboxes;
 
@@ -53,7 +52,7 @@ public class ClaudeCodeAgent(
     {
         var arguments = new List<string>
         {
-            "-p", BuildPrompt(request),
+            "-p", TurnPrompt.Build(request),
             "--output-format", "stream-json",
             // Verbose is required alongside stream-json for the CLI to emit anything but the final result;
             // without it the editor shows nothing for two minutes and then everything at once.
@@ -102,40 +101,6 @@ public class ClaudeCodeAgent(
                 $"claude exited {result.ExitCode}: {Tail(result.Output)}");
 
         return parser.ToOutcome(request.Message);
-    }
-
-    /// <summary>
-    /// What the agent is asked. Short on purpose: the standing instructions live in the site's repository
-    /// where both agents read them, and repeating them here would be a second copy to keep in step.
-    ///
-    /// The one thing this prompt insists on is the summary line, because Webly needs a commit subject and the
-    /// history is unreadable without one.
-    /// </summary>
-    private static string BuildPrompt(CodingAgentRequest request)
-    {
-        var prompt = new StringBuilder();
-
-        if (request.History.Count > 0)
-        {
-            prompt.AppendLine("Earlier in this conversation:");
-
-            foreach (var turn in request.History) prompt.AppendLine($"- {turn}");
-
-            prompt.AppendLine();
-        }
-
-        prompt.AppendLine(request.Message);
-        prompt.AppendLine();
-        prompt.AppendLine("""
-            When you are done, end your reply with a line of the form:
-
-            SUMMARY: <one sentence, under 70 characters, describing what you changed>
-
-            Write it in the past tense and name what changed, not what you did — it becomes the entry in the
-            site owner's history. If you changed nothing, say SUMMARY: none.
-            """);
-
-        return prompt.ToString();
     }
 
     /// <summary>

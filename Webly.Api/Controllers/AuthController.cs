@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
@@ -22,12 +23,14 @@ public class AuthController(
     SignInWithExternalLogin signInWithExternalLogin,
     SignOut signOut,
     GetCurrentUser getCurrentUser,
+    ChangeName changeName,
     DeleteAccount deleteAccount,
     IOptions<JwtOptions> jwtOptions,
     IOptions<GoogleAuthOptions> googleOptions) : ControllerBase
 {
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SignUp)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK)]
     public async Task<ActionResult<MeResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -41,6 +44,7 @@ public class AuthController(
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SignIn)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK)]
     public async Task<ActionResult<MeResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
@@ -117,6 +121,26 @@ public class AuthController(
         // Unverified on purpose: "who am I" is exactly the question an unverified user's client
         // needs answered, since the reply is what tells it to show the verification banner.
         await getCurrentUser.Execute(this.GetUserIdUnverified(), cancellationToken);
+
+    /// <summary>
+    /// Changes the caller's name. Unverified on purpose, like a password change: the verification email greets them
+    /// by it. See <see cref="Services.UseCases.Authentication.ChangeName"/>.
+    /// </summary>
+    [HttpPut("me")]
+    [Authorize]
+    [ProducesResponseType<MeResponse>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<MeResponse>> ChangeName(ChangeNameRequest request, CancellationToken cancellationToken)
+    {
+        var userId = this.GetUserIdUnverified();
+
+        if (userId is null) return Unauthorized();
+
+        var profile = await changeName.Execute(userId.Value, request.DisplayName, cancellationToken);
+
+        return profile is null
+            ? BadRequest(new ProblemDetails { Title = "A name needs at least one letter in it." })
+            : profile;
+    }
 
     [HttpGet("providers")]
     [AllowAnonymous]

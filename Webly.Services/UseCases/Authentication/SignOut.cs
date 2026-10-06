@@ -26,16 +26,10 @@ public class SignOut(
     ITokenService tokenService,
     IRefreshTokenRepository refreshTokenRepository,
     IAccessTokenBlacklist accessTokenBlacklist,
-    IRealtimeSessions realtimeSessions)
+    IRealtimeSessions realtimeSessions,
+    IAuthSessionService authSessionService)
 {
-    /// <summary>
-    /// How long a revoked session is remembered: the longest any credential minted under it can outlive the
-    /// sign-out. The preview token's twelve hours is that credential today, and the access token's fifteen
-    /// minutes is caught by its own id anyway. A day rather than the refresh token's sixty, because the
-    /// entries are held in memory and remembering a session long after everything it could have minted has
-    /// expired is paying for nothing.
-    /// </summary>
-    private static readonly TimeSpan SessionRevocationWindow = TimeSpan.FromDays(1);
+    private static readonly TimeSpan SessionRevocationWindow = AuthSessionService.SessionRevocationWindow;
 
     public async Task Execute(
         int userId,
@@ -56,9 +50,8 @@ public class SignOut(
         if (string.IsNullOrEmpty(rawRefreshToken))
         {
             // No refresh cookie to identify which session this is, so end all of them rather than
-            // leaving the user unable to log out at all. The sockets follow the same rule, for the same reason.
-            await refreshTokenRepository.RevokeAllForUserAsync(userId, DateTime.UtcNow, cancellationToken);
-            realtimeSessions.End(userId, sessionId: null);
+            // leaving the user unable to log out at all — their sockets and minted tokens included.
+            await authSessionService.EndAllAsync(userId, cancellationToken);
 
             return;
         }

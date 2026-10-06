@@ -92,7 +92,7 @@ public class PreviewController(
             if (site is null) return NotFound();
         }
 
-        var workspace = workspaces.Find(siteNanoid);
+        var workspace = workspaces.FindForPreview(siteNanoid);
 
         if (workspace is null)
             // 503 with a sentence rather than starting one: a workspace takes tens of seconds, and an <iframe>
@@ -177,6 +177,14 @@ public class PreviewController(
     /// typeface, under a path this build put it at, to somebody who already knows an unguessable id — not the
     /// site's pages, not its code, and nothing of its owner's. Method, directory and extension all have to
     /// match; anything else takes the credential.
+    ///
+    /// <b>The hot-reload manifest is deliberately not a second exception</b>, though it looks like one. Webpack
+    /// fetches <c>_next/static/webpack/{hash}.webpack.hot-update.json</c> with CORS and no cookie, so it is
+    /// refused here, and webpack answers a manifest it cannot read by reloading the frame — which is what makes
+    /// an agent's edit appear in the preview at all. Letting it through was tried, against a real dev server:
+    /// client components then updated in place, and every page stopped updating, because a page is a Server
+    /// Component and Next applies those by writing <c>document.cookie</c>, which a sandboxed document is
+    /// forbidden to do. A full reload per edit is the price of the sandbox.
     ///
     /// <b>The real answer is a separate origin for previews</b> — <c>{id}.preview.webly.site</c> — where the
     /// frame's own origin serves its own assets and none of this arises. That needs a wildcard record and a

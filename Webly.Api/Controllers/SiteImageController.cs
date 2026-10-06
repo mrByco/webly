@@ -117,6 +117,7 @@ public class SiteImageController(
         }),
         AssetError.TooLarge => BadRequest(new ProblemDetails { Title = detail ?? "That is too large to upload." }),
         AssetError.NotFound => NotFound(new ProblemDetails { Title = "That image is not in this site." }),
+        AssetError.TurnInProgress => Conflict(SiteController.TurnInProgress),
         AssetError.InUse => Conflict(new ProblemDetails
         {
             // Named, because "it is still used" without saying where is not something anybody can act on. The

@@ -4,13 +4,48 @@
 @import 'tailwindcss';
 
 /*
+ * The app's typeface, served by this app rather than by Google's font CDN, which it used to be.
+ *
+ * Any one of three reasons would do. Every page load asked a third party for it, which hands each visitor's
+ * address to Google — on the sign-in page of a European product, the very thing a German court found to be a
+ * GDPR breach in 2022. It was on the critical path of the first paint, so the sign-in screen, the product's
+ * first impression, drew itself in the system font and then swapped. And a published Webly site already
+ * self-hosts its fonts (next/font does that at build), so the app was the one part of the product that did not.
+ *
+ * One variable file per script, covering every weight the app uses, and two scripts: Latin, and Latin Extended
+ * for the accented letters (ő, ł, ș …) people put in their businesses' names. `unicode-range` is what makes the
+ * second file free for anybody who never types one. The licence travels with the files, in `public/fonts`.
+ */
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('/fonts/source-sans-3-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/*
  * Source Sans 3: a wide accent set, so a site name in any Latin-script language renders correctly in
  * the switcher, and a lowercase that stays legible at the small sizes the lists use. The system stack
  * behind it is the fallback while the webfont loads, or if it never does.
  *
- * Note this is the *app's* type. A published site's fonts come from its own theme — see `ThemeCss` on
- * the backend — and the two are deliberately unrelated: the editor should not look like the thing it
- * edits, or nobody can tell which they are looking at.
+ * Note this is the *app's* type. A published site's fonts are its own, chosen in its own Next.js project,
+ * and the two are deliberately unrelated: the editor should not look like the thing it edits, or nobody
+ * can tell which they are looking at.
  */
 @theme {
   --font-sans:
@@ -28,8 +63,47 @@
   --color-control-edge: oklch(59% 0.02 265);
 }
 
+/*
+ * Text that is meant to be quieter than the rest — a description under a heading, a date, a hint under a field —
+ * at the quietest it can be and still be read: 4.5:1, WCAG 1.4.3, on every surface of both themes.
+ *
+ * It replaced four shades written straight into the templates (`text-base-content/50`, `/55`, `/60`, `/65`) and
+ * every one of them was under the line: 3.1:1 to 4.1:1 in the light theme, on the sign-in screen, the history,
+ * the account page — which is a hundred lines of text, most of the product's words that are not headings. 68% is
+ * measured rather than chosen: it is where the light theme's darkest surface, `base-300`, clears 4.5:1 (4.8:1);
+ * 65% does not. The dark theme clears it from 60%, so one number serves both.
+ *
+ * `inline`, so the mix is resolved where the text is rather than once on the root.
+ */
+@theme inline {
+  --color-muted: color-mix(in oklab, var(--color-base-content) 68%, transparent);
+
+  /*
+   * Warning, as words rather than as a fill. A warning fill is a light amber behind dark text and has to stay
+   * one; the same amber *as* text is 1.7:1 on white, which is how the compiler's own words in the chat's
+   * "your site is not compiling" block were drawn — the one sentence in that block somebody needs to read.
+   * The dark theme's amber reads as text already, so this is that colour there.
+   */
+  --color-warning-ink: light-dark(oklch(49% 0.1 75), var(--color-warning));
+}
+
 @plugin 'daisyui' {
   themes: webly --default, webly-dark --prefersdark;
+}
+
+/*
+ * Two of daisyUI's own defaults that fall under 4.5:1, found by the sweep's text rule on the usage report — and
+ * corrected here rather than per template, because every table and every soft warning badge inherits them.
+ * A table's header row is drawn at 60% of the text colour (4.1:1); it takes the app's quiet shade instead. A soft
+ * warning badge draws its words in the fill's amber (1.9:1 — the "Stopped" outcome, and "Email not confirmed" on
+ * the account page); the words take the warning ink and the tint stays the badge's.
+ */
+.table :where(thead, tfoot) {
+  color: var(--color-muted);
+}
+
+.badge-soft.badge-warning {
+  color: var(--color-warning-ink);
 }
 
 /*
@@ -58,20 +132,25 @@
      lightness band a mark needs against the dark surface — checked with the dataviz palette validator, not by eye. */
   --color-chart: oklch(52% 0.19 268);
   --color-primary-content: oklch(98.5% 0.008 268);
-  --color-secondary: oklch(58% 0.12 200);
+  --color-secondary: oklch(48% 0.12 200);
   --color-secondary-content: oklch(98% 0.01 200);
   --color-accent: oklch(62% 0.15 300);
   --color-accent-content: oklch(98% 0.01 300);
   --color-neutral: oklch(32% 0.018 265);
   --color-neutral-content: oklch(96% 0.006 265);
 
-  --color-info: oklch(62% 0.11 235);
+  /* Each of these is text as often as it is a fill — "see what changed", a diff's added lines, the danger zone —
+     and each was a light theme's pastel that failed both ways: 2.9:1 to 3.7:1 as text, and white on the green
+     "Live" badge at 3.5:1. Darkened (and the secondary with them) to where the colour clears 4.5:1 as text on
+     the panels and on its own 10% tint, which is also where white on it clears 5.5:1. Warning is the exception,
+     because a warning fill is light by nature: it keeps its amber, and its words use `--color-warning-ink`. */
+  --color-info: oklch(50% 0.11 235);
   --color-info-content: oklch(98% 0.01 235);
-  --color-success: oklch(60% 0.13 150);
+  --color-success: oklch(49% 0.13 150);
   --color-success-content: oklch(98% 0.01 150);
   --color-warning: oklch(78% 0.15 80);
   --color-warning-content: oklch(26% 0.04 80);
-  --color-error: oklch(58% 0.2 27);
+  --color-error: oklch(52% 0.2 27);
   --color-error-content: oklch(98% 0.01 27);
 
   --radius-selector: 0.75rem;
@@ -117,7 +196,7 @@
   --color-success-content: oklch(18% 0.03 150);
   --color-warning: oklch(82% 0.14 80);
   --color-warning-content: oklch(22% 0.04 80);
-  --color-error: oklch(68% 0.17 27);
+  --color-error: oklch(69% 0.17 27);
   --color-error-content: oklch(18% 0.03 27);
 
   --radius-selector: 0.75rem;
@@ -144,7 +223,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: color-mix(in oklch, var(--color-base-content) 55%, transparent);
+  color: var(--color-muted);
 }
 
 @utility surface {

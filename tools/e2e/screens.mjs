@@ -157,6 +157,27 @@ async function sidewaysScroll(page) {
 }
 
 /**
+ * The editor scrolling as a whole, which it never should: it is a frame — header, chat, and a pane beside it — and
+ * each pane scrolls itself. When one of them does not fill its space, the app shell's column scrolls instead, so the
+ * site's name, the tabs and the chat's composer travel off the screen with whatever was too tall.
+ *
+ * The defect this exists for: the routed pages under the editor — History, Code, Settings — had no host styles,
+ * so each sized to its content, the History list's own `overflow-y-auto` never engaged, and clicking a version
+ * low in the list scrolled the header off the top of the window. Nothing was cut off and nothing scrolled
+ * sideways, so no other rule here could see it; the measurement is the column's own height against its content.
+ */
+async function editorScrolls(page) {
+  return page.evaluate(() => {
+    const column = document.querySelector('app-site-editor app-shell > div > div.overflow-y-auto');
+
+    if (!column || column.scrollHeight <= column.clientHeight + 1) return null;
+
+    return `the whole editor scrolls (${column.scrollHeight} tall in ${column.clientHeight}) — `
+      + 'a pane under it is not filling its space';
+  });
+}
+
+/**
  * A word cut off by the box around it, which nothing else here can see.
  *
  * `sidewaysScroll` catches a pane that has grown too wide, and cannot catch this: when a child overflows an
@@ -240,8 +261,8 @@ async function clippedText(page) {
  * `templates/next-site/AGENTS.md` tells the agent that accessibility is not optional. This is the half of
  * that sentence the product can actually check, and it checks Webly's own screens by the same rule.
  */
-async function accessibility(page) {
-  return page.evaluate(() => {
+async function accessibility(page, { colourOnly = false } = {}) {
+  return page.evaluate(colourOnly => {
     const problems = [];
     const visible = element => {
       const box = element.getBoundingClientRect();
@@ -261,12 +282,12 @@ async function accessibility(page) {
       return `${element.tagName.toLowerCase()}${classes ? '.' + classes : ''}`;
     };
 
-    for (const image of document.querySelectorAll('img')) {
+    for (const image of colourOnly ? [] : document.querySelectorAll('img')) {
       // An empty alt is a decision — "this picture says nothing a reader needs" — and a missing one is not.
       if (image.getAttribute('alt') === null) problems.push(`${describe(image)} has no alt (${image.src.slice(-40)})`);
     }
 
-    for (const control of document.querySelectorAll('button, a[href], [role="button"]')) {
+    for (const control of colourOnly ? [] : document.querySelectorAll('button, a[href], [role="button"]')) {
       if (!visible(control)) continue;
       if (!named(control)) problems.push(`${describe(control)} has no accessible name`);
     }
@@ -317,7 +338,7 @@ async function accessibility(page) {
         || field.getAttribute('aria-labelledby')
         || field.getAttribute('placeholder');
 
-      if (!labelled) problems.push(`${describe(field)} has nothing naming it`);
+      if (!labelled && !colourOnly) problems.push(`${describe(field)} has nothing naming it`);
 
       /*
        * WCAG 1.4.11: 3:1 for the boundary of a control. A card can be outlined faintly because what is in
@@ -348,13 +369,74 @@ async function accessibility(page) {
       }
     }
 
-    const headings = [...document.querySelectorAll('h1')].filter(visible);
+    /*
+     * WCAG 1.4.3: text at 4.5:1 against what is really behind it, or 3:1 when it is large (24px, or 18.66px bold).
+     *
+     * The app's quiet text was four opacities of the content colour written into the templates, and every one of
+     * them was under the line in the light theme — 3.1:1 to 4.1:1, on a hundred lines of descriptions, dates and
+     * hints — along with the green of "see what changed" and the amber the compiler's own words were drawn in, at
+     * 1.7:1. None of it looked wrong in a screenshot, for the reason the border rule above exists: faint reads as
+     * a design decision. So it is measured, the same way: the backgrounds behind the text composited from the
+     * page down, because a sidebar at 55% of a grey over another grey is a colour no computed style will name.
+     *
+     * Skipped: anything `aria-hidden` (a decorative tick), anything disabled (WCAG exempts an inactive control),
+     * and text with nothing but whitespace in it. One report per colour pair, since a muted shade that fails
+     * fails in fifty places at once and the fix is in one.
+     */
+    const backdrop = element => {
+      const layers = [];
 
-    if (headings.length === 0) problems.push('no h1 on the page');
-    if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+      for (let node = element; node; node = node.parentElement) layers.unshift(getComputedStyle(node).backgroundColor);
+
+      return layers.reduce(
+        (under, layer) => (transparent(layer) ? under : `rgb(${srgb(layer, under).join(', ')})`),
+        'rgb(255, 255, 255)');
+    };
+
+    const seen = new Set();
+
+    for (const element of document.querySelectorAll('body *')) {
+      if (element.closest('[aria-hidden="true"], svg, :disabled, [disabled], .btn-disabled')) continue;
+
+      const own = [...element.childNodes]
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent.trim())
+        .join(' ')
+        .trim();
+
+      if (!own || !visible(element)) continue;
+
+      const style = getComputedStyle(element);
+      const behind = backdrop(element);
+      const ratio = contrast(srgb(style.color, behind), srgb(behind, 'white'));
+      const size = parseFloat(style.fontSize);
+      const large = size >= 24 || (size >= 18.66 && parseInt(style.fontWeight, 10) >= 700);
+
+      if (ratio >= (large ? 3 : 4.5)) continue;
+
+      const pair = `${style.color} on ${behind}`;
+
+      if (seen.has(pair)) continue;
+
+      seen.add(pair);
+      problems.push(`"${own.slice(0, 40)}" (${describe(element)}) is ${ratio.toFixed(2)}:1, under ${large ? 3 : 4.5}:1`);
+    }
+
+    if (!colourOnly) {
+      const headings = [...document.querySelectorAll('h1')].filter(visible);
+
+      if (headings.length === 0) problems.push('no h1 on the page');
+      if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+
+      // Every screen was titled "Webly": the tab bar of somebody with two sites open, their history, and the first
+      // thing a screen reader says about the page, none of which said which page it was.
+      const title = document.title.trim();
+
+      if (!title || title === 'Webly') problems.push(`the page's title does not say which page it is ("${title}")`);
+    }
 
     return problems.slice(0, 4);
-  });
+  }, colourOnly);
 }
 
 async function shot(page, name, width) {
@@ -372,7 +454,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 950 }, ign
 
 /**
  * One screen: go there, let it settle, optionally press something, shoot it at both widths, and ask the
- * three questions.
+ * questions below.
  *
  * <b>The `open` step exists because opening a screen is not using it.</b> Three defects in a row were found
  * by clicking once on a screen this sweep had walked clean a dozen times — a photograph in the Code tab that
@@ -407,6 +489,10 @@ async function walk(page, name, url, open) {
     for (const pane of await sidewaysScroll(page))
       problems.push(`${name} @${width}: ${pane} — content is being cut off`);
 
+    const scrolls = await editorScrolls(page);
+
+    if (scrolls) problems.push(`${name} @${width}: ${scrolls}`);
+
     // At both widths, unlike the accessibility questions: this one is about the room a word has, and a phone
     // is where it runs out.
     for (const cut of await clippedText(page)) problems.push(`${name} @${width}: ${cut}`);
@@ -416,6 +502,17 @@ async function walk(page, name, url, open) {
     if (width === 1400)
       for (const failing of await accessibility(page)) problems.push(`${name}: ${failing}`);
   }
+
+  // The colour questions again in the dark theme, because the answers differ there and every number in the app's
+  // palette was chosen to pass both — which, until this, only somebody measuring by hand would ever have known
+  // about. Desktop width only and no screenshot: what is being asked is a ratio, not a layout.
+  await page.setViewportSize({ width: 1400, height: 950 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(300);
+
+  for (const failing of await accessibility(page, { colourOnly: true })) problems.push(`${name} (dark): ${failing}`);
+
+  await page.emulateMedia({ colorScheme: 'light' });
 
   process.stdout.write(`  · ${name}\n`);
 }
@@ -503,6 +600,9 @@ try {
     ...(published
       ? [
         ['published', `${origin}/published/${nanoid}/`],
+        // The one page a visitor fills anything in on, and the one whose markup is most Webly's own: the form and
+        // its acknowledgement are components Webly keeps current in every site.
+        ['published-contact', `${origin}/published/${nanoid}/contact/`],
         ['published-404', `${origin}/published/${nanoid}/not-a-page/`],
       ]
       : []),

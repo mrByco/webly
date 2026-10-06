@@ -12,6 +12,7 @@ export const RUN_EVENT_TYPE: RunEventType[] = [
   'Activity',
   'FileChanged',
   'WorkspaceProgress',
+  'WorkspaceReady',
   'VersionCommitted',
   'BuildFailed',
   'TypesFailed',

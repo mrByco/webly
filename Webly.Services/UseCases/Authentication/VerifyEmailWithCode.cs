@@ -1,4 +1,3 @@
-using Webly.Data;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Repositories.SecurityTokens;
 using Webly.Services.DTO.Authentication;
@@ -21,8 +20,7 @@ public class VerifyEmailWithCode(
     ISecurityTokenService securityTokenService,
     ISecurityTokenRepository securityTokenRepository,
     IEmailVerificationService emailVerificationService,
-    IOptions<EmailTokenOptions> tokenOptions,
-    WeblyDbContext dbContext)
+    IOptions<EmailTokenOptions> tokenOptions)
 {
     public async Task<AuthResult> Execute(
         int userId,
@@ -32,7 +30,15 @@ public class VerifyEmailWithCode(
         var token = await securityTokenRepository.FindOutstandingAsync(
             userId, SecurityTokenPurpose.EmailVerification, DateTime.UtcNow, cancellationToken);
 
-        if (token?.CodeHash is null || token.FailedAttempts >= tokenOptions.Value.MaxCodeAttempts)
+        if (token?.CodeHash is null)
+            return AuthResult.Fail(AuthError.InvalidToken);
+
+        // Paid for before it is looked at. The attempt limit is the only thing standing between six digits and a
+        // machine, and it is a limit only if taking a try and checking there was one left are the same step: this
+        // used to compare first and then write the count back, so every request in a burst read the same count —
+        // sixty wrong codes sent at once left it at four, and the right code was accepted after them.
+        if (!await securityTokenRepository.TryClaimCodeAttemptAsync(
+                token.Id, tokenOptions.Value.MaxCodeAttempts, cancellationToken))
             return AuthResult.Fail(AuthError.InvalidToken);
 
         var presented = securityTokenService.HashCode(
@@ -44,14 +50,7 @@ public class VerifyEmailWithCode(
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(presented),
                 Encoding.UTF8.GetBytes(token.CodeHash)))
-        {
-            // Counted, not just refused: the attempt limit is the only thing standing between six
-            // digits and a machine, so a wrong guess has to cost something.
-            token.FailedAttempts++;
-            await dbContext.SaveChangesAsync(cancellationToken);
-
             return AuthResult.Fail(AuthError.InvalidToken);
-        }
 
         return await emailVerificationService.CompleteAsync(token, cancellationToken);
     }

@@ -16,5 +16,8 @@ public enum DomainError
     ProviderRefused,
 
     /// <summary>Only a verified domain may be made primary — an unverified one does not resolve here.</summary>
-    NotVerified
+    NotVerified,
+
+    /// <summary>An address that is Webly's to give out: under the sites' zone, or the app's own host.</summary>
+    Reserved
 }

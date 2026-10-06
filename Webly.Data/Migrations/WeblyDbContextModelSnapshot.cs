@@ -164,6 +164,9 @@ namespace Webly.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("CodeAttempts")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CodeHash")
                         .HasColumnType("text");
 
@@ -175,9 +178,6 @@ namespace Webly.Data.Migrations
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FailedAttempts")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
@@ -265,9 +265,6 @@ namespace Webly.Data.Migrations
                     b.Property<string>("Nanoid")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("Parts")
-                        .HasColumnType("jsonb");
 
                     b.Property<int?>("ProducedVersionId")
                         .HasColumnType("integer");

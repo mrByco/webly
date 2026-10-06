@@ -71,7 +71,12 @@ public class ChatRunLauncher(
             // *over*, so for the whole time a reload could have re-attached, the registry had no way to connect
             // this run to that conversation. A page reloaded mid-turn showed a thread with nothing running and a
             // turn still writing files behind it.
-            await turn.RunAsync(request, userId, nanoid => handle.CorrelationId = nanoid, handle.Token);
+            await turn.RunAsync(
+                request,
+                userId,
+                nanoid => handle.CorrelationId = nanoid,
+                () => handle.CancelledBecause,
+                handle.Token);
         }
         catch (OperationCanceledException)
         {
@@ -83,8 +88,9 @@ public class ChatRunLauncher(
             // The same sentence the turn writes into the thread, for the same reason the failure path carries
             // its own: without it the person who pressed Stop watched the spinner disappear under a status line
             // frozen mid-sentence — "Waking up your site" — and the note explaining it only appeared if they
-            // reloaded the page. It is a note rather than an error because they asked for it.
-            detail = AgentTurnService.StoppedNote;
+            // reloaded the page. Which sentence depends on who cancelled it — see `CancelReason` — because a deploy
+            // of Webly used to end every turn in flight with "Stopped", as if the person had pressed the button.
+            detail = AgentTurnService.CancelledNote(handle.CancelledBecause);
             logger.LogInformation("Run {RunId} was cancelled.", runId);
         }
         catch (RepositoryConflictException conflict)

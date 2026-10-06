@@ -41,7 +41,11 @@ export async function shrinkImage(file: File): Promise<File> {
   if (file.type === 'image/gif') return file;
 
   try {
-    const bitmap = await createImageBitmap(file);
+    // Upright as the camera meant it. A phone records which way up a photograph is in its EXIF orientation, and
+    // the re-encode below drops EXIF — so the rotation has to be applied while decoding, or a portrait photo comes
+    // out lying on its side. `from-image` is the spec's default and what Chromium does (a JPEG flagged "rotate 90°"
+    // measured 200×400 from 400×200 pixels); said here so it does not rest on any one browser's default.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
 
     if (scale === 1 && file.size <= LEAVE_ALONE_BYTES) {
@@ -59,21 +63,39 @@ export async function shrinkImage(file: File): Promise<File> {
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close();
 
-    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+    // Transparency survives only as a PNG. A JPEG has no alpha, and a canvas encodes a transparent pixel as black —
+    // so a large transparent logo, which is exactly what a business exports, came back as its mark on a black
+    // rectangle: measured on a 2400px PNG, stored as `logo.jpg` with its corner at rgba(0,0,0,255). Asked of the
+    // pixels rather than the type, because most PNGs and WebPs are photographs and screenshots with no
+    // transparency at all, and those are better off as JPEGs.
+    const transparent = (file.type === 'image/png' || file.type === 'image/webp') && hasTransparency(context, canvas);
+    const type = transparent ? 'image/png' : 'image/jpeg';
 
-    // A re-encode that came out bigger is not an improvement, and a transparent PNG that came out as a JPEG
-    // with a black background would be worse than either.
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, type, QUALITY));
+
+    // A re-encode that came out bigger is not an improvement.
     if (!blob || (blob.size >= file.size && scale === 1)) return file;
 
-    return new File([blob], renamed(file.name), { type: 'image/jpeg', lastModified: file.lastModified });
+    return new File([blob], renamed(file.name, transparent ? 'png' : 'jpg'), { type, lastModified: file.lastModified });
   } catch {
     return file;
   }
 }
 
 /** The same name with a .jpg on it, because the bytes are now a JPEG and the extension is what serves it. */
-function renamed(name: string): string {
+function renamed(name: string, extension: 'jpg' | 'png'): string {
   const stem = name.replace(/\.[^.]+$/, '');
 
-  return `${stem || 'image'}.jpg`;
+  return `${stem || 'image'}.${extension}`;
+}
+
+/** Whether any pixel is less than opaque. Stops at the first one; a photograph is read to the end once. */
+function hasTransparency(context: CanvasRenderingContext2D, canvas: HTMLCanvasElement): boolean {
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+  for (let alpha = 3; alpha < pixels.length; alpha += 4) {
+    if (pixels[alpha] < 255) return true;
+  }
+
+  return false;
 }

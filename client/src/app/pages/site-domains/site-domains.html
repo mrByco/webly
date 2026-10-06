@@ -2,7 +2,7 @@
   <div class="mx-auto flex w-full max-w-2xl flex-col gap-5">
     <div>
       <h2 class="text-base font-bold">Domains</h2>
-      <p class="text-sm text-base-content/60">
+      <p class="text-sm text-muted">
         Your site is always reachable at its Webly address. Add your own domain when you have one.
       </p>
     </div>
@@ -27,7 +27,7 @@
     @if (site(); as detail) {
       <div class="surface flex flex-col gap-2 p-4">
         <div class="flex items-center gap-3">
-          <app-icon class="size-4.5 text-base-content/55" name="globe" />
+          <app-icon class="size-4.5 text-muted" name="globe" />
           <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ detail.summary.weblyUrl }}</span>
 
           @if (detail.summary.addressReadyAt) {
@@ -40,7 +40,7 @@
         </div>
 
         @if (detail.summary.publishedAt && detail.summary.liveUrl && detail.summary.liveUrl !== detail.summary.weblyUrl) {
-          <p class="text-xs text-base-content/60">
+          <p class="text-xs text-muted">
             Your site is live at
             <!--
               Two different sentences, because the same fact means opposite things. When the customer's own
@@ -57,7 +57,7 @@
     }
 
     @if (error()) {
-      <div class="alert alert-error">
+      <div class="alert alert-error" role="alert">
         <app-icon class="size-5" name="circle-alert" />
         <span>{{ error() }}</span>
       </div>
@@ -79,12 +79,12 @@
     </form>
 
     @if (loading()) {
-      <p class="text-sm text-base-content/60">Loading…</p>
+      <p class="text-sm text-muted">Loading…</p>
     } @else {
       @for (domain of list(); track domain.nanoid) {
         <div class="surface flex flex-col gap-3 p-4">
           <div class="flex flex-wrap items-center gap-2">
-            <app-icon class="size-4.5 text-base-content/55" name="link" />
+            <app-icon class="size-4.5 text-muted" name="link" />
             <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ domain.hostname }}</span>
 
             @switch (domain.verificationState) {
@@ -173,7 +173,7 @@
           </div>
         </div>
       } @empty {
-        <p class="text-sm text-base-content/60">No custom domains yet.</p>
+        <p class="text-sm text-muted">No custom domains yet.</p>
       }
     }
   </div>
@@ -186,10 +186,12 @@
 -->
 <app-modal [open]="confirming() !== undefined" (close)="confirming.set(undefined)">
   <h3 class="text-lg font-bold">Stop using {{ confirming()?.hostname }}?</h3>
+  <!-- The `@if` opens on the line the span closes on, for the same reason as the panel's: a line break there is a
+       space before the comma. -->
   <p class="py-3 text-sm text-base-content/70">
     It is this site's main address. Removing it puts the address back to
-    <span class="font-mono">{{ weblyUrl() }}</span>, which has been working all along — anyone who has the
-    old address will stop finding the site there.
+    <span class="font-mono">{{ weblyUrl() }}</span>@if (weblyUrlWorks()) {, which has been working all along.} @else {, which is still being set up.}
+    Anyone who has the old address will stop finding the site there.
   </p>
 
   <div class="flex justify-end gap-2">

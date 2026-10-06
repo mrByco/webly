@@ -1,1 +1,5 @@
 <router-outlet />
+
+<!-- The route announcer: a navigation inside the app changes the whole screen without a page load, and without this
+     nothing told a screen reader it had happened. Polite, so it waits for whatever is being read. -->
+<p class="sr-only" aria-live="polite">{{ announcement() }}</p>

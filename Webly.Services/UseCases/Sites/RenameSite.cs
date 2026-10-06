@@ -5,6 +5,7 @@ using Webly.Data.Repositories.Users;
 using Webly.Data.Repositories.Sites;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
+using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Sites;
 using Webly.Services.Services.Workspaces;
@@ -35,6 +36,7 @@ public class RenameSite(
     IUserRepository users,
     ISiteRepositoryStore repositories,
     ISiteWorkspaceRegistry workspaces,
+    SiteTurns turns,
     CommitSiteVersion commitSiteVersion,
     WeblyDbContext dbContext,
     ILogger<RenameSite> logger)
@@ -54,6 +56,12 @@ public class RenameSite(
         var site = await siteRepository.FindForOwnerAsync(nanoid, userId, cancellationToken);
 
         if (site is null) return Result<SiteError>.Fail(SiteError.NotFound);
+
+        // Only the half that writes into the pages waits for a turn (see SiteTurns); the dashboard's label is a row,
+        // and nothing a turn does can collide with it. Refused whole rather than half-done, so the answer is about
+        // what was asked for.
+        if (request.ApplyToSite && await turns.IsRunningAsync(site.Id, cancellationToken))
+            return Result<SiteError>.Fail(SiteError.TurnInProgress);
 
         site.Name = name;
         await dbContext.SaveChangesAsync(cancellationToken);

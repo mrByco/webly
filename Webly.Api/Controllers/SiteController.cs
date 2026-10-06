@@ -238,6 +238,17 @@ public class SiteController(
             Title = "No build machine is available right now.",
             Detail = "Your site is safe — try again in a moment."
         }),
+        SiteError.TurnInProgress => Conflict(TurnInProgress),
         _ => BadRequest(new ProblemDetails { Title = "That request could not be completed." })
+    };
+
+    /// <summary>
+    /// The one sentence for every change refused because the assistant is mid-change, here and in
+    /// <see cref="SiteImageController"/>: it says what is happening and the two ways on, and the person picks.
+    /// </summary>
+    internal static ProblemDetails TurnInProgress => new()
+    {
+        Title = "The assistant is in the middle of changing your site.",
+        Detail = "Wait for it to finish, or press Stop in the chat, and then try this again."
     };
 }

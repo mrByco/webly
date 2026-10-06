@@ -2,16 +2,19 @@ import { Component, ElementRef, PLATFORM_ID, afterNextRender, computed, effect, 
 import { isPlatformBrowser } from '@angular/common';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { Subscription, filter, map } from 'rxjs';
 import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { SiteChat } from '../../components/site-chat/site-chat';
 import { SitePreview } from '../../components/site-preview/site-preview';
+import { Modal } from '../../components/modal/modal';
 import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
+import { DeploymentResponse } from '../../api/models/deployment-response';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { SiteService } from '../../services/site.service';
-import { messageOf } from '../../models/problem-details';
+import { messageOf, unreachable } from '../../models/problem-details';
+import { onReturn } from '../../shared/on-return';
 
 /**
  * The editor, and the shell every per-site screen renders inside.
@@ -27,7 +30,7 @@ import { messageOf } from '../../models/problem-details';
  */
 @Component({
   selector: 'app-site-editor',
-  imports: [AppShell, Icon, RouterLink, RouterLinkActive, RouterOutlet, SiteChat, SitePreview],
+  imports: [AppShell, Icon, Modal, RouterLink, RouterLinkActive, RouterOutlet, SiteChat, SitePreview],
   templateUrl: './site-editor.html',
 })
 export class SiteEditorPage {
@@ -60,8 +63,38 @@ export class SiteEditorPage {
   protected readonly workspaceReady = signal(false);
   protected readonly workspaceProgress = signal<string | undefined>(undefined);
 
+  /**
+   * Why the last wake did not end in a preview, said in the preview pane beside the button that tries again — and
+   * cleared by pressing it. It used to be the editor's banner, which nothing about the preview ever cleared: wake
+   * it during a restart and "Webly cannot be reached right now" stayed over the screen long after Webly was back.
+   */
+  protected readonly previewFailure = signal<string | undefined>(undefined);
+
   protected readonly publishing = signal(false);
   protected readonly publishStatus = signal<string | undefined>(undefined);
+
+  /** A publish this page watched has just finished, and the screen should say so once. */
+  protected readonly justPublished = signal(false);
+
+  /**
+   * Which pane a screen narrower than `lg` shows — it has room for one. Below that width the template hides the
+   * other; from `lg` up both are always drawn and this is never read.
+   */
+  protected readonly pane = signal<'chat' | 'preview'>('chat');
+
+  /** The preview has changed since somebody on a narrow screen last looked at it. A word on the switch, not a jump. */
+  protected readonly previewFresh = signal(false);
+
+  protected showPane(pane: 'chat' | 'preview'): void {
+    this.pane.set(pane);
+
+    if (pane === 'preview') this.previewFresh.set(false);
+  }
+
+  /** Something worth seeing reached the preview; say so on the switch if the chat is what is on screen. */
+  private markPreviewFresh(): void {
+    if (this.pane() === 'chat') this.previewFresh.set(true);
+  }
 
   protected readonly canPublish = computed(() => {
     const summary = this.site()?.summary;
@@ -76,6 +109,7 @@ export class SiteEditorPage {
     // The dev server has already hot-reloaded the edits; this is for the case where the tree moved as a
     // whole, which a reload of the frame is the only way to be sure of.
     this.previewKey.update(key => key + 1);
+    this.markPreviewFresh();
   }
 
   /** The workspace is starting. Shown in the preview pane, because that is the thing that is missing. */
@@ -84,13 +118,32 @@ export class SiteEditorPage {
   }
 
   /**
-   * A turn ended. The workspace it warmed up outlives it, so the preview can load now — and the site row
-   * is re-read for the same reason the header needs it: publishing state may have moved.
+   * The workspace a turn was waiting for is up: show the preview now, so the agent's edits appear in it as they
+   * are made. The frame is reloaded as well as revealed, because a frame that was showing an older tree — a
+   * workspace re-seeded or a dev server restarted — has to start again from the new one.
    */
-  protected onTurnFinished(): void {
+  protected onWorkspaceReady(): void {
     this.workspaceProgress.set(undefined);
     this.workspaceReady.set(true);
-    void this.sites.reload();
+    this.previewKey.update(key => key + 1);
+    this.markPreviewFresh();
+  }
+
+  /**
+   * A turn ended. The site row is re-read for the header — publishing state may have moved — and whether the
+   * preview can be shown is taken from that answer rather than assumed.
+   *
+   * It used to be assumed: "the workspace a turn warmed up outlives it". Not when the turn ended because the server
+   * restarted under it — the workspace went with the process, and the pane drew a frame over a sandbox that no
+   * longer existed. The answer is the sandbox's own (`workspaceReady` asks it), and after an ordinary turn it is
+   * the same yes the assumption gave.
+   */
+  protected async onTurnFinished(): Promise<void> {
+    this.workspaceProgress.set(undefined);
+
+    await this.sites.reload();
+
+    this.workspaceReady.set(this.site()?.workspaceReady ?? false);
   }
 
   /**
@@ -115,6 +168,8 @@ export class SiteEditorPage {
       loaded = nanoid;
       void this.load(nanoid);
     });
+
+    onReturn(() => void this.catchUp());
 
     // The open tab, brought into view. At phone width the five tabs are a row somebody swipes and the last of
     // them sits off the right edge, so arriving on Settings — from a link, a reload or the back gesture — left the
@@ -147,6 +202,15 @@ export class SiteEditorPage {
   }
 
   /**
+   * Somebody has started writing a message. A cold site is woken now, so the sandbox boots while they type and the
+   * turn they are about to start finds it warm — rather than spending its first quarter-minute on a spinner after
+   * Send. Costs, at worst, a sandbox for a message nobody sent, which the reaper closes after its idle time.
+   */
+  protected onComposing(): void {
+    if (!this.workspaceReady() && !this.workspaceProgress()) void this.wakePreview();
+  }
+
+  /**
    * Starts the workspace because somebody wants to look at their site, not because they changed it.
    *
    * The endpoint answers immediately and the workspace takes tens of seconds, so this polls the site — the same
@@ -158,47 +222,127 @@ export class SiteEditorPage {
 
     if (!nanoid || this.workspaceProgress()) return;
 
+    // Every signal this touches belongs to whichever site is open, and the router reuses this component between
+    // sites — so after each wait, a site that is no longer on screen ends the loop and touches nothing. It did
+    // not: the polls went on for two minutes after somebody clicked away, and each one made the site they had
+    // left the open one again, header, preview and chat included.
+    const here = () => this.nanoid() === nanoid;
+
     this.workspaceProgress.set('Waking up your site');
+    this.previewFailure.set(undefined);
 
     try {
       const { alreadyRunning } = await this.sites.wake(nanoid);
 
-      if (alreadyRunning) {
-        this.workspaceReady.set(true);
-        this.workspaceProgress.set(undefined);
-
-        return;
-      }
+      if (!here()) return;
+      if (alreadyRunning) return this.previewStarted();
 
       // Two minutes, which is longer than a cold start has ever taken and short enough to stop rather than
       // spin for ever if the machine never arrives.
+      let lost: unknown;
+
       for (let attempt = 0; attempt < 60; attempt++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const site = await this.sites.load(nanoid);
+        if (!here()) return;
 
-        if (site.workspaceReady) {
-          this.workspaceReady.set(true);
-          this.workspaceProgress.set(undefined);
-          this.previewKey.update(key => key + 1);
+        // Webly going away while the machine starts — a restart, a deploy, somebody's train going into a tunnel —
+        // is waited out rather than reported. This loop used to stop at the first failed poll and put "Webly cannot
+        // be reached" over the editor, where it stayed long after Webly was back, above a preview still asleep.
+        const site = await this.sites.load(nanoid).catch((failure: unknown) => {
+          if (!unreachable(failure)) throw failure;
 
-          return;
+          lost = failure;
+
+          return undefined;
+        });
+
+        // A turn sent meanwhile says so itself, with `WorkspaceReady` — possibly while this request was out — and
+        // reloading the frame a second time for the same news is a flicker.
+        if (!here() || this.workspaceReady()) return;
+
+        if (!site) {
+          this.workspaceProgress.set('Reconnecting to Webly');
+          continue;
+        }
+
+        if (site.workspaceReady) return this.previewStarted();
+
+        // Back, and still not ready — so asked again. A restart takes whatever it was starting with it: the new
+        // process has no workspace for this site and nothing asking it for one, so polling alone would watch
+        // `workspaceReady` stay false for the rest of the two minutes. When it was only the connection that went,
+        // the start is still going and a second request waits on the registry's lock and finds it.
+        if (lost) {
+          lost = undefined;
+          this.workspaceProgress.set('Waking up your site');
+
+          const again = await this.sites.wake(nanoid);
+
+          if (!here()) return;
+          if (again.alreadyRunning) return this.previewStarted();
         }
       }
 
       this.workspaceProgress.set(undefined);
-      this.error.set('Your preview did not start. Try asking for a change instead.');
+      this.previewFailure.set(
+        lost ? messageOf(lost) : 'Your preview did not start. Try again, or ask for a change instead.');
     } catch (failure) {
+      if (!here()) return;
+
       this.workspaceProgress.set(undefined);
-      this.error.set(messageOf(failure));
+      this.previewFailure.set(messageOf(failure, 'Your preview did not start.'));
     }
   }
 
+  /**
+   * Somebody came back to this tab, so the site is read again: what another tab or device did meanwhile — a
+   * version, a publish it started, a sandbox the reaper closed — would otherwise stay invisible here until a reload.
+   * A publish going on elsewhere is joined, the way a reload joins one. A wake this page is running is left to
+   * finish, since it is already polling the same thing.
+   */
+  private async catchUp(): Promise<void> {
+    const nanoid = this.nanoid();
+
+    if (!nanoid || this.workspaceProgress()) return;
+
+    const site = await this.sites.load(nanoid).catch(() => undefined);
+
+    if (!site || this.nanoid() !== nanoid || this.workspaceProgress()) return;
+
+    // Only the change that matters to the frame: asleep to awake gets a fresh one, awake to asleep shows the
+    // sentence instead of a frame over a dev server that is gone.
+    if (site.workspaceReady !== this.workspaceReady()) {
+      this.workspaceReady.set(site.workspaceReady);
+
+      if (site.workspaceReady) this.previewKey.update(key => key + 1);
+    }
+
+    const active = site.activeDeploymentNanoid;
+
+    if (active && active !== this.deployment?.nanoid) await this.watchDeployment(nanoid, active, 'Publishing');
+  }
+
+  /** The end of a wake that worked: a new frame, at an address no earlier one has loaded. */
+  private previewStarted(): void {
+    this.workspaceReady.set(true);
+    this.workspaceProgress.set(undefined);
+    this.previewKey.update(key => key + 1);
+  }
+
   private async load(nanoid: string): Promise<void> {
+    void this.releaseDeployment();
+
     try {
       const site = await this.sites.load(nanoid);
+
+      // Somebody who clicks on to another site before this answers has asked a newer question.
+      if (this.nanoid() !== nanoid) return;
+
       this.workspaceReady.set(site.workspaceReady);
       this.workspaceProgress.set(undefined);
+      this.previewFailure.set(undefined);
+      this.justPublished.set(false);
+      this.previewFresh.set(false);
       this.previewKey.update(key => key + 1);
       this.error.set(undefined);
 
@@ -206,9 +350,9 @@ export class SiteEditorPage {
       // is still showing "loading your site", so there is no tab row to scroll.
       this.centreOpenTab();
 
-      if (site.activeDeploymentNanoid) await this.watchDeployment(site.activeDeploymentNanoid, 'Publishing');
+      if (site.activeDeploymentNanoid) await this.watchDeployment(nanoid, site.activeDeploymentNanoid, 'Publishing');
     } catch (failure) {
-      this.error.set(messageOf(failure));
+      if (this.nanoid() === nanoid) this.error.set(messageOf(failure));
     }
   }
 
@@ -224,7 +368,9 @@ export class SiteEditorPage {
    * The same two steps the chat takes for the same reason — start, then watch — which is why a reload can join
    * either one.
    */
-  private async watchDeployment(nanoid: string, status: string): Promise<void> {
+  private async watchDeployment(site: string, nanoid: string, status: string): Promise<void> {
+    if (this.nanoid() !== site) return;
+
     this.publishing.set(true);
 
     // "Queued" is the truth when this call is what just created the row, and a guess when it is a reload
@@ -232,9 +378,124 @@ export class SiteEditorPage {
     // cannot know. The first `DeploymentProgress` replaces it either way.
     this.publishStatus.set(status);
 
-    const events = await this.realtime.watch('Deploy', nanoid);
+    // Checked per event as well as after the wait, because the replay arrives *during* it.
+    let events: Subscription;
 
-    events.subscribe({ next: event => this.applyDeployEvent(event) });
+    try {
+      events = await this.realtime.watch('Deploy', nanoid, {
+        next: event => {
+          if (this.nanoid() !== site) return;
+
+          this.applyDeployEvent(event);
+
+          // Over, so let go of it, as the chat does. Kept, a finished run stayed watched for the life of the page,
+          // and the next hub reconnect — any restart of Webly — found it evicted, errored its stream and announced
+          // "Your site is live" again over a publish from an hour before.
+          if (event.type === 'Completed' || event.type === 'Failed') void this.realtime.unwatch(nanoid);
+        },
+        error: () => {
+          if (this.nanoid() === site) void this.rejoinDeployment();
+        },
+      });
+    } catch {
+      // Could not join it — Webly is restarting, or this is a publish queued just before a restart, whose run the
+      // new process registers only when its runner picks the row up. The publish is a row and carries on either
+      // way, so the button keeps saying so and the row is asked again shortly. This used to end the publish on
+      // screen: "Publish" under "Webly cannot be reached", over a build that went on and went live unwatched.
+      if (this.nanoid() === site) this.rejoinSoon(site);
+
+      return;
+    }
+
+    this.joinAttempts = 0;
+
+    // Left while the hub answered: the publish carries on, and coming back joins it again the way a reload does.
+    if (this.nanoid() !== site) {
+      events.unsubscribe();
+
+      return void this.realtime.unwatch(nanoid);
+    }
+
+    this.deployment?.events.unsubscribe();
+    this.deployment = { nanoid, events };
+  }
+
+  /** The publish this page is following, held so that leaving the site can let go of it. */
+  private deployment?: { nanoid: string; events: Subscription };
+
+  /**
+   * Stops following a publish, without stopping it — the chat's `detach`, for the same reason. The router reuses
+   * this component between sites, and nothing let go of the run: publish one site, click on to another, and the
+   * second site's Publish button read "Building…" for the first one's build and then told its owner "Your site is
+   * live" over a site nobody had published. Coming back joins it again through `activeDeploymentNanoid`.
+   */
+  private async releaseDeployment(): Promise<void> {
+    const deployment = this.deployment;
+
+    this.deployment = undefined;
+    this.joinAttempts = 0;
+    this.publishing.set(false);
+    this.publishStatus.set(undefined);
+    this.confirmingStarter.set(false);
+
+    if (deployment) {
+      deployment.events.unsubscribe();
+      await this.realtime.unwatch(deployment.nanoid);
+    }
+  }
+
+  /**
+   * The publish run went away while the connection was down — it finished and was evicted, or the server restarted
+   * under it. The deployment row is the durable record, so it is read: a publish still going is joined again, and
+   * one that ended says how, as it would have live. Without that last half the button simply went back to
+   * "Publish", which reads as a publish that worked.
+   */
+  private async rejoinDeployment(): Promise<void> {
+    const nanoid = this.nanoid();
+
+    this.deployment = undefined;
+
+    const site = await this.sites.load(nanoid).catch(() => undefined);
+
+    if (this.nanoid() !== nanoid) return;
+
+    // Still out of reach: the button goes on saying "Publishing…", which is the last thing known to be true.
+    if (!site) return this.rejoinSoon(nanoid);
+
+    if (site.activeDeploymentNanoid) return this.watchDeployment(nanoid, site.activeDeploymentNanoid, 'Publishing');
+
+    this.publishing.set(false);
+    this.publishStatus.set(undefined);
+
+    const [latest] = await this.deployments.list(nanoid).catch(() => []);
+
+    if (this.nanoid() !== nanoid) return;
+
+    if (latest?.status === 'Failed') this.error.set(latest.error ?? 'Publishing failed.');
+    if (latest?.status === 'Ready') this.justPublished.set(true);
+  }
+
+  /** How many times in a row joining the publish has failed. See `rejoinSoon`. */
+  private joinAttempts = 0;
+
+  /**
+   * Asks the deployment row again in a few seconds — for about two minutes, which is longer than any restart of
+   * Webly and short enough not to poll for ever behind a tab nobody is looking at. After that the button lets go
+   * and says so, and coming back to the tab or reloading it joins whatever is still going.
+   */
+  private rejoinSoon(site: string): void {
+    if (++this.joinAttempts > 40) {
+      this.joinAttempts = 0;
+      this.publishing.set(false);
+      this.publishStatus.set(undefined);
+      this.error.set('This page lost track of the publish. It may still be going — reload the page to see how it went.');
+
+      return;
+    }
+
+    setTimeout(() => {
+      if (this.nanoid() === site) void this.rejoinDeployment();
+    }, 3000);
   }
 
   /**
@@ -242,28 +503,65 @@ export class SiteEditorPage {
    * arrives as a `Deploy` run whose id is the deployment's nanoid — which is what lets a reloaded page
    * re-attach to a publish that is still going.
    */
-  protected async publish(): Promise<void> {
+  /** The site is about to go live for the first time as Webly's starter page. See `publish`. */
+  protected readonly confirmingStarter = signal(false);
+
+  /**
+   * Publishes — unless this would be the first publish of a site nothing has been written for, in which case it asks.
+   *
+   * A new site's pages speak to its owner ("tell Webly what this site is about, and this page will be rewritten for
+   * you"), because that is who reads them in the preview. Publish is in the header from the first second, so
+   * pressing it before describing the business put that sentence on the public web, at an address the owner may
+   * already have handed out. Asked rather than refused: publishing early is theirs to choose, and only the first
+   * time — after that the site has been seen by the world either way. "Nothing has been written" is no version from
+   * the assistant, read from the history only when it can matter.
+   */
+  protected async publish(confirmed = false): Promise<void> {
     const nanoid = this.nanoid();
 
     if (!nanoid || this.publishing()) {
       return;
     }
 
+    if (!confirmed && !this.site()?.summary.publishedAt) {
+      const versions = await this.sites.versions(nanoid).catch(() => []);
+
+      // A question about the site somebody has since left would be answered about the one they are on now.
+      if (this.nanoid() !== nanoid) return;
+
+      if (!versions.some(version => version.origin === 'Agent')) {
+        this.confirmingStarter.set(true);
+
+        return;
+      }
+    }
+
+    this.confirmingStarter.set(false);
+
     // Set before the request, not after it: the round trip is long enough for a second click, and `canPublish`
     // reads this. Two publishes are refused by the index anyway, but a button that stays pressable is how
     // somebody finds that out.
     this.publishing.set(true);
+    this.justPublished.set(false);
     this.error.set(undefined);
 
-    try {
-      const deployment = await this.deployments.publish(nanoid);
+    let deployment: DeploymentResponse;
 
-      await this.watchDeployment(deployment.nanoid, 'Queued');
+    // Only a failure to *start* it is an error here. Once the row exists the publish is happening, and failing to
+    // follow it is `watchDeployment`'s to recover from rather than a reason to say it did not happen.
+    try {
+      deployment = await this.deployments.publish(nanoid);
     } catch (failure) {
+      if (this.nanoid() !== nanoid) return;
+
       this.error.set(messageOf(failure));
       this.publishing.set(false);
       this.publishStatus.set(undefined);
+
+      return;
     }
+
+    await this.watchDeployment(nanoid, deployment.nanoid, 'Queued');
   }
 
   private applyDeployEvent(event: RunEvent): void {
@@ -274,7 +572,8 @@ export class SiteEditorPage {
 
       case 'Completed':
         this.publishing.set(false);
-        this.publishStatus.set('Live');
+        this.publishStatus.set(undefined);
+        this.justPublished.set(true);
         void this.sites.reload();
         break;
 
