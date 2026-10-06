@@ -88,6 +88,12 @@ public class DomainController(
             Title = "That domain is already connected to a site.",
             Detail = "If it is one of yours, remove it there first."
         }),
+        DomainError.Reserved => BadRequest(new ProblemDetails
+        {
+            Title = "That address is one of Webly's.",
+            Detail = "Webly gives every site one of those, and this site's is at the top of this page. "
+                + "Connect a domain you have registered yourself, like example.com."
+        }),
         DomainError.NotVerified => Conflict(new ProblemDetails
         {
             Title = "A domain has to be verified before it can be your main address.",

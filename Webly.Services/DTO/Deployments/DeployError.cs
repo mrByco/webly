@@ -12,12 +12,9 @@ public enum DeployError
     /// This deployment of Webly has no hosting credentials, so nothing can be published from it. A configuration state,
     /// not a failure of the request — the same "absent rather than broken" rule as the editor agent.
     /// </summary>
-    PublishingUnavailable,
+    PublishingUnavailable
 
-    /// <summary>
-    /// The site does not build. Discovered by the runner rather than here — the build is the gate, and it takes
-    /// minutes — so a publish reaches this only through a failed <c>Deployment</c> row, never as the answer to
-    /// the request.
-    /// </summary>
-    BuildFailed
+    // There is no "does not build": the build is the gate and it takes minutes, so it is found by the runner and
+    // reported through a failed `Deployment` row and its run's `Failed` event, never as the answer to this request.
+    // A `BuildFailed` value sat here for that with a sentence mapped to it, and nothing could ever produce it.
 }

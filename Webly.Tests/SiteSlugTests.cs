@@ -50,6 +50,7 @@ public class HostnameTests
     public void A_trailing_dot_and_case_are_normalized()
     {
         Assert.That(Hostname.TryNormalize("Shop.Example.COM."), Is.EqualTo("shop.example.com"));
+        Assert.That(Hostname.TryNormalize("https://Shop.Example.COM./"), Is.EqualTo("shop.example.com"), "inside a URL too");
     }
 
     /// <summary>

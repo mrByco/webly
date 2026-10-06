@@ -24,4 +24,15 @@ public class SitesOptions
 
     /// <summary>The URL a site is reachable at on its Webly subdomain, once that subdomain is arranged.</summary>
     public string UrlFor(string slug) => $"https://{HostFor(slug)}";
+
+    /// <summary>
+    /// Whether a normalized hostname is <see cref="BaseDomain"/> or anything under it — the zone Webly gives out, one
+    /// address per site. Matched on a label boundary, so <c>notwebly.site</c> is somebody else's domain and not ours.
+    /// </summary>
+    public bool IsInZone(string hostname)
+    {
+        var zone = BaseDomain.Trim().TrimEnd('.').ToLowerInvariant();
+
+        return hostname == zone || hostname.EndsWith($".{zone}", StringComparison.Ordinal);
+    }
 }

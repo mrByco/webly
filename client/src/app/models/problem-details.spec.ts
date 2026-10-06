@@ -9,6 +9,16 @@ describe('messageOf', () => {
     expect(messageOf({ error: { title: 'That site could not be found.' } })).toBe('That site could not be found.');
   });
 
+  // The detail is usually the half that says what to do, and it used to be dropped.
+  it('says the detail after the title', () => {
+    const problem = { title: 'That domain is already connected to a site.', detail: 'If it is one of yours, remove it there first.' };
+
+    expect(messageOf({ error: problem }))
+      .toBe('That domain is already connected to a site. If it is one of yours, remove it there first.');
+    expect(messageOf({ error: JSON.stringify(problem) }))
+      .toBe('That domain is already connected to a site. If it is one of yours, remove it there first.');
+  });
+
   // The generated client asks for `responseType: 'text'` on every endpoint that answers 204, so a failure from
   // one of those hands the body back as a string.
   it('reads a ProblemDetails body that arrived as text', () => {

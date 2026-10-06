@@ -18,13 +18,30 @@ export function messageOf(error: unknown, fallback = 'That could not be saved.')
 
   if (typeof body === 'string') {
     try {
-      return (JSON.parse(body) as { title?: string }).title ?? fallback;
+      return sentenceOf(JSON.parse(body)) ?? fallback;
     } catch {
       return fallback;
     }
   }
 
-  return (body as { title?: string })?.title ?? hubMessageOf(error) ?? fallback;
+  return sentenceOf(body) ?? hubMessageOf(error) ?? fallback;
+}
+
+/**
+ * The title, and the detail after it when there is one.
+ *
+ * The API writes both for whoever is reading — "That domain is already connected to a site." and then "If it is one
+ * of yours, remove it there first." — and the second half is usually the one that says what to do. Only the first
+ * ever reached a screen: every `Detail` in the controllers, from "Enter it without https://" to "Delete one you no
+ * longer need to make room for another", was written, sent, and dropped here. Nothing technical is ever put in a
+ * detail — the one place that could have, git's stderr, deliberately is not — so all of it is for people.
+ */
+function sentenceOf(problem: unknown): string | undefined {
+  const { title, detail } = (problem ?? {}) as { title?: unknown; detail?: unknown };
+
+  if (typeof title !== 'string' || !title) return undefined;
+
+  return typeof detail === 'string' && detail ? `${title} ${detail}` : title;
 }
 
 /**

@@ -12,7 +12,7 @@ public static class Hostname
     /// <summary>The normalized hostname, or null when the input is not one at all.</summary>
     public static string? TryNormalize(string input)
     {
-        var text = input.Trim().ToLowerInvariant().TrimEnd('.');
+        var text = input.Trim().ToLowerInvariant();
 
         // A pasted URL is the common case, not an error worth refusing.
         if (text.StartsWith("http://", StringComparison.Ordinal) || text.StartsWith("https://", StringComparison.Ordinal))
@@ -22,7 +22,9 @@ public static class Hostname
             text = uri.Host;
         }
 
-        text = text.Split('/')[0];
+        // The trailing dot after the host is taken off, rather than off the input: inside a pasted URL the input ends
+        // in a slash, so trimming first left `https://example.com./` with an empty last label and refused it.
+        text = text.Split('/')[0].TrimEnd('.');
 
         if (text.Length is 0 or > 253 || text.Contains(' ') || text.Contains('@') || !text.Contains('.'))
             return null;

@@ -1429,6 +1429,17 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     its field on the API and the generated client's two `JsonNode` models; the entity now says what a reloaded
     thread is instead — the reply and a link to its version.
 
+101. **Anybody could connect another site's Webly address to their own.** The domains screen refused nothing
+    under `webly.site`: the uniqueness check only knows the `Domain` table, and a site's own subdomain is arranged
+    by the publish, not stored there. In production every site is in one provider account whose zone already
+    points at it, so `brightwater-florist.webly.site` attached to Ridgeway would have been served at once — a slug
+    squatted before its owner signs up, or the zone itself claimed. Refused now, with the app's own host, and
+    walked: the zone in any spelling is refused, `notwebly.site` is not. **And the screen had never said why
+    anything was refused** — `messageOf` read the title and dropped every `Detail` the API writes, so "That does
+    not look like a domain name." arrived without "Enter it without https://…". It says both now. Two smaller
+    things on the way: a trailing dot inside a pasted URL (`https://example.com./`) was refused, and a
+    `DeployError.BuildFailed` with its own sentence existed that nothing could produce.
+
 
 ## What is still intent
 

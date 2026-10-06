@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 231-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 243-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -1058,6 +1058,13 @@ has two lines — the model and the machine — and "what does this site cost us
   flag it disagrees with is a site that is live according to us and 404 according to the internet. Checking
   is a button, never a timer. Exactly one primary hostname per site, by partial unique index; only a
   verified domain may be promoted.
+- **Webly's own addresses cannot be connected** — `{BaseDomain}` and anything under it, and the app's own host
+  (`SitesOptions.IsInZone`, `AppOptions.IsOwnHost`). Every site lives in one provider account whose zone already
+  points there, so attaching `brightwater-florist.webly.site` to somebody else's site would have been served at
+  once: a slug nobody had taken yet squatted before its owner arrived, someone's address contested, or the zone
+  itself claimed. Nothing refused it, because the uniqueness check only knows the `Domain` table and a site's own
+  subdomain is arranged by the publish rather than stored there. One answer for all of it, so it says nothing
+  about which addresses other customers have.
 - **And the main address can be disconnected**, which reverses an earlier rule. Removing it used to be
   refused with "make another domain the main one first" — impossible advice for somebody with one domain,
   which is everybody who has ever connected one, and unreachable advice as well, because the client hid the
@@ -1502,7 +1509,10 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   content is evaluated by the parent whether shown or not, so their templates were already null-safe.
 - `models/problem-details.ts` holds the one `messageOf`. The generated client asks for
   `responseType: 'text'` on endpoints that answer 204, so a failure from one of those hands back the problem
-  body as a *string* — reading only `error.title` there silently shows the generic message.
+  body as a *string* — reading only `error.title` there silently shows the generic message. **It says the
+  `detail` after the title**, which it did not: every `Detail` the controllers write — "Enter it without
+  https://", "If it is one of yours, remove it there first", "Delete one you no longer need" — is the half that
+  says what to do, and all of it was dropped here. So a `Detail` is for people, and nothing technical goes in one.
 
 ## Deployment
 
