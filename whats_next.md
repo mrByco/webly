@@ -1558,6 +1558,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     rather than queued in the pool. Three hundred signed-in site lists at once reproduced it — two 500s, every
     time. `ConnectionPool` caps the pool at fifty unless the connection string chooses a size; the same bursts,
     three in a row, answered nine hundred 200s, and about a third faster.
+118. **An account allowed three sites could have twenty.** `CreateSite` counted the owner's sites and then spent a
+    second on git before inserting, so twenty creations sent at once all read "none yet": twenty sites, twenty
+    repositories, twenty subdomains claimed — which makes the limit a way to squat every business name anybody
+    might want, a burst at a time. It now takes a transaction-scoped advisory lock on the owner before counting and
+    holds it to the insert; the same burst made three and refused seventeen. The two saves are one transaction as
+    a side effect, so a failure between them can no longer leave a row with no head. `SiteLimitTests` is the first
+    test of the limit at all, and its burst is red without the lock. CLAUDE.md said `CreateSite` saved the row
+    first; it has written the repository first for a long time, and says so now.
 
 
 ## What is still intent

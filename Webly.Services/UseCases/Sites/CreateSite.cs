@@ -53,6 +53,14 @@ public class CreateSite(
         if (name.Length is 0 or > 80)
             return Result<SiteError, SiteSummaryResponse>.Fail(SiteError.InvalidName);
 
+        // One creation per owner at a time, from the count to the insert. The limit is a count, and a count is a
+        // limit only if nobody can add a site between reading it and writing past it: twenty creations sent at once
+        // each read "none yet" and each made a site — twenty sites, and twenty subdomains claimed, on an account
+        // allowed three. The repository's git work sits inside the lock, which is the cost: one person's creations
+        // queue behind each other for the second or so each takes, and nobody else's notice.
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await siteRepository.LockOwnerAsync(userId, cancellationToken);
+
         if (await siteRepository.CountForOwnerAsync(userId, cancellationToken) >= sites.Value.MaxSitesPerUser)
             return Result<SiteError, SiteSummaryResponse>.Fail(SiteError.LimitReached);
 
@@ -124,6 +132,7 @@ public class CreateSite(
             user.CurrentSiteId = site.Id;
 
             await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch
         {

@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 266-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 268-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -497,10 +497,17 @@ neither. Collaboration, when it lands, is a membership table plus one clause ins
   sixteenth caller honest: it drives every route under a site as a second account and fails on anything that is
   not a 404. The one deliberate exception is `chat/status`, which never looks at the site — it says whether this
   deployment has an agent — and the test proves that by checking an invented nanoid gets the same answer.
-- **A site never exists without a version.** `CreateSite` writes the row, initializes the bare repository
-  from the template, commits it, and points `HeadVersionId` at that commit — so no code anywhere else has to
-  handle a site with no source. It saves the row first, because the repository is keyed by the nanoid the
-  context stamps on insert.
+- **A site never exists without a version.** `CreateSite` initializes the bare repository from the template and
+  commits it **before** writing anything to the database — the nanoid it is named after is generated in the use
+  case rather than stamped on insert — and then writes the row and its first version and points `HeadVersionId` at
+  it, in one transaction. A failed repository step leaves nothing; a failed database step leaves a directory
+  nothing can reach, which is deleted on the way out. No code anywhere else has to handle a site with no source.
+- **The site limit holds because creating is serialized per owner.** It is a count, and twenty creations sent at
+  once each read "none yet" and made a site — twenty sites, and twenty subdomains nobody else could then have, on
+  an account allowed three. `CreateSite` takes `ISiteRepository.LockOwnerAsync`, a transaction-scoped advisory lock
+  on the owner, before counting, and holds it through the git work to the insert: one person's creations queue,
+  and nobody else's notice. Advisory lock classes live together in `AdvisoryLocks`, because all they need is to
+  differ, and two private constants in two files cannot see each other.
 - **`User.CurrentSiteId` is which site the editor opens on**, the reference project's `CurrentFamilyId` in
   the same role. Read it **before** deleting anything: the FK nulls it on cascade, so a check afterwards
   can no longer tell "was looking at this site" from "was looking at nothing". Its successor when that site

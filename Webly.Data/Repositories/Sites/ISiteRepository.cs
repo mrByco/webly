@@ -40,6 +40,14 @@ public interface ISiteRepository
 
     Task<int> CountForOwnerAsync(int userId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Takes a Postgres advisory lock on one owner's set of sites, held until the caller's transaction ends — so the
+    /// caller must have begun one, and this refuses to run outside it, where the lock would be released the moment
+    /// it was taken. It is what makes counting an owner's sites and adding one a single step: see
+    /// <c>CreateSite</c>.
+    /// </summary>
+    Task LockOwnerAsync(int ownerId, CancellationToken cancellationToken = default);
+
     /// <summary>Whether a slug is already taken. Checked before insert so the person gets a sentence
     /// rather than a unique-violation, with the index behind it as the real guarantee.</summary>
     Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken = default);
