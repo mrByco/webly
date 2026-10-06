@@ -60,7 +60,7 @@ public class WeblyOwnedFileTests : PostgresTestBase
     [TearDown]
     public void DeleteRoot()
     {
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        DirectoryRemoval.Delete(_root);
     }
 
     [Test]

@@ -52,6 +52,9 @@ public class MeteredSandboxProvider(
         public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) =>
             inner.ReadTreeAsync(cancellationToken);
 
+        public Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default) =>
+            inner.ReadBuildOutputAsync(directory, cancellationToken);
+
         public Task<SandboxCommandResult> RunAsync(
             SandboxCommand command,
             Func<SandboxOutput, Task>? onOutput = null,

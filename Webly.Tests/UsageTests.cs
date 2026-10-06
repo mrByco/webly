@@ -208,6 +208,7 @@ public class UsageTests : PostgresTestBase
         public string AgentToken => string.Empty;
         public Task WriteTreeAsync(WorkspaceTree tree, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) => Task.FromResult(new WorkspaceTree([]));
+        public Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default) => Task.FromResult<WorkspaceTree?>(null);
         public Task<SandboxCommandResult> RunAsync(SandboxCommand command, Func<SandboxOutput, Task>? onOutput = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new SandboxCommandResult(0, string.Empty));
         public Task StartDevServerAsync(string basePath, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default) => Task.CompletedTask;

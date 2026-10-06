@@ -238,7 +238,7 @@ public class GitSiteRepositoryStore(
     {
         var path = PathFor(siteNanoid);
 
-        if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        DirectoryRemoval.Delete(path);
 
         return Task.CompletedTask;
     }

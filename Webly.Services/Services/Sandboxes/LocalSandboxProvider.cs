@@ -352,12 +352,31 @@ public class LocalSandboxProvider(
     private async Task<bool> EnsureConfinementAsync()
     {
         if (string.Equals(_local.Confinement, LocalSandboxOptions.NoConfinement, StringComparison.OrdinalIgnoreCase))
+        {
+            // Every time a sandbox starts, not once: this is the line somebody reading the log after a surprise needs
+            // to find next to the turn that caused it.
+            logger.LogWarning(
+                "The local sandbox is unconfined (Sandbox:Local:Confinement = none): the agent can read and write "
+                + "everything this user can, and reach any host.");
+
             return false;
+        }
 
         if (!string.Equals(_local.Confinement, LocalSandboxOptions.BubblewrapConfinement, StringComparison.OrdinalIgnoreCase))
             throw new SandboxException(
                 "The local sandbox is misconfigured.",
                 $"Sandbox:Local:Confinement is '{_local.Confinement}'; it must be 'bubblewrap' or 'none'.");
+
+        // Windows has no bubblewrap and nothing that does its job, so there is no install to suggest — only the two
+        // real choices. Refused rather than quietly run unconfined, for the same reason as everywhere else: a coding
+        // agent with a shell on a developer's machine is a decision, not a default.
+        if (OperatingSystem.IsWindows())
+            throw new SandboxException(
+                "Editing a site needs a sandbox this machine cannot make.",
+                "The local provider confines the agent with bubblewrap, which is Linux-only. On Windows, set "
+                + "Sandbox:Provider to 'docker' (confined; build the sandbox image first), or set "
+                + "Sandbox:Local:Confinement to 'none' to run the agent unconfined, with access to everything this "
+                + "user can read.");
 
         var works = await (_confinement ??= ProbeBubblewrapAsync());
 

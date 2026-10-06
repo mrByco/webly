@@ -46,11 +46,12 @@ if (!site) {
  * The two Webly cookies out of a curl jar, in one header.
  *
  * The `#HttpOnly_` prefix is stripped before anything else looks at the line, because both of Webly's cookies
- * carry it and a jar parser that treats `#` as a comment therefore finds nothing at all.
+ * carry it and a jar parser that treats `#` as a comment therefore finds nothing at all. Lines are split on CRLF
+ * too: curl on Windows writes one, and a `\r` left on the last value is a header `fetch` refuses outright.
  */
 function cookieHeader(file) {
     return readFileSync(file, 'utf8')
-        .split('\n')
+        .split(/\r?\n/)
         .map(line => line.replace(/^#HttpOnly_/, ''))
         .filter(line => line && !line.startsWith('#'))
         .map(line => line.split('\t'))

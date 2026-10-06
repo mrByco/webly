@@ -11,6 +11,13 @@ node tools/e2e/run.mjs --agent mock --confine     # the sandbox under bubblewrap
 Needs node and git. Does **not** need .NET, Docker, Postgres, a model key or a hosting account — except
 `--agent claude`, which needs the `claude` CLI on PATH and credentials for it.
 
+**On Windows** it runs as it is — all twenty steps — through `tools/sandbox-agent/processes.js`; `--confine` is
+Linux-only. `npm ci` in `templates/next-site` first, because step 4 stands that `node_modules` in for the image's.
+`turn.mjs` and `screens.mjs` talk to `https://localhost:5000`, and Node does not read the Windows certificate
+store, so run them as `node --use-system-ca …`. `screens.mjs` drives the Edge every Windows machine has:
+`PLAYWRIGHT_BROWSER="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"`, with `NODE_PATH` pointing at
+a global `playwright-core`.
+
 ## screens.mjs — every screen, in a browser
 
 ```

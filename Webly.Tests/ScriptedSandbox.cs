@@ -30,6 +30,7 @@ internal sealed class ScriptedSandbox(int exitCode, params string[] stdout) : IS
 
     public Task WriteTreeAsync(WorkspaceTree tree, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task StartDevServerAsync(string basePath, IReadOnlyDictionary<string, string>? environment = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task TouchPreviewAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task<DevServerLog> ReadDevServerLogAsync(long since = 0, CancellationToken cancellationToken = default) => throw new NotSupportedException();

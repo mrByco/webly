@@ -105,4 +105,36 @@ public class OpenCodeJsonParserTests
             Assert.That(parser.SessionId, Is.EqualTo(Lines[0]["sessionID"]!.GetValue<string>()));
         });
     }
+
+    /// <summary>
+    /// A local sandbox on Windows hands paths over with backslashes — the sandbox agent has already taken the
+    /// workspace off the front — and the chat read "wrote src\app\page.tsx" beside every other site's forward
+    /// slashes. A repository path can never contain a backslash, so turning them round cannot change a real one.
+    /// </summary>
+    [Test]
+    public async Task A_path_reported_with_backslashes_reaches_the_chat_with_forward_slashes()
+    {
+        var events = new List<CodingAgentEvent>();
+        var parser = new OpenCodeJsonParser("openai/gpt-5.5", @event =>
+        {
+            events.Add(@event);
+            return Task.CompletedTask;
+        }, NullLogger.Instance);
+
+        var line = new JsonObject
+        {
+            ["type"] = "tool_use",
+            ["part"] = new JsonObject
+            {
+                ["tool"] = "write",
+                ["state"] = new JsonObject { ["input"] = new JsonObject { ["filePath"] = @"src\app\page.tsx" } }
+            }
+        };
+
+        await parser.HandleAsync(new SandboxOutput(IsError: false, line.ToJsonString() + "\n"));
+
+        Assert.That(
+            events.OfType<CodingAgentEvent.FileChanged>().Select(x => x.Path),
+            Is.EqualTo(new[] { "src/app/page.tsx" }));
+    }
 }

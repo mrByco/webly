@@ -19,6 +19,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findBrowser } from './browser.js';
+import { killTree } from './processes.js';
 
 const VIEWPORTS = {
   desktop: { width: 1280, height: 800, mobile: false },
@@ -60,7 +61,8 @@ const browser = spawn(browserPath, [
 async function finish(code) {
   if (browser.exitCode === null && browser.signalCode === null) {
     const exited = new Promise(resolve => browser.once('exit', resolve));
-    browser.kill('SIGKILL');
+    // The tree: on Windows Chrome and Edge are a parent and its renderers, and only the parent dies of a plain kill.
+    killTree(browser);
     await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5_000))]);
   }
 

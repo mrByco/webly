@@ -77,6 +77,23 @@ public sealed class SandboxAgentClient(
         using var response = await SendAsync(HttpMethod.Get, "files", null, cancellationToken);
         await EnsureOkAsync(response, "reading the workspace", cancellationToken);
 
+        return await ReadArchiveAsync(response, cancellationToken);
+    }
+
+    public async Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            HttpMethod.Get, $"files?dir={Uri.EscapeDataString(directory)}", null, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+
+        await EnsureOkAsync(response, $"reading {directory}/", cancellationToken);
+
+        return await ReadArchiveAsync(response, cancellationToken);
+    }
+
+    private static async Task<WorkspaceTree> ReadArchiveAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var gzip = new GZipStream(stream, CompressionMode.Decompress);
         await using var reader = new TarReader(gzip);

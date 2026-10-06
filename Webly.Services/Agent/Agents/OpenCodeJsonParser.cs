@@ -195,6 +195,10 @@ internal sealed class OpenCodeJsonParser(string model, Func<CodingAgentEvent, Ta
 
     private static string Relative(string path)
     {
+        // Forward slashes, always: a local sandbox on Windows reports `src\app\page.tsx`, and a repository path can
+        // never contain a backslash (GitSiteRepositoryStore refuses one), so this cannot change a real path.
+        path = path.Replace('\\', '/');
+
         var index = path.IndexOf(WorkspacePrefix, StringComparison.Ordinal);
 
         return index >= 0 ? path[(index + WorkspacePrefix.Length)..] : path.TrimStart('/');

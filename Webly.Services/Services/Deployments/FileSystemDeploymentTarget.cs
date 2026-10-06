@@ -113,67 +113,47 @@ public class FileSystemDeploymentTarget(
     }
 
     /// <summary>
-    /// Copies the static export out of the sandbox.
+    /// Copies the static export out of the sandbox and writes it under <paramref name="target"/>.
     ///
-    /// Through a base64'd tar over <c>/exec</c> rather than the tree-reading contract, for one reason: the
-    /// sandbox agent's ignore list excludes build output on the way out, and it should — a built site must
-    /// never be able to travel back into somebody's git history. So the build's own directory is fetched
-    /// explicitly, which is also a reminder that these bytes are an artefact and not a version.
+    /// Through <see cref="ISandbox.ReadBuildOutputAsync"/> rather than the tree-reading contract, for one reason:
+    /// the sandbox agent's ignore list excludes build output on the way out, and it should — a built site must
+    /// never be able to travel back into somebody's git history. So the build's own directory is fetched by name,
+    /// which is also a reminder that these bytes are an artefact and not a version.
     ///
-    /// Base64 because <c>/exec</c> streams JSON strings and raw archive bytes would not survive that. It costs
-    /// a third more bytes over a loopback connection, in a development-only path.
+    /// It used to be <c>sh -c "test -d out &amp;&amp; tar -c -z -C out . | base64"</c> over <c>/exec</c>, unpacked
+    /// here by the <c>tar</c> binary. That assumed a POSIX shell inside the sandbox and a <c>tar</c> on this machine
+    /// that reads a Windows path — and on a Windows developer's machine neither held: Git's GNU tar, which is
+    /// usually first on PATH there, reads <c>C:\…</c> as a host called <c>C</c>.
     ///
-    /// Plain <c>base64</c> with no <c>-w</c>: that flag is GNU coreutils', and the local provider's "sandbox" is
-    /// whatever machine the developer is on. The wrapping it produces is stripped here instead.
+    /// <b>The paths are untrusted input</b>, as every tree from a sandbox is: each one is resolved and checked to
+    /// land inside the target before anything is written.
     /// </summary>
-    private async Task CopyOutputAsync(ISandbox sandbox, string target, CancellationToken cancellationToken)
+    private static async Task CopyOutputAsync(ISandbox sandbox, string target, CancellationToken cancellationToken)
     {
-        var packed = await sandbox.RunAsync(
-            new SandboxCommand("sh", ["-c", "test -d out && tar -c -z -C out . | base64"],
-                TimeSpan.FromMinutes(2)),
-            cancellationToken: cancellationToken);
+        var output = await sandbox.ReadBuildOutputAsync("out", cancellationToken);
 
-        if (!packed.Succeeded || packed.Output.Trim().Length == 0)
+        if (output is null || output.Files.Count == 0)
             throw new DeploymentFailedException(
                 "The build produced nothing to publish.",
-                $"No out/ directory after a successful build. Is next.config.ts still output: 'export'? {Tail(packed.Output)}");
+                "No out/ directory after a successful build. Is next.config.ts still output: 'export'?");
 
         if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
         Directory.CreateDirectory(target);
 
-        var archive = Path.Combine(Path.GetTempPath(), $"webly-publish-{Guid.NewGuid():N}.tgz");
+        var root = Path.GetFullPath(target) + Path.DirectorySeparatorChar;
 
-        try
+        foreach (var file in output.Files)
         {
-            var encoded = string.Concat(packed.Output.Where(character => !char.IsWhiteSpace(character)));
+            var path = Path.GetFullPath(Path.Combine(root, file.Path));
 
-            await File.WriteAllBytesAsync(archive, Convert.FromBase64String(encoded), cancellationToken);
-            await ExtractAsync(archive, target, cancellationToken);
+            if (!path.StartsWith(root, StringComparison.Ordinal))
+                throw new DeploymentFailedException(
+                    "Publishing could not unpack the build.",
+                    $"The build output named a file outside its own directory: {file.Path}");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllBytesAsync(path, file.Content, cancellationToken);
         }
-        finally
-        {
-            File.Delete(archive);
-        }
-    }
-
-    private static async Task ExtractAsync(string archive, string target, CancellationToken cancellationToken)
-    {
-        var startInfo = new System.Diagnostics.ProcessStartInfo("tar")
-        {
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        foreach (var argument in new[] { "-x", "-z", "-f", archive, "-C", target }) startInfo.ArgumentList.Add(argument);
-
-        using var process = System.Diagnostics.Process.Start(startInfo)
-            ?? throw new DeploymentFailedException("Publishing could not unpack the build.");
-
-        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-            throw new DeploymentFailedException("Publishing could not unpack the build.", error);
     }
 
     /// <summary>Pending, with a record that says what it is. See the class comment on simulated domains.</summary>
@@ -240,6 +220,4 @@ public class FileSystemDeploymentTarget(
     /// </summary>
     private static string DirectoryFor(string projectId) =>
         projectId.StartsWith("local-", StringComparison.Ordinal) ? projectId["local-".Length..] : projectId;
-
-    private static string Tail(string output) => output.Length <= 2000 ? output : output[^2000..];
 }

@@ -32,10 +32,10 @@
 // Not installed is not broken: without the server or a browser this says why on stderr and exits, the CLI reports
 // the server as failed, and the agent still has `webly-screenshot`.
 
-import { spawn } from 'node:child_process';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { findBrowser, which } from './browser.js';
+import { run } from './processes.js';
 
 const WITHHELD = new Set(['browser_run_code_unsafe']);
 
@@ -49,7 +49,8 @@ const browser = findBrowser() ?? unavailable('there is no browser in this sandbo
 const site = (process.env.WEBLY_DEV_URL ?? '').replace(/\/+$/, '') || unavailable('the dev server address is not known');
 const output = join(process.env.WEBLY_WORKSPACE || process.cwd(), '.webly', 'browser');
 
-const child = spawn(server, [
+// `run`, not `spawn`: on Windows `playwright-mcp` is an npm wrapper (`playwright-mcp.cmd`) that spawn cannot start.
+const child = run(server, [
   '--headless', '--browser', 'chromium', '--executable-path', browser, '--no-sandbox', '--isolated',
   '--output-dir', output,
 ], { stdio: ['pipe', 'pipe', 'inherit'] });

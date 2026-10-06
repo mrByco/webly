@@ -9,6 +9,7 @@
 //   GET  /health                      → { ok, devServer, node }
 //   POST /files            (tar body) → extract into the workspace, replacing it
 //   GET  /files                       → tar of the workspace, minus the ignored paths
+//   GET  /files?dir=out               → tar of one build-output directory, whole
 //   POST /exec             (json)     → run a command, streaming NDJSON lines back as it goes
 //   POST /dev/start        (json)     → start the dev server (once)
 //   ANY  /preview/*                   → proxy to the dev server, WebSockets included
@@ -19,9 +20,10 @@
 
 import { createServer, request as httpRequest } from 'node:http';
 import { connect, createServer as createNetServer } from 'node:net';
-import { spawn } from 'node:child_process';
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { killTree, run, tarCommand, withPath } from './processes.js';
 
 const PORT = Number(process.env.WEBLY_AGENT_PORT ?? 8080);
 const TOKEN = process.env.WEBLY_AGENT_TOKEN ?? '';
@@ -51,6 +53,15 @@ const DEV_PIDFILE = process.env.WEBLY_DEV_PIDFILE ?? '';
 const INHERITED_ENV = (() => {
   const { WEBLY_AGENT_TOKEN: _token, ...rest } = process.env;
 
+  // On Windows the variable is usually spelled `Path`, and a copy of the environment is an ordinary object: setting
+  // `PATH` beside it would hand every command two, and which one wins is the operating system's choice. One spelling.
+  const pathKey = Object.keys(rest).find(key => key.toUpperCase() === 'PATH');
+
+  if (pathKey && pathKey !== 'PATH') {
+    rest.PATH = rest[pathKey];
+    delete rest[pathKey];
+  }
+
   return rest;
 })();
 
@@ -68,7 +79,7 @@ function environmentFor(directory, env) {
   return {
     ...INHERITED_ENV,
     ...egressEnv,
-    PATH: `${TOOLS}:${INHERITED_ENV.PATH ?? ''}`,
+    PATH: withPath(TOOLS, INHERITED_ENV.PATH ?? ''),
     // Where the site is being served, for `webly-screenshot` and anything else that wants to look at it.
     WEBLY_DEV_URL: `http://127.0.0.1:${DEV_PORT}${devBasePath}`,
     ...env,
@@ -202,7 +213,22 @@ function readJson(request) {
 function relative(text) {
   // The agent's own home first, which sits beside the workspace and shares its prefix: without this, a screenshot
   // saved at `<workspace>.home/screenshots/x.png` reads as `..home/screenshots/x.png`.
-  return text.split(`${WORKSPACE}.home`).join('~').split(`${WORKSPACE}/`).join('').split(WORKSPACE).join('.');
+  //
+  // Three spellings on Windows, where tools disagree: node and npm print `C:\…\src\app`, Next prints forward slashes,
+  // and an agent CLI's JSON events print `C:\\…\\src\\app` — the same path with every backslash escaped, which is the
+  // one that reached the chat as "wrote C:\Users\…\page.tsx" on the first OpenCode turn that used absolute paths.
+  const roots = sep === '\\'
+    ? [[WORKSPACE.replaceAll('\\', '\\\\'), '\\\\'], [WORKSPACE, '\\'], [WORKSPACE.replaceAll('\\', '/'), '/']]
+    : [[WORKSPACE, '/']];
+
+  for (const [root, separator] of roots) {
+    text = text.split(`${root}.home`).join('~');
+    text = text.split(`${root}${separator}`).join('');
+    if (separator !== '/') text = text.split(`${root}/`).join('');
+    text = text.split(root).join('.');
+  }
+
+  return text;
 }
 
 /**
@@ -216,15 +242,24 @@ function relative(text) {
 function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd }) {
   response.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-cache' });
 
-  const directory = cwd ? `${WORKSPACE}/${cwd}` : WORKSPACE;
-
-  const child = spawn(command, args, {
-    cwd: directory,
-    env: environmentFor(directory, env),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
+  const directory = cwd ? join(WORKSPACE, cwd) : WORKSPACE;
   const write = (type, text) => response.write(`${JSON.stringify({ type, text: relative(text) })}\n`);
+
+  let child;
+
+  try {
+    child = run(command, args, {
+      cwd: directory,
+      env: environmentFor(directory, env),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    // A command this platform cannot start as asked — see processes.js. Reported the way a missing program is.
+    write('stderr', `${command}: ${error.message}\n`);
+    return response.end(`${JSON.stringify({ type: 'exit', code: 127 })}\n`);
+  }
+
+  let finished = false;
 
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
@@ -233,15 +268,19 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
 
   // A kill rather than a hang: an agent CLI that wedges would otherwise hold a paid sandbox open until
   // the reaper notices, and the caller would be waiting on a stream that never ends.
-  const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+  //
+  // The whole tree, because the command is usually a launcher: `npm run typecheck` is npm, then tsc.
+  const timer = setTimeout(() => killTree(child), timeoutMs);
 
   child.on('error', error => {
+    finished = true;
     clearTimeout(timer);
     write('stderr', `${command}: ${error.message}\n`);
     response.end(`${JSON.stringify({ type: 'exit', code: 127 })}\n`);
   });
 
   child.on('close', code => {
+    finished = true;
     clearTimeout(timer);
     response.end(`${JSON.stringify({ type: 'exit', code: code ?? -1 })}\n`);
   });
@@ -249,7 +288,7 @@ function exec(response, { command, args = [], env = {}, timeoutMs = 600_000, cwd
   // The caller gave up (a cancelled turn). Kill the command rather than leaking a process into a sandbox
   // that will be reused for the next turn.
   response.on('close', () => {
-    if (!child.killed) child.kill('SIGKILL');
+    if (!finished) killTree(child);
   });
 }
 
@@ -282,13 +321,13 @@ function extractTar(request, response) {
   try {
     for (const entry of readdirSync(WORKSPACE)) {
       if (PRESERVED.includes(entry)) continue;
-      rmSync(`${WORKSPACE}/${entry}`, { recursive: true, force: true });
+      rmSync(join(WORKSPACE, entry), { recursive: true, force: true });
     }
   } catch (error) {
     return json(response, 500, { ok: false, error: `could not clear the workspace: ${error.message}` });
   }
 
-  const tar = spawn('tar', ['-x', '-z', '-C', WORKSPACE], { stdio: ['pipe', 'ignore', 'pipe'] });
+  const tar = run(tarCommand(), ['-x', '-z', '-C', WORKSPACE], { stdio: ['pipe', 'ignore', 'pipe'] });
   let error = '';
 
   tar.stderr.setEncoding('utf8');
@@ -302,7 +341,32 @@ function extractTar(request, response) {
 
 function streamTar(response) {
   const excludes = IGNORED.flatMap(pattern => ['--exclude', `./${pattern}`]);
-  const tar = spawn('tar', ['-c', '-z', '-C', WORKSPACE, ...excludes, '.'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const tar = run(tarCommand(), ['-c', '-z', '-C', WORKSPACE, ...excludes, '.'], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+  response.writeHead(200, { 'content-type': 'application/gzip' });
+  tar.stdout.pipe(response);
+}
+
+/**
+ * One directory of build output, whole: `GET /files?dir=out` after a static export.
+ *
+ * Separate from `streamTar` on purpose. The workspace read excludes build output, and must — a built site must never
+ * be able to travel back into somebody's git history — so a caller that wants the build asks for it by name, and gets
+ * those bytes and nothing else. It replaced a `sh -c "tar … | base64"` sent over /exec, which assumed a POSIX shell in
+ * every sandbox and an encoding round trip to fit an archive into a JSON string.
+ *
+ * One plain name, never a path: the directory is resolved inside the workspace and a `..` has nowhere to go.
+ */
+function streamDirectory(response, name) {
+  if (!/^[\w.-]+$/.test(name) || name === '.' || name === '..') {
+    return json(response, 400, { ok: false, error: 'dir must be one directory name inside the workspace' });
+  }
+
+  const directory = join(WORKSPACE, name);
+
+  if (!existsSync(directory)) return json(response, 404, { ok: false, error: `${name}/ does not exist` });
+
+  const tar = run(tarCommand(), ['-c', '-z', '-C', directory, '.'], { stdio: ['ignore', 'pipe', 'ignore'] });
 
   response.writeHead(200, { 'content-type': 'application/gzip' });
   tar.stdout.pipe(response);
@@ -318,14 +382,14 @@ function startDevServer(response, { command = 'npm', args = ['run', 'dev'], env 
   // No trailing slash, because it is concatenated with paths that start with one.
   devBasePath = basePath.replace(/\/+$/, '');
 
-  devServer = spawn(command, args, {
+  devServer = run(command, args, {
     cwd: WORKSPACE,
     env: environmentFor(WORKSPACE, { ...env, PORT: String(DEV_PORT), WEBLY_PREVIEW_BASE: devBasePath }),
     stdio: ['ignore', 'pipe', 'pipe'],
-    // Its own process group, so it can be killed as a group on the way out. `npm run dev` spawns `next`, which
-    // spawns the server, so signalling the npm process alone leaves the actual dev server running — see the
-    // shutdown handler at the bottom of this file.
-    detached: true,
+    // Stoppable with everything it starts, on the way out. `npm run dev` spawns `next`, which spawns the server, so
+    // stopping the npm process alone leaves the actual dev server running — see the shutdown handler at the bottom of
+    // this file, and processes.js for what that means on each platform.
+    group: true,
   });
 
   // `devLog` is served on /dev/log: a compile error in the dev server is the most useful thing the editor can
@@ -483,6 +547,9 @@ const server = createServer(async (request, response) => {
     }
 
     if (url === '/files' && request.method === 'POST') return extractTar(request, response);
+    if (url.startsWith('/files?') && request.method === 'GET') {
+      return streamDirectory(response, new URL(url, 'http://localhost').searchParams.get('dir') ?? '');
+    }
     if (url === '/files' && request.method === 'GET') return streamTar(response);
     if (url === '/exec' && request.method === 'POST') return exec(response, await readJson(request));
     if (url === '/dev/start' && request.method === 'POST') return startDevServer(response, await readJson(request));
@@ -540,13 +607,7 @@ startEgressBridge(() => {
  */
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
-    if (devServer) {
-      try {
-        process.kill(-devServer.pid, 'SIGKILL');
-      } catch {
-        devServer.kill('SIGKILL');
-      }
-    }
+    killTree(devServer);
 
     process.exit(0);
   });

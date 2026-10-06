@@ -42,9 +42,9 @@ public class PublishBuildTests
         {
             Commands.Add(command);
 
-            // The build succeeds and the copy-out produces an empty archive, which is as far as this test
-            // needs to go: what it is about is the command, not the bytes.
-            return Task.FromResult(new SandboxCommandResult(0, command.Command == "npm" ? "ok" : string.Empty));
+            // The build succeeds, which is as far as this test needs to go: what it is about is the command,
+            // not the bytes.
+            return Task.FromResult(new SandboxCommandResult(0, "ok"));
         }
 
         public Task WriteTreeAsync(WorkspaceTree tree, CancellationToken cancellationToken = default) =>
@@ -52,6 +52,10 @@ public class PublishBuildTests
 
         public Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new WorkspaceTree([]));
+
+        /// <summary>No <c>out/</c>, so the copy-out fails — after the build command has been recorded.</summary>
+        public Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default) =>
+            Task.FromResult<WorkspaceTree?>(null);
 
         public Task StartDevServerAsync(
             string basePath,

@@ -39,7 +39,7 @@ public class SiteVersionConflictTests : PostgresTestBase
     [TearDown]
     public void DeleteRoot()
     {
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        DirectoryRemoval.Delete(_root);
     }
 
     private static WorkspaceTree Tree(params (string Path, string Content)[] files) =>

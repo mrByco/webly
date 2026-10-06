@@ -3,7 +3,8 @@
 // Paired with git-store.mjs: together they let the whole product loop run in an environment with no .NET
 // SDK. See tools/e2e/README.md.
 
-import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { killTree, run as start, tarCommand } from '../sandbox-agent/processes.js';
 import { mkdirSync, readFileSync, rmSync, createWriteStream } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,8 +12,9 @@ import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 
-const AGENT = new URL('../sandbox-agent/index.js', import.meta.url).pathname;
-const CONFINED_AGENT = new URL('../sandbox-agent/confine.js', import.meta.url).pathname;
+// fileURLToPath rather than `.pathname`, which on Windows is `/C:/…` — a path no program there can open.
+const AGENT = fileURLToPath(new URL('../sandbox-agent/index.js', import.meta.url));
+const CONFINED_AGENT = fileURLToPath(new URL('../sandbox-agent/confine.js', import.meta.url));
 
 /**
  * Where a confined sandbox may connect, the same list the backend's default is: the two model APIs, where
@@ -41,7 +43,7 @@ export async function startSandbox({ port = 0, devPort = 0, confine = false, rea
   const devPidFile = `${workspace}.devpid`;
 
   // Confined, the sandbox is confine.js: the same agent inside bubblewrap, with no network but the allow-list.
-  const child = spawn(process.execPath, [confine ? CONFINED_AGENT : AGENT], {
+  const child = start(process.execPath, [confine ? CONFINED_AGENT : AGENT], {
     env: {
       ...process.env,
       WEBLY_WORKSPACE: workspace,
@@ -56,7 +58,8 @@ export async function startSandbox({ port = 0, devPort = 0, confine = false, rea
     // spawns it — and signalling only the agent leaves `next dev` running, holding its port and a few hundred
     // megabytes, once per run. Eight of them accumulated before this was noticed.
     // LocalSandboxProvider has the same problem and solves it the same way, with Kill(entireProcessTree: true).
-    detached: true,
+    // On Windows there are no groups, and `group` means a tree that `killTree` can take down — see processes.js.
+    group: true,
   });
 
   let log = '';
@@ -76,27 +79,28 @@ export async function startSandbox({ port = 0, devPort = 0, confine = false, rea
       // spawned **detached**, in its own process group, so the group kill below never reached it. Five stray
       // dev servers with deleted workspaces, each spinning on files that are not there, is what that looked
       // like from outside — and it is why this waits before falling back.
-      try {
-        process.kill(child.pid, 'SIGTERM');
-        await Promise.race([once(child, 'exit'), new Promise(resolve => setTimeout(resolve, 2000))]);
-      } catch {
-        // Already gone.
+      //
+      // Not on Windows, where a "signal" is TerminateProcess and no handler runs — and where nothing is detached,
+      // so the tree kill below reaches the dev server through its parent.
+      if (process.platform !== 'win32') {
+        try {
+          process.kill(child.pid, 'SIGTERM');
+          await Promise.race([once(child, 'exit'), new Promise(resolve => setTimeout(resolve, 2000))]);
+        } catch {
+          // Already gone.
+        }
       }
 
       // The pidfile is the backstop for the case the agent could not act on that signal at all.
       try {
         const pid = Number(readFileSync(devPidFile, 'utf8'));
-        if (pid > 0) process.kill(-pid, 'SIGKILL');
+        if (pid > 0) killTree({ pid, kill: () => undefined });
       } catch {
         // No dev server, or it is already gone.
       }
 
-      // The negative pid is the process group: the agent and whatever it started in it.
-      try {
-        process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        // Already gone.
-      }
+      // The agent and whatever it started.
+      killTree(child);
 
       // Waited for before the directory goes. A dev server that is still alive when its workspace disappears
       // does not exit — it spins at 100% of a core retrying files that are not there any more, indefinitely.
@@ -159,7 +163,7 @@ export async function writeTree(sandbox, files) {
     }
 
     const archive = join(staging, '..', `tree-${randomBytes(6).toString('hex')}.tgz`);
-    await run('tar', ['-c', '-z', '-C', staging, '-f', archive, '.']);
+    await run(tarCommand(), ['-c', '-z', '-C', staging, '-f', archive, '.']);
 
     const { readFileSync } = await import('node:fs');
     const response = await request(sandbox, 'files', {
@@ -181,12 +185,28 @@ export async function readTree(sandbox) {
   const response = await request(sandbox, 'files');
   if (!response.ok) throw new Error(`readTree answered ${response.status}`);
 
+  return unpack(response);
+}
+
+/**
+ * GET /files?dir=… — one directory of build output, whole, or null when it is not there. What the filesystem
+ * publish target copies a static export out with (SandboxAgentClient.ReadBuildOutputAsync).
+ */
+export async function readBuildOutput(sandbox, directory) {
+  const response = await request(sandbox, `files?dir=${encodeURIComponent(directory)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`readBuildOutput answered ${response.status}: ${await response.text()}`);
+
+  return unpack(response);
+}
+
+async function unpack(response) {
   const staging = mkdtempSync(join(tmpdir(), 'webly-out-'));
   const archive = join(staging, 'tree.tgz');
 
   const { writeFileSync, readdirSync, statSync, readFileSync } = await import('node:fs');
   writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
-  await run('tar', ['-x', '-z', '-C', staging, '-f', archive]);
+  await run(tarCommand(), ['-x', '-z', '-C', staging, '-f', archive]);
   rmSync(archive, { force: true });
 
   const files = [];
@@ -195,7 +215,7 @@ export async function readTree(sandbox) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.isFile()) files.push({ path: full.slice(staging.length + 1).replace(/^\.\//, ''), content: readFileSync(full) });
+      else if (entry.isFile()) files.push({ path: full.slice(staging.length + 1).replaceAll('\\', '/').replace(/^\.\//, ''), content: readFileSync(full) });
     }
   };
 
@@ -323,7 +343,7 @@ function writeFile(path, content) {
 
 export function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...options });
+    const child = start(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...options });
     let out = '';
     let err = '';
     child.stdout?.setEncoding('utf8');

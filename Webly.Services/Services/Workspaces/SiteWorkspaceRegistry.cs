@@ -308,8 +308,11 @@ public class SiteWorkspaceRegistry(
 
         await sandbox.WriteTreeAsync(tree, cancellationToken);
 
+        // `npm ls` on its own, not inside `sh -c "test -d node_modules && …"`: it already fails when node_modules is
+        // missing (every dependency is reported missing), and a shell line assumed a POSIX shell in every sandbox —
+        // which the local provider on Windows does not have. The output is discarded by not being read.
         var install = await sandbox.RunAsync(
-            new SandboxCommand("sh", ["-c", "test -d node_modules && npm ls --depth=0 >/dev/null 2>&1"]),
+            new SandboxCommand("npm", ["ls", "--depth=0"]),
             cancellationToken: cancellationToken);
 
         if (install.Succeeded) return;

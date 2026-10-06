@@ -54,6 +54,11 @@ needs **node and git and nothing else**:
   `docker build -f deploy/sandbox/Dockerfile -t byc0/margareta:webly_sandbox .` from the repository root (the
   context is the root, not `deploy/sandbox`). Without the image, the first message fails with "the sandbox
   container never became reachable".
+- **On Windows** there is no bubblewrap, so the local provider refuses its default. Either use `docker` as above, or
+  run it unconfined on purpose: `dotnet user-secrets set "Sandbox:Local:Confinement" "none" --project Webly.Api`
+  (the agent can then touch anything your user can; the log says so on every start). Harnesses that call
+  `https://localhost:5000` need `node --use-system-ca` to trust the dev certificate. CLAUDE.md, "Running it on
+  Windows", has the rest.
 - Optional, for the agent to look at its work: a Chromium (`Sandbox:Local:Browser`, or one on PATH) for
   `webly-screenshot`, and `npm i -g @playwright/mcp@0.0.83` for its browser tools. Without either the agent
   carries on without looking — the server is reported failed, never the turn.

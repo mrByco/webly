@@ -16,7 +16,7 @@
 import {
   cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync,
 } from 'node:fs';
-import { join, resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as store from './git-store.mjs';
@@ -99,7 +99,8 @@ function readTemplate() {
       if (skip.has(entry.name)) continue;
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.isFile()) files.push({ path: full.slice(template.length + 1), content: readFileSync(full) });
+      // Forward slashes whatever the platform: these are repository paths, and git is what they get compared against.
+      else if (entry.isFile()) files.push({ path: full.slice(template.length + 1).replaceAll('\\', '/'), content: readFileSync(full) });
     }
   };
 
@@ -343,7 +344,8 @@ try {
     // The agent's own credential must not reach the workload. The coding agent has a shell in here and can do
     // everything to the site it is editing; what it must not have is the token Webly authenticates to the
     // sandbox agent with, because that is the control plane's and not the workload's.
-    const leaked = await box.exec(started, { command: 'sh', args: ['-c', 'echo "${WEBLY_AGENT_TOKEN:-absent}"'] });
+    // Through node rather than `sh -c echo`, so the check means the same thing on a machine with no POSIX shell.
+    const leaked = await box.exec(started, { command: process.execPath, args: ['-e', 'console.log(process.env.WEBLY_AGENT_TOKEN ?? "absent")'] });
     check(leaked.output.trim() === 'absent',
       `a command it runs cannot see WEBLY_AGENT_TOKEN (${leaked.output.trim()})`);
 
@@ -358,7 +360,7 @@ try {
       const outside = await box.exec(started, { command: 'cat', args: [join(root, 'CLAUDE.md')] });
       check(outside.exitCode !== 0, 'confined: this checkout does not exist for a command');
 
-      const inherited = await box.exec(started, { command: 'sh', args: ['-c', 'echo "${WEBLY_E2E_CANARY:-absent}"'] });
+      const inherited = await box.exec(started, { command: 'node', args: ['-e', 'console.log(process.env.WEBLY_E2E_CANARY ?? "absent")'] });
       check(inherited.output.trim() === 'absent', `confined: the starter's environment is not inherited (${inherited.output.trim()})`);
 
       // The network: one way out, through a proxy that admits only the allow-list, and no route around it.
@@ -393,9 +395,10 @@ try {
     check(existsSync(join(template, 'node_modules')), 'the template has node_modules to stand in for the image layer');
     symlinkSync(join(template, 'node_modules'), join(sandbox.workspace, 'node_modules'), 'dir');
 
+    // The same command SiteWorkspaceRegistry.SeedAsync runs.
     const probe = await box.exec(sandbox, {
-      command: 'sh',
-      args: ['-c', 'test -d node_modules && npm ls --depth=0 >/dev/null 2>&1'],
+      command: 'npm',
+      args: ['ls', '--depth=0'],
       timeoutMs: 120_000,
     });
 
@@ -472,7 +475,9 @@ try {
   await step('The agent can drive a browser on the page it is editing: the browser tools from inside the sandbox', async () => {
     const client = `
       const { spawn } = require('node:child_process');
-      const server = spawn('webly-browser-mcp', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      // Through a shell on Windows, as a CLI there starts it: the command is webly-browser-mcp.cmd, which spawn
+      // cannot start on its own. No arguments, so there is nothing for the shell to misread.
+      const server = spawn('webly-browser-mcp', [], { stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32' });
       let stderr = '', buffer = '', id = 0;
       const waiting = new Map();
       server.stderr.on('data', text => (stderr += text));
@@ -523,8 +528,11 @@ try {
     check(report.navigate.includes(`127.0.0.1:${sandbox.devPort}`), 'browser_navigate says where the site is running');
     check(/Page Title: .+/.test(report.page), 'and a bare path reaches the site\'s home page');
     check(!report.screenshotTakesAName && report.shot.includes('image/png'), 'a screenshot comes back as an image, even when the model names a file');
-    check(/\.webly\/browser\/page-.*\.png/.test(report.shot), 'and is kept under .webly/browser');
-    check(report.saved.includes('.webly/browser/home.yml'), 'anything else the model names lands there too, not in the site');
+    // Either separator: on Windows the server names the file with backslashes, and it is the same place.
+    // Doubled where the path is quoted inside JSON text.
+    const shotPath = /\.webly[\\/]+browser[\\/]+page-[^\s"]*\.png/.exec(report.shot)?.[0];
+    check(shotPath, `and is kept under .webly/browser (${shotPath ?? report.shot.slice(0, 300)})`);
+    check(/\.webly[\\/]+browser[\\/]+home\.yml/.test(report.saved),`anything else the model names lands there too, not in the site (${report.saved.slice(0, 300)})`);
     check(!existsSync(join(sandbox.workspace, 'home.png')) && !existsSync(join(sandbox.workspace, 'home.yml')), 'and nothing was written beside the site\'s own files');
 
     const tree = await box.readTree(sandbox);
@@ -777,28 +785,23 @@ try {
   await step('Publishing copies the export out of the sandbox and it is a real page', async () => {
     // Exactly what FileSystemDeploymentTarget.CopyOutputAsync does: the build output is excluded from the
     // tree-reading contract on purpose (an artefact must never travel back into somebody's git history), so it
-    // is fetched explicitly, base64'd because /exec streams JSON strings.
-    //
-    // Plain `base64`, no -w 0: that flag is GNU's, and with the local provider the "sandbox" is whatever
-    // machine the developer has.
-    const packed = await box.exec(publishSandbox, {
-      command: 'sh',
-      args: ['-c', 'test -d out && tar -c -z -C out . | base64'],
-      timeoutMs: 120_000,
-    });
+    // is fetched explicitly, by name, through GET /files?dir=out.
+    const output = await box.readBuildOutput(publishSandbox, 'out');
 
-    check(packed.succeeded, 'the export was packed');
-
-    const encoded = packed.output.replace(/\s+/g, '');
-    check(encoded.length > 0, `${encoded.length} base64 characters came back`);
+    check(output !== null, 'the export was there to copy');
+    check(output.length > 0, `${output.length} files came back`);
 
     const published = join(workspaceRoot, 'published');
     mkdirSync(published, { recursive: true });
 
-    const archive = join(workspaceRoot, 'published.tgz');
-    writeFileSync(archive, Buffer.from(encoded, 'base64'));
-    await box.run('tar', ['-x', '-z', '-f', archive, '-C', published]);
-    rmSync(archive, { force: true });
+    for (const file of output) {
+      const target = join(published, file.path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, file.content);
+    }
+
+    const refused = await box.readBuildOutput(publishSandbox, '..').catch(error => error);
+    check(refused instanceof Error && refused.message.includes('400'), 'and a directory outside the workspace is refused');
 
     const index = join(published, 'index.html');
 

@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 203-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 204-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -126,12 +126,35 @@ and nothing else — no Docker, no model key, no hosting account:
 
 | Piece | Default | What it means |
 |---|---|---|
-| `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process, **confined to its workspace by bubblewrap** and refused without it (Linux; elsewhere use `docker`). Refused outside Development. |
+| `Sandbox:Provider` | `local` | `LocalSandboxProvider` spawns `tools/sandbox-agent` as a child process, **confined to its workspace by bubblewrap** and refused without it (Linux; elsewhere use `docker` — or see "Running it on Windows"). Refused outside Development. |
 | `Agent:Mock:Enabled` | `true` | `MockCodingAgent` makes one real, deterministic edit. A real key takes over without a settings change. |
 | `Deployment:Provider` | `filesystem` | The real `next build` as the publish gate, then the export written to `.run/published/{nanoid}` and served at `/published/{nanoid}/`. |
 
 Each of those is a development-only substitute and each refuses to run in production, in code rather than in
 a comment. Swapping any one of them for the real thing is one configuration key.
+
+### Running it on Windows
+
+**The whole loop runs on Windows in Development**, driven end to end: `tools/e2e/run.mjs` passes all twenty steps,
+the 204 tests pass, and real OpenCode turns through the app edited, committed, previewed and published a site. Two
+ways, and the difference is the confinement:
+
+- **`Sandbox:Provider = docker`** — confined, the same contract production speaks. Build the image first.
+- **`Sandbox:Provider = local` with `Sandbox:Local:Confinement = none`** — the sandbox agent as a child process,
+  **unconfined**: the agent can read and write everything your user can. There is no bubblewrap on Windows and
+  nothing that does its job, so the local provider *refuses* the default with a sentence naming these two, and
+  logs a warning every time it starts an unconfined one. Set it in user secrets, deliberately.
+
+What made the local one work is `tools/sandbox-agent/processes.js`, the one file that knows which platform it is
+on: on Windows `npm`, `opencode` and `claude` are `.cmd` wrappers Node cannot spawn, and `cmd.exe` would cut the
+agent's multi-line prompt at its first newline — so the wrapper npm wrote is **read** and the program it runs is
+started directly. Also there: a tree kill (`taskkill /T`) where Linux has process groups, `;` in PATH, and the
+`tar.exe` in System32, because Git's GNU tar, often first on PATH, reads `C:\…` as a host called `C`. The `sh -c`
+lines the C# used to send into a sandbox are gone for the same reason — a sandbox is not promised a POSIX shell.
+Three smaller things that bite: git writes its objects read-only and Windows will not delete a read-only file
+(`DirectoryRemoval`); the agent's shell scripts in `tools/sandbox-agent/bin` must stay LF or an image built from a
+Windows checkout cannot run them (`.gitattributes`); and Node does not read the Windows certificate store, so the
+harnesses that call `https://localhost:5000` need `node --use-system-ca`.
 
 ## Work philosophy
 

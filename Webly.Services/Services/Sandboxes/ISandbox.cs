@@ -107,6 +107,14 @@ public interface ISandbox : IAsyncDisposable
     Task<WorkspaceTree> ReadTreeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// One directory of build output, whole — <c>out</c> after a static export — or null when there is no such
+    /// directory. The other half of <see cref="ReadTreeAsync"/>'s ignore list: build output must never travel back
+    /// as source, so a caller that wants it asks for it by name, and what comes back is an artefact rather than a
+    /// version. <paramref name="directory"/> is one plain name inside the workspace, never a path.
+    /// </summary>
+    Task<WorkspaceTree?> ReadBuildOutputAsync(string directory, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Runs a command, streaming its output. <paramref name="onOutput"/> is how an agent's stdout reaches
     /// the person watching, one line at a time, rather than after it finishes.
     /// </summary>
