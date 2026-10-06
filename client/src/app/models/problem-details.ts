@@ -71,6 +71,19 @@ function hubMessageOf(error: unknown): string | undefined {
   return marker >= 0 ? message!.slice(marker + 'HubException: '.length).trim() : undefined;
 }
 
+/**
+ * Whether Webly did nothing with the request: it never arrived (see `unreachable`), or a rate limit turned it away
+ * before anything looked at it.
+ *
+ * The screens that deliberately answer alike whatever happened — a reset link "on its way" whether or not the
+ * address has an account — still have to say these two, and can. Neither depends on what was typed: a limit is
+ * counted per connection and runs before the endpoint does. And the alike answer is a lie about them: "on its way",
+ * for a request that never reached anybody, sends somebody to wait for an email that is not coming.
+ */
+export function notActedOn(error: unknown): boolean {
+  return unreachable(error) || (error as { status?: unknown })?.status === 429;
+}
+
 const UNREACHABLE = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
 
 const SIGNED_OUT = 'You have been signed out. Sign in again to carry on.';

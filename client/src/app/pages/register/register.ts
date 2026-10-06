@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthLayout } from '../../components/auth-layout/auth-layout';
 import { AppRoutes } from '../../app.routes.paths';
 import { AuthService } from '../../services/auth.service';
+import { messageOf } from '../../models/problem-details';
 
 @Component({
   selector: 'app-register',
@@ -52,7 +53,7 @@ export class RegisterPage {
       this.error.set(
         status === 409
           ? 'There is already an account with that email address. Sign in instead.'
-          : 'That did not work. Please try again.',
+          : messageOf(failure, 'That did not work. Please try again.'),
       );
     } finally {
       this.submitting.set(false);

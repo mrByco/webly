@@ -1606,6 +1606,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   `detail` after the title**, which it did not: every `Detail` the controllers write — "Enter it without
   https://", "If it is one of yours, remove it there first", "Delete one you no longer need" — is the half that
   says what to do, and all of it was dropped here. So a `Detail` is for people, and nothing technical goes in one.
+- **A screen's own sentence is for its own refusal, and only that.** The signed-out screens each wrote one
+  sentence and said it for every failure, so with Webly unreachable sign-in said the password was wrong,
+  forgotten-password said a link was on its way, and a perfectly good reset link was "not valid any more". Each now
+  matches the status that means its refusal — 401, 409, 400 — and gives everything else to `messageOf`. The two
+  screens that answer alike whatever happened (forgotten password, resend the code) still say **`notActedOn`**:
+  the request never arrived, or a limit turned it away before anything looked at the address — neither depends on
+  what was typed, and "on its way" about them has somebody wait for an email that is not coming.
 
 ## Deployment
 

@@ -1536,6 +1536,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     and its burst is red on the old order. A cap across every code an account is sent was written and taken out
     again: deleting the account and registering the address afresh resets anything counted per account, so it
     bounded nothing the per-IP mail limit does not.
+115. **With Webly unreachable, the signed-out screens blamed the person.** Walked by failing each request in a
+    real browser: sign-in said "That email address and password do not match", forgotten-password said the reset
+    link was on its way, a valid reset link was "not valid any more", and the confirmation screen wiped a correct
+    code and called it wrong. Each sentence was the screen's one refusal, said for every failure. Each now answers
+    its own status and hands the rest to `messageOf`; the two that deliberately answer alike — forgotten password
+    and resending the code — say only the failures that cannot depend on the address (`notActedOn`: unreachable,
+    or rate limited), and a code survives a failure that was not about it. The real refusals were walked again
+    afterwards and read exactly as they did.
 
 
 ## What is still intent

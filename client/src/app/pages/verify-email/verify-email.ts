@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { OnboardingLayout } from '../../components/onboarding-layout/onboarding-layout';
 import { AuthService } from '../../services/auth.service';
+import { messageOf, notActedOn } from '../../models/problem-details';
 
 type State = 'prompt' | 'checking' | 'failed';
 
@@ -79,13 +80,17 @@ export class VerifyEmailPage {
     try {
       await this.auth.verifyEmail(token);
       await this.continue();
-    } catch {
+    } catch (failure: unknown) {
       // Find out who this is before rendering the failure. Without it a signed-in user opening an
       // expired link is told to sign in — which they already are — instead of being offered the
       // code box and the resend button that actually get them unstuck.
       await this.auth.refresh();
       this.state.set(this.auth.authenticated() ? 'prompt' : 'failed');
-      this.error.set('That link is not valid any more. Type the code instead, or ask for a new one.');
+      this.error.set(
+        refused(failure)
+          ? 'That link is not valid any more. Type the code instead, or ask for a new one.'
+          : messageOf(failure, 'That link could not be checked just now. Open it again in a moment.'),
+      );
     }
   }
 
@@ -100,10 +105,17 @@ export class VerifyEmailPage {
     try {
       await this.auth.verifyEmailCode(this.code());
       await this.continue();
-    } catch {
+    } catch (failure: unknown) {
       this.state.set('prompt');
-      this.code.set('');
-      this.error.set('That code is wrong or has expired. Check it, or ask for a new one.');
+
+      // Only a refusal is about the code, so only a refusal clears it. With Webly unreachable this used to wipe a
+      // correct code and call it wrong, and the person would check it against the email and find it right.
+      if (refused(failure)) {
+        this.code.set('');
+        this.error.set('That code is wrong or has expired. Check it, or ask for a new one.');
+      } else {
+        this.error.set(messageOf(failure, 'That code could not be checked just now. Press Confirm to try again.'));
+      }
     }
   }
 
@@ -112,10 +124,14 @@ export class VerifyEmailPage {
 
     try {
       await this.auth.resendVerification();
-    } finally {
-      // Shown either way: whether a mail actually went out depends on the cooldown, and saying so
-      // would leak more than it helps.
       this.resent.set(true);
+    } catch (failure: unknown) {
+      // "On its way" either way, except when nothing was done at all: the request never arrived, or this connection
+      // has asked for a lot of email recently. Whether a mail went out otherwise depends on the cooldown, and the
+      // endpoint deliberately does not say. It used to claim a new code was coming in every case — including those
+      // two, where somebody then waits for a code that is not coming.
+      if (notActedOn(failure)) this.error.set(messageOf(failure));
+      else this.resent.set(true);
     }
   }
 
@@ -126,4 +142,9 @@ export class VerifyEmailPage {
   protected async goToLogin(): Promise<void> {
     await this.router.navigateByUrl(AppRoutes.login.build(this.redirect ?? undefined));
   }
+}
+
+/** The answer was Webly's refusal of what was presented — the link or the code — rather than anything else going wrong. */
+function refused(failure: unknown): boolean {
+  return (failure as { status?: unknown })?.status === 400;
 }

@@ -115,11 +115,14 @@ export class AccountPage {
 
       this.form.reset();
       this.saved.set(true);
-    } catch {
+    } catch (failure: unknown) {
+      // The refusals carry their own sentences — "That is not your current password.", "Confirm your email address
+      // first." The first of those used to be said for every failure, Webly being unreachable included.
       this.error.set(
-        this.settingFirstPassword()
-          ? 'That password could not be set. You may need to confirm your email address first.'
-          : 'That is not your current password.',
+        messageOf(
+          failure,
+          this.settingFirstPassword() ? 'That password could not be set.' : 'That password could not be changed.',
+        ),
       );
     } finally {
       this.submitting.set(false);

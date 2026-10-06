@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthLayout } from '../../components/auth-layout/auth-layout';
 import { AppRoutes } from '../../app.routes.paths';
 import { AuthService } from '../../services/auth.service';
+import { messageOf } from '../../models/problem-details';
 
 @Component({
   selector: 'app-login',
@@ -56,8 +57,11 @@ export class LoginPage {
     try {
       await this.auth.login(this.form.getRawValue());
       await this.router.navigateByUrl(this.auth.nextStop(this.redirect()));
-    } catch {
-      this.error.set('That email address and password do not match.');
+    } catch (failure: unknown) {
+      // The refusal carries its own sentence — "That email address and password do not match." Nothing else is about
+      // the password, and this used to say that sentence for all of it: with Webly unreachable, a sign-in told
+      // somebody their password was wrong, which sends them off to reset one that was right.
+      this.error.set(messageOf(failure, 'Signing in did not work. Please try again.'));
     } finally {
       this.submitting.set(false);
     }

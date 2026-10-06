@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { AuthLayout } from '../../components/auth-layout/auth-layout';
 import { AuthService } from '../../services/auth.service';
+import { messageOf } from '../../models/problem-details';
 
 @Component({
   selector: 'app-reset-password',
@@ -18,6 +19,10 @@ export class ResetPasswordPage {
   protected readonly routes = AppRoutes;
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** The link itself was refused, which is the one failure a new link fixes — so the only one offered it. */
+  protected readonly expired = signal(false);
+
   protected readonly token = this.route.snapshot.queryParamMap.get('token');
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
@@ -31,6 +36,7 @@ export class ResetPasswordPage {
 
     this.submitting.set(true);
     this.error.set(null);
+    this.expired.set(false);
 
     try {
       await this.auth.resetPassword(this.token, this.form.getRawValue().newPassword);
@@ -40,8 +46,11 @@ export class ResetPasswordPage {
       // makes one, not the landing page they have just been handed the keys past. Home is where a site-less
       // account used to land, reading the marketing copy for a product it had already bought.
       await this.router.navigateByUrl(this.auth.nextStop());
-    } catch {
-      this.error.set('That link is not valid any more. Ask for a new one.');
+    } catch (failure: unknown) {
+      // Only a 400 is about the link. This used to say "not valid any more" for every failure, so with Webly
+      // unreachable somebody holding a perfectly good link was sent for another, which would have failed the same way.
+      this.expired.set((failure as { status?: unknown })?.status === 400);
+      this.error.set(messageOf(failure, 'The new password could not be saved. Please try again.'));
     } finally {
       this.submitting.set(false);
     }

@@ -1,4 +1,4 @@
-import { messageOf, unreachable } from './problem-details';
+import { messageOf, notActedOn, unreachable } from './problem-details';
 
 /**
  * The one place a failure becomes a sentence, and three of its four shapes were found by watching the app show
@@ -80,5 +80,24 @@ describe('unreachable', () => {
     expect(unreachable({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe(false);
     expect(unreachable({ status: 404, error: { title: 'That site could not be found.' } })).toBe(false);
     expect(unreachable(undefined)).toBe(false);
+  });
+});
+
+/** What a screen that answers alike whatever happened must still say, because neither depends on what was typed. */
+describe('notActedOn', () => {
+  it('is true when the request never arrived or a limit turned it away', () => {
+    expect(notActedOn({ status: 0, error: { type: 'error' } })).toBe(true);
+    expect(notActedOn({ status: 503, error: '<html>Service unavailable</html>' })).toBe(true);
+    expect(notActedOn({ status: 429, error: { title: 'A lot of email has been asked for from here recently.' } })).toBe(
+      true,
+    );
+  });
+
+  it('is false for an answer Webly gave after looking', () => {
+    expect(notActedOn({ status: 400, error: { title: 'That link is not valid any more. Ask for a new one.' } })).toBe(
+      false,
+    );
+    expect(notActedOn({ status: 500, error: { title: 'Something went wrong.' } })).toBe(false);
+    expect(notActedOn(undefined)).toBe(false);
   });
 });
