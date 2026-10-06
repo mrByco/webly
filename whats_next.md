@@ -1521,6 +1521,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     your session ended elsewhere", and signing in with the new password returned to History. A wrong password at
     sign-in still gets its own message, because `/api/auth/` is left alone.
 
+113. **The preview could be stopped while somebody was using it.** Only a turn, a wake or a re-seed counted as
+    using a workspace; requests through the preview proxy did not. So waking the preview to look at the site and
+    clicking around in it ended, ten minutes after the wake, with the sandbox stopped mid-browse. A preview request
+    counts now. Walked with `Sandbox:IdleTimeout` at one minute: clicking between Home and Contact every fifteen
+    seconds kept it for 152 seconds, and once the clicking stopped the reaper took it 86 seconds later.
+
 
 ## What is still intent
 

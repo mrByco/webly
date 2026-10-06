@@ -795,7 +795,12 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
 - **One warm workspace per site**, shared by the chat and the preview. `SiteWorkspaceRegistry` leases it
   with a semaphore so two turns queue rather than interleave, re-seeds it when the head has moved under it
   (clearing the agent's session id, because a resumed session would remember a different tree), and
-  `WorkspaceReaper` closes it when idle — a warm sandbox bills by the second.
+  `WorkspaceReaper` closes it when idle — a warm sandbox bills by the second. **Looking at the preview counts as
+  using it** (`FindForPreview` marks it, per proxied request), which it did not: only a turn, a wake or a re-seed did,
+  so somebody who woke their preview to look at their site and was clicking around in it had the sandbox stopped
+  under them ten minutes after the wake. Walked with a one-minute timeout: two and a half minutes of clicking kept
+  it, and it went 86 seconds after the clicking stopped. An open tab nobody touches does not keep it — the hot-reload
+  socket is one request, made once.
 - **And closes all of them when the process stops**, which nothing did: stopping the app left one sandbox
   running per open site. Found by counting processes — fourteen local sandbox agents still listening, the
   oldest five hours old, after six restarts of the backend that started them, with their workspaces already

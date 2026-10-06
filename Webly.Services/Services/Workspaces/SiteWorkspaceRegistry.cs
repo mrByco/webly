@@ -40,8 +40,14 @@ public class SiteWorkspaceRegistry(
 
     public IReadOnlyList<SiteWorkspace> All => [.. _workspaces.Values];
 
-    public SiteWorkspace? Find(string siteNanoid) =>
-        _workspaces.TryGetValue(siteNanoid, out var workspace) ? workspace : null;
+    public SiteWorkspace? FindForPreview(string siteNanoid)
+    {
+        if (!_workspaces.TryGetValue(siteNanoid, out var workspace)) return null;
+
+        workspace.Touch();
+
+        return workspace;
+    }
 
     public async Task<bool> IsPreviewReadyAsync(string siteNanoid, CancellationToken cancellationToken = default)
     {

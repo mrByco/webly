@@ -92,7 +92,7 @@ public class PreviewController(
             if (site is null) return NotFound();
         }
 
-        var workspace = workspaces.Find(siteNanoid);
+        var workspace = workspaces.FindForPreview(siteNanoid);
 
         if (workspace is null)
             // 503 with a sentence rather than starting one: a workspace takes tens of seconds, and an <iframe>
