@@ -65,7 +65,10 @@ public interface ISiteWorkspaceRegistry
     /// </summary>
     Task DiscardAsync(Site site, CancellationToken cancellationToken = default);
 
-    /// <summary>Stops a workspace and forgets it. Called by the reaper, and when a site is deleted.</summary>
+    /// <summary>
+    /// Stops a workspace and forgets it — after any start in progress for the site has finished, so that one is
+    /// stopped too. Called by the reaper, and when a site is deleted.
+    /// </summary>
     Task ReleaseAsync(string siteNanoid);
 
     /// <summary>

@@ -155,7 +155,7 @@ public class SiteWorkspaceRegistry(
         if (workspace is not null && !await workspace.Sandbox.IsHealthyAsync(cancellationToken))
         {
             logger.LogInformation("Workspace for {Site} is unreachable; starting a new one.", site.Nanoid);
-            await ReleaseAsync(site.Nanoid);
+            await StopAsync(site.Nanoid);
             workspace = null;
         }
 
@@ -343,6 +343,23 @@ public class SiteWorkspaceRegistry(
     }
 
     public async Task ReleaseAsync(string siteNanoid)
+    {
+        // A start in progress is waited out, so that what it is about to register is released rather than left
+        // behind. Deleting a site while it was waking released nothing — the workspace was not in the dictionary
+        // yet — and the sandbox the wake then finished starting ran for a site that no longer existed until the
+        // reaper found it idle ten minutes later. Bounded, like the turn's wait below.
+        if (_starting.TryGetValue(siteNanoid, out var starting) && await starting.WaitAsync(TimeSpan.FromSeconds(60)))
+            starting.Release();
+
+        await StopAsync(siteNanoid);
+    }
+
+    /// <summary>
+    /// Stops a workspace and forgets it, without waiting for a start: what <see cref="ReleaseAsync"/> does once it
+    /// may, and what <c>FindOrStartAsync</c> calls directly because it already holds the start lock — waiting for it
+    /// there would wait for itself.
+    /// </summary>
+    private async Task StopAsync(string siteNanoid)
     {
         if (!_workspaces.TryRemove(siteNanoid, out var workspace)) return;
 

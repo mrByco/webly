@@ -1500,6 +1500,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     saw a blank page. They are small pages in the thank-you page's style now, with `Retry-After` on the limit; the
     app's own 429s say what was done too often instead of "That could not be saved." Three tests, red on the old code.
 
+110. **Deleting a site in the middle of a turn left the turn running for a site that was gone.** The delete
+    answered in 0.1s, the turn went on to start a sandbox, install and run, then crashed on a foreign key writing
+    its reply into the deleted conversation — and the sandbox kept running. The delete now stops the turn and waits
+    for it (10s in the walk, while it was installing): the thread ends "Stopped. Nothing was changed.", the run is
+    cancelled, the workspace released, nothing left in the process list or on disk. The Settings dialog says
+    "Deleting…" meanwhile and cannot be dismissed into looking like a cancelled delete.
+
 
 ## What is still intent
 

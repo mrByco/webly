@@ -1032,6 +1032,14 @@ has two lines — the model and the machine — and "what does this site cost us
   log; `InterruptedPublishTests` drives it with a build machine that never arrives, and is red on the old line.
   Whether a stop lands there depends on what the build is doing: a `next build` already running ignores the token
   and usually finishes inside the host's thirty-second shutdown, and its site goes live.
+- **Deleting a site stops its turn first, and waits for it.** Releasing the workspace was all it did, and a turn
+  still waking the site had no workspace yet — so it carried on for a site that no longer existed: started a
+  sandbox, installed, ran, and crashed writing its reply into the deleted conversation, with the sandbox left
+  running until the reaper found it idle ten minutes later. `DeleteSite` cancels the turn through the registry and
+  awaits `RunHandle.Finished` (bounded), so it ends the way a Stop does while everything it touches still exists;
+  and `ReleaseAsync` waits out a start in progress before stopping, so a wake that finishes afterwards cannot leave
+  one behind — `FindOrStartAsync`, which already holds that lock, calls the inner `StopAsync`. The Settings dialog
+  says "Deleting…" and stays until it is done, because that can now take ten seconds.
 - **Deleting a site takes it off the internet, which it did not.** `DeleteSite` removed the rows, the
   repository and the custom domains, and left the published site answering at its Webly subdomain and at the
   provider's own URL — the one action somebody takes to get a page down did not get it down. Found by

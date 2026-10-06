@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Webly.Data;
+using Webly.Data.Repositories.Chat;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
+using Webly.Services.DTO.Realtime;
 using Webly.Services.DTO.Sites;
 using Webly.Services.Services.Deployments;
+using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Workspaces;
 
@@ -28,9 +31,11 @@ public class DeleteSite(
     ISiteRepository siteRepository,
     IDomainRepository domainRepository,
     IUserRepository userRepository,
+    IConversationRepository conversations,
     IDeploymentTarget deploymentTarget,
     ISiteWorkspaceRegistry workspaces,
     ISiteRepositoryStore repositories,
+    RunRegistry runs,
     WeblyDbContext dbContext,
     ILogger<DeleteSite> logger)
 {
@@ -48,7 +53,14 @@ public class DeleteSite(
 
         var domains = await domainRepository.ListForSiteAsync(site.Id, cancellationToken);
 
-        // The live workspace first: a sandbox editing a site that is being deleted is a turn that will fail
+        // A turn on the site first: stopped, and waited for. Releasing the workspace alone did not end it — a turn
+        // still waking the site had no workspace to release yet, so it carried on: started a sandbox, installed,
+        // ran, and crashed writing its reply into the conversation this deletes, with the sandbox left running
+        // for a site that was gone. Stopping it lets it end the way a Stop does, while everything it touches still
+        // exists. Bounded, because a turn that will not stop must not keep somebody from deleting their site.
+        await StopTurnAsync(site.Id, userId, cancellationToken);
+
+        // Then the live workspace: a sandbox editing a site that is being deleted is a turn that will fail
         // confusingly, and stopping it costs a second.
         await workspaces.ReleaseAsync(site.Nanoid);
 
@@ -118,5 +130,22 @@ public class DeleteSite(
         }
 
         return Result<SiteError>.Ok();
+    }
+
+    private async Task StopTurnAsync(int siteId, int userId, CancellationToken cancellationToken)
+    {
+        var conversation = await conversations.FindActiveAsync(siteId, cancellationToken);
+        var turn = conversation is null ? null : runs.FindByCorrelation(RunKind.Chat, conversation.Nanoid);
+
+        if (turn is null || !runs.TryCancel(turn.RunId, userId)) return;
+
+        try
+        {
+            await turn.Finished.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning("The turn {Run} on a site being deleted did not stop in time.", turn.RunId);
+        }
     }
 }

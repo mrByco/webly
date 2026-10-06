@@ -41,6 +41,16 @@ public sealed class RunHandle
     /// </summary>
     public CancelReason? CancelledBecause { get; private set; }
 
+    private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when the run has ended and said so — for something that has to wait for a turn to be over before
+    /// it can take the site away from under it. See <c>DeleteSite</c>.
+    /// </summary>
+    public Task Finished => _finished.Task;
+
+    internal void MarkFinished() => _finished.TrySetResult();
+
     internal void Cancel(CancelReason reason)
     {
         // The first reason stands: a Stop pressed a moment before the reaper looked is still a Stop.
@@ -158,8 +168,10 @@ public sealed class RunRegistry
     /// </summary>
     public void Finish(string runId)
     {
-        if (_runs.TryGetValue(runId, out var handle))
-            handle.FinishedAt = DateTime.UtcNow;
+        if (!_runs.TryGetValue(runId, out var handle)) return;
+
+        handle.FinishedAt = DateTime.UtcNow;
+        handle.MarkFinished();
     }
 
     public void Evict(string runId)

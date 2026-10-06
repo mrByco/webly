@@ -226,6 +226,11 @@ export class SiteSettingsPage {
     }
   }
 
+  /** Closes the delete dialog, except while the delete is under way — it goes on regardless. */
+  protected closeDelete(): void {
+    if (!this.saving()) this.confirmingDelete.set(false);
+  }
+
   protected async remove(): Promise<void> {
     this.saving.set(true);
 
