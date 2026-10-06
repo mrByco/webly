@@ -1507,6 +1507,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     cancelled, the workspace released, nothing left in the process list or on disk. The Settings dialog says
     "Deleting…" meanwhile and cannot be dismissed into looking like a cancelled delete.
 
+111. **And deleting a site while it published put it back online.** The publish runner worked on the shutdown
+    token alone, so nothing could stop a publish: one building when its site was deleted finished a moment later,
+    wrote the export into the published directory the delete had just emptied, and crashed on the rows that were
+    gone — the deleted site answered 200 a minute after the delete. The runner works on the run's token now, the
+    delete cancels it and waits (0.7s in the walk), and an abandoned publish records and emails nothing; the
+    deleted site stays a 404. Pinned by a test that times out on the old runner.
+
 
 ## What is still intent
 

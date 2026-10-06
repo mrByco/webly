@@ -116,7 +116,7 @@ public class AgentTurnService(
     /// </summary>
     public static string CancelledNote(CancelReason? because) => because switch
     {
-        CancelReason.Stopped => StoppedNote,
+        CancelReason.Stopped or CancelReason.SiteDeleted => StoppedNote,
         CancelReason.Unwatched => UnwatchedNote,
         CancelReason.TooLong => TooLongNote,
         _ => InterruptedNote

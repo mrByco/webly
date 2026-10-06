@@ -18,5 +18,8 @@ public enum CancelReason
     Unwatched,
 
     /// <summary>It ran past the reaper's lifetime cap.</summary>
-    TooLong
+    TooLong,
+
+    /// <summary>Its site is being deleted, which has to wait for it to stop touching the site first.</summary>
+    SiteDeleted
 }

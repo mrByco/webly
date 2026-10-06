@@ -80,29 +80,8 @@ public class InterruptedPublishTests : PostgresTestBase
         var mail = new FakeEmailSender();
         var preparing = new TaskCompletionSource();
 
-        await using var services = new ServiceCollection()
-            .AddScoped(_ => CreateContext())
-            .AddScoped<IDeploymentRepository, DeploymentRepository>()
-            .AddScoped<IDomainRepository, DomainRepository>()
-            .AddScoped<IUserRepository, UserRepository>()
-            .AddSingleton<IEmailSender>(mail)
-            .AddSingleton<IRunEventSink>(new SilentSink())
-            .AddSingleton<ISandboxProvider>(new HangingProvider(preparing))
-            .AddSingleton<ISiteRepositoryStore>(new GitSiteRepositoryStore(
-                Options.Create(new RepositoryOptions { Root = Path.GetTempPath() }),
-                NullLogger<GitSiteRepositoryStore>.Instance))
-            .AddSingleton<IDeploymentTarget>(new FileSystemDeploymentTarget(
-                Options.Create(new DeploymentOptions()),
-                NullLogger<FileSystemDeploymentTarget>.Instance))
-            .AddSingleton(Options.Create(new SitesOptions { BaseDomain = "webly.site" }))
-            .AddSingleton(Options.Create(new AppOptions { BaseUrl = "https://localhost:5000" }))
-            .AddSingleton<SiteMapper>()
-            .BuildServiceProvider();
-
-        var runner = new DeploymentJobRunner(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            new RunRegistry(),
-            NullLogger<DeploymentJobRunner>.Instance);
+        await using var services = PublishServices(mail, preparing);
+        var runner = Runner(services, new RunRegistry());
 
         await runner.StartAsync(CancellationToken.None);
         await preparing.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -121,6 +100,68 @@ public class InterruptedPublishTests : PostgresTestBase
             Assert.That(mail.Last.HtmlBody, Does.Not.Contain("canceled").And.Not.Contain("unexpectedly"));
         });
     }
+
+    /// <summary>
+    /// A publish cancelled because its site is being deleted stops, and says nothing to anybody: the owner has just
+    /// removed the site, the row is about to go with it, and `DeleteSite` is waiting on <c>Finished</c> to take the
+    /// published copy down after it. Before the runner worked on the run's own token nothing could stop a publish,
+    /// and one that finished after the delete put the deleted site back online.
+    /// </summary>
+    [Test]
+    public async Task A_publish_stopped_because_its_site_is_going_ends_without_telling_anyone()
+    {
+        var id = await DeploymentAsync(DeploymentStatus.Queued);
+        var mail = new FakeEmailSender();
+        var preparing = new TaskCompletionSource();
+        var registry = new RunRegistry();
+
+        await using var services = PublishServices(mail, preparing);
+        var runner = Runner(services, registry);
+
+        await runner.StartAsync(CancellationToken.None);
+        await preparing.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        await using var db = CreateContext();
+        var nanoid = (await db.Deployments.SingleAsync(x => x.Id == id)).Nanoid;
+        var run = registry.Get(nanoid)!;
+
+        registry.TryCancel(nanoid, run.UserId, CancelReason.SiteDeleted);
+        await run.Finished.WaitAsync(TimeSpan.FromSeconds(30));
+        await runner.StopAsync(CancellationToken.None);
+
+        var row = await db.Deployments.AsNoTracking().SingleAsync(x => x.Id == id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mail.Sent, Is.Empty, "no email about a site its owner has just deleted");
+            Assert.That(row.Status, Is.Not.EqualTo(DeploymentStatus.Failed), "and no failure recorded for it");
+        });
+    }
+
+    private ServiceProvider PublishServices(FakeEmailSender mail, TaskCompletionSource preparing) =>
+        new ServiceCollection()
+            .AddScoped(_ => CreateContext())
+            .AddScoped<IDeploymentRepository, DeploymentRepository>()
+            .AddScoped<IDomainRepository, DomainRepository>()
+            .AddScoped<IUserRepository, UserRepository>()
+            .AddSingleton<IEmailSender>(mail)
+            .AddSingleton<IRunEventSink>(new SilentSink())
+            .AddSingleton<ISandboxProvider>(new HangingProvider(preparing))
+            .AddSingleton<ISiteRepositoryStore>(new GitSiteRepositoryStore(
+                Options.Create(new RepositoryOptions { Root = Path.GetTempPath() }),
+                NullLogger<GitSiteRepositoryStore>.Instance))
+            .AddSingleton<IDeploymentTarget>(new FileSystemDeploymentTarget(
+                Options.Create(new DeploymentOptions()),
+                NullLogger<FileSystemDeploymentTarget>.Instance))
+            .AddSingleton(Options.Create(new SitesOptions { BaseDomain = "webly.site" }))
+            .AddSingleton(Options.Create(new AppOptions { BaseUrl = "https://localhost:5000" }))
+            .AddSingleton<SiteMapper>()
+            .BuildServiceProvider();
+
+    private static DeploymentJobRunner Runner(ServiceProvider services, RunRegistry registry) => new(
+        services.GetRequiredService<IServiceScopeFactory>(),
+        registry,
+        NullLogger<DeploymentJobRunner>.Instance);
 
     /// <summary>A build machine that never arrives, until Webly stops waiting for it.</summary>
     private sealed class HangingProvider(TaskCompletionSource preparing) : ISandboxProvider

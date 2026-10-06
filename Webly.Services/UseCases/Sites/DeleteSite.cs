@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Webly.Data;
+using Webly.Data.Models.Deployments;
 using Webly.Data.Repositories.Chat;
+using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
@@ -32,6 +34,7 @@ public class DeleteSite(
     IDomainRepository domainRepository,
     IUserRepository userRepository,
     IConversationRepository conversations,
+    IDeploymentRepository deployments,
     IDeploymentTarget deploymentTarget,
     ISiteWorkspaceRegistry workspaces,
     ISiteRepositoryStore repositories,
@@ -59,6 +62,10 @@ public class DeleteSite(
         // for a site that was gone. Stopping it lets it end the way a Stop does, while everything it touches still
         // exists. Bounded, because a turn that will not stop must not keep somebody from deleting their site.
         await StopTurnAsync(site.Id, userId, cancellationToken);
+
+        // And a publish, for the same reason and a worse outcome: one that finished after the delete wrote the
+        // deleted site back onto the internet, because removing the published copy had already happened.
+        await StopPublishAsync(site.Id, userId, cancellationToken);
 
         // Then the live workspace: a sandbox editing a site that is being deleted is a turn that will fail
         // confusingly, and stopping it costs a second.
@@ -130,6 +137,27 @@ public class DeleteSite(
         }
 
         return Result<SiteError>.Ok();
+    }
+
+    private async Task StopPublishAsync(int siteId, int userId, CancellationToken cancellationToken)
+    {
+        var publish = await deployments.FindInFlightAsync(siteId, cancellationToken);
+        var run = publish is null ? null : runs.Get(publish.Nanoid);
+
+        if (run is null || !runs.TryCancel(run.RunId, userId, CancelReason.SiteDeleted)) return;
+
+        // Queued means the runner has not picked it up, and nothing will finish it: the runner finds the row gone and
+        // moves on, or — picking it up in this moment — starts on a token that is already cancelled.
+        if (publish!.Status == DeploymentStatus.Queued) return;
+
+        try
+        {
+            await run.Finished.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning("The publish {Run} of a site being deleted did not stop in time.", run.RunId);
+        }
     }
 
     private async Task StopTurnAsync(int siteId, int userId, CancellationToken cancellationToken)

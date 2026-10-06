@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 254-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 255-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -1040,6 +1040,13 @@ has two lines — the model and the machine — and "what does this site cost us
   and `ReleaseAsync` waits out a start in progress before stopping, so a wake that finishes afterwards cannot leave
   one behind — `FindOrStartAsync`, which already holds that lock, calls the inner `StopAsync`. The Settings dialog
   says "Deleting…" and stays until it is done, because that can now take ten seconds.
+- **And it stops the site's publish, which nothing could.** `DeploymentJobRunner` did its work on the host's
+  shutdown token alone, so a publish could not be stopped by anything else — and one that was building when its
+  site was deleted finished afterwards and wrote the deleted site back to the internet (a 200 at its address a
+  minute after the delete). The runner now works on the run's own token, which is linked to the shutdown one;
+  `DeleteSite` cancels it with `CancelReason.SiteDeleted` and waits, and the runner ends such a publish without
+  recording or emailing anything, since its row and its owner's interest are both going with the site. The
+  reaper's lifetime cap reaches publishes for the same reason, with its own sentence (`OverranError`).
 - **Deleting a site takes it off the internet, which it did not.** `DeleteSite` removed the rows, the
   repository and the custom domains, and left the published site answering at its Webly subdomain and at the
   provider's own URL — the one action somebody takes to get a page down did not get it down. Found by

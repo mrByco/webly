@@ -41,6 +41,10 @@ public class DeploymentJobRunner(
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
 
+    /// <summary>What a publish says that the reaper ended for running past its lifetime cap.</summary>
+    public const string OverranError =
+        "Publishing took far too long and was stopped, so nothing was published. Please try again.";
+
     /// <summary>What a publish a process death cut off says, on the settings screen and in the email.</summary>
     public const string InterruptedError =
         "Webly restarted while your site was being built, so nothing was published.";
@@ -149,42 +153,47 @@ public class DeploymentJobRunner(
         var handle = registry.Register(
             RunKind.Deploy, deployment.Nanoid, deployment.Nanoid, deployment.TriggeredByUserId, stoppingToken);
 
+        // The work runs on the run's own token, which is linked to the shutdown one. It used to run on the shutdown
+        // token alone, so nothing else could stop a publish — and deleting a site while it built let the build
+        // finish afterwards and write the deleted site back onto the internet.
+        var work = handle.Token;
+
         var site = deployment.Site;
         var version = deployment.SiteVersion;
         ISandbox? sandbox = null;
 
         try
         {
-            await ProgressAsync(sink, deployment, DeploymentStatus.Preparing, dbContext, stoppingToken);
+            await ProgressAsync(sink, deployment, DeploymentStatus.Preparing, dbContext, work);
 
             sandbox = await sandboxes.StartAsync(
                 new SandboxSpec(site.Nanoid, new Dictionary<string, string>())
                 {
                     Meter = new SandboxMeter(UsageKind.PublishSandbox, site.OwnerId, site.Id, site.Name)
-                }, stoppingToken);
+                }, work);
 
-            var tree = await repositories.ReadTreeAsync(site.Nanoid, version.CommitSha, stoppingToken);
-            await sandbox.WriteTreeAsync(tree, stoppingToken);
+            var tree = await repositories.ReadTreeAsync(site.Nanoid, version.CommitSha, work);
+            await sandbox.WriteTreeAsync(tree, work);
 
             // `npm ci`, not `npm install`: the lockfile is committed, and a deploy that resolved a different
             // dependency tree from the one the agent tested against is the class of bug nobody can reproduce.
             var install = await sandbox.RunAsync(
                 new SandboxCommand("npm", ["ci", "--no-audit", "--no-fund"], TimeSpan.FromMinutes(5)),
-                cancellationToken: stoppingToken);
+                cancellationToken: work);
 
             if (!install.Succeeded)
                 throw new DeploymentFailedException(
                     "Your site's dependencies could not be installed, so nothing was published.",
                     install.Output);
 
-            await ProgressAsync(sink, deployment, DeploymentStatus.Building, dbContext, stoppingToken);
+            await ProgressAsync(sink, deployment, DeploymentStatus.Building, dbContext, work);
 
-            site.ProviderProjectId ??= await target.EnsureProjectAsync(site.Nanoid, site.Name, stoppingToken);
+            site.ProviderProjectId ??= await target.EnsureProjectAsync(site.Nanoid, site.Name, work);
 
             // The address, resolved before the build rather than after it: the published pages carry it, so the
             // build has to be told. `UrlFor` and not `LiveUrlFor` — a canonical link that changed with every
             // deployment would tell search engines the site moves every time somebody fixes a headline.
-            var primary = await domains.FindPrimaryAsync(site.Id, stoppingToken);
+            var primary = await domains.FindPrimaryAsync(site.Id, work);
             var address = mapper.UrlFor(site, primary);
 
             var deployed = await target.BuildAndDeployAsync(
@@ -198,8 +207,8 @@ public class DeploymentJobRunner(
                     Type = RunEventType.DeploymentProgress,
                     Detail = "Building",
                     Text = text
-                }, cancellationToken: stoppingToken),
-                stoppingToken);
+                }, cancellationToken: work),
+                work);
 
             deployment.ProviderDeploymentId = deployed.ProviderDeploymentId;
             deployment.ProviderUrl = deployed.ProviderUrl;
@@ -210,10 +219,10 @@ public class DeploymentJobRunner(
             // difference between a bad afternoon and a customer's site going down.
             site.PublishedVersionId = version.Id;
 
-            await dbContext.SaveChangesAsync(stoppingToken);
+            await dbContext.SaveChangesAsync(work);
 
             // The address the whole product prints, arranged rather than assumed. See EnsureAddressAsync.
-            await EnsureAddressAsync(target, site, sites.Value.HostFor(site.Slug), dbContext, stoppingToken);
+            await EnsureAddressAsync(target, site, sites.Value.HostFor(site.Slug), dbContext, work);
 
             // Where it can be opened, which is not always its address — see `SiteMapper`. The email and the
             // terminal event carry the same one the header links, because a link in an email that 404s is worse
@@ -224,9 +233,24 @@ public class DeploymentJobRunner(
             {
                 Type = RunEventType.Completed,
                 Detail = url
-            }, isTerminal: true, stoppingToken);
+            }, isTerminal: true, work);
 
-            await NotifyAsync(email, users, deployment, site.Name, url, null, null, stoppingToken);
+            await NotifyAsync(email, users, deployment, site.Name, url, null, null, work);
+        }
+        catch (OperationCanceledException) when (handle.CancelledBecause == CancelReason.SiteDeleted)
+        {
+            // The site is being deleted, and is waiting for this to stop. There is nobody to email about a publish of
+            // a site its owner has just removed, and no row to record it in — it is going with the site.
+            logger.LogInformation(
+                "Deployment {Deployment} of site {Site} was abandoned: the site is being deleted.",
+                deployment.Nanoid,
+                site.Nanoid);
+
+            await sink.EmitAsync(deployment.Nanoid, new RunEvent
+            {
+                Type = RunEventType.Failed,
+                Error = "This site was deleted, so nothing was published."
+            }, isTerminal: true, CancellationToken.None);
         }
         catch (Exception exception)
         {
@@ -235,8 +259,9 @@ public class DeploymentJobRunner(
             // operation was canceled." as the build output. It gets the sentence the startup sweep gives a publish a
             // dead process left behind, because it is the same event, seen before the process went rather than after.
             var interrupted = exception is OperationCanceledException && stoppingToken.IsCancellationRequested;
+            var overran = exception is OperationCanceledException && handle.CancelledBecause == CancelReason.TooLong;
 
-            var message = interrupted ? InterruptedError : exception switch
+            var message = interrupted ? InterruptedError : overran ? OverranError : exception switch
             {
                 DeploymentFailedException failure => failure.Message,
                 SandboxException => "Publishing could not start because no build machine was available. Please try again.",
@@ -247,7 +272,7 @@ public class DeploymentJobRunner(
             // Through the same reader the chat's build block uses: this text is shown to the site's owner, and a
             // build log with the terminal's colour codes in it, a Rust backtrace from SWC's internals and the
             // absolute path of a machine they have never seen is not something anybody can act on.
-            var detail = interrupted ? null : Tail(CompilerOutput.Readable(exception switch
+            var detail = interrupted || overran ? null : Tail(CompilerOutput.Readable(exception switch
             {
                 DeploymentFailedException failure => failure.ProviderDetail ?? string.Empty,
                 SandboxException sandboxFailure => sandboxFailure.Detail ?? string.Empty,
