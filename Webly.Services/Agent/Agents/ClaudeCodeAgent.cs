@@ -86,12 +86,7 @@ public class ClaudeCodeAgent(
             "claude",
             arguments,
             _options.TurnTimeout,
-            new Dictionary<string, string>
-            {
-                ["ANTHROPIC_API_KEY"] = _options.ClaudeCode.ApiKey,
-                // The CLI is interactive by default and will try to be clever about a TTY it does not have.
-                ["CI"] = "true"
-            });
+            EnvironmentFor(_options.ClaudeCode));
 
         var parser = new ClaudeStreamJsonParser(onEvent, logger);
 
@@ -141,6 +136,27 @@ public class ClaudeCodeAgent(
             """);
 
         return prompt.ToString();
+    }
+
+    /// <summary>
+    /// The CLI's environment: exactly one credential, the API key when there is one and the subscription token
+    /// otherwise (see <see cref="CodingAgentOptions.ClaudeCodeOptions.OAuthToken"/>).
+    ///
+    /// The other one is set <b>empty</b> rather than left out, because a command inherits its sandbox's environment —
+    /// and an unconfined local sandbox's is the developer's own, where an <c>ANTHROPIC_API_KEY</c> exported for some
+    /// other project would quietly take precedence over the subscription this setting asked for.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> EnvironmentFor(CodingAgentOptions.ClaudeCodeOptions options)
+    {
+        var apiKey = !string.IsNullOrWhiteSpace(options.ApiKey);
+
+        return new Dictionary<string, string>
+        {
+            ["ANTHROPIC_API_KEY"] = apiKey ? options.ApiKey : string.Empty,
+            ["CLAUDE_CODE_OAUTH_TOKEN"] = apiKey ? string.Empty : options.OAuthToken,
+            // The CLI is interactive by default and will try to be clever about a TTY it does not have.
+            ["CI"] = "true"
+        };
     }
 
     private static readonly string ClaudeMcpConfig = new JsonObject

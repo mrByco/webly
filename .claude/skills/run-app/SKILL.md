@@ -65,7 +65,9 @@ needs **node and git and nothing else**:
 - `Agent:Mock:Enabled` is true, so with no model key the chat still works — the mock agent makes one real
   edit to the home page's headline. For the real thing:
   `dotnet user-secrets set "Agent:ClaudeCode:ApiKey" "<key>" --project Webly.Api`, and it takes over with no
-  settings change. With the mock off and no key the chat is *absent* rather than broken:
+  settings change. Or on your own Claude subscription, Development only: `claude setup-token`, then
+  `dotnet user-secrets set "Agent:ClaudeCode:OAuthToken" "<token>" --project Webly.Api` (and
+  `Agent:Default` = `claude-code` if another agent is configured too). With the mock off and no key the chat is *absent* rather than broken:
   `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the client hides it, which is easy to
   mistake for a bug in the client.
 - `Deployment:Provider` is `filesystem`, so publishing runs the real `next build` and writes the export to

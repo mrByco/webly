@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 204-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 210-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -136,7 +136,7 @@ a comment. Swapping any one of them for the real thing is one configuration key.
 ### Running it on Windows
 
 **The whole loop runs on Windows in Development**, driven end to end: `tools/e2e/run.mjs` passes all twenty steps,
-the 204 tests pass, and real OpenCode turns through the app edited, committed, previewed and published a site. Two
+the 204 tests passed, and real OpenCode turns through the app edited, committed, previewed and published a site. Two
 ways, and the difference is the confinement:
 
 - **`Sandbox:Provider = docker`** — confined, the same contract production speaks. Build the image first.
@@ -309,6 +309,18 @@ more than one restating what the line does.
   `Agent:ClaudeCode:ApiKey` in user secrets and the real agent takes over with no settings change. With
   `Agent:Mock:Enabled` false and no key, `/api/sites/{nanoid}/chat/status` reports `enabled: false` and the
   client hides the chat rather than failing inside it.
+- **A developer can run Claude Code on their own Claude subscription** instead of a key:
+  `Agent:ClaudeCode:OAuthToken`, the token `claude setup-token` prints, which the CLI reads from
+  `CLAUDE_CODE_OAUTH_TOKEN`. **Refused at boot outside Development** — a subscription is one person's, licensed
+  for their own use, and every customer's turns running on it is not that. An API key wins when both are set, and
+  the unused credential is passed *empty* rather than left out, because an unconfined local sandbox inherits the
+  developer's environment and an exported `ANTHROPIC_API_KEY` would otherwise quietly win. `/admin/usage` still
+  shows what a turn would have cost at list price, not what the subscription costs. Proven through the app on
+  Windows with a deliberately invalid token — the CLI took it and the API refused it — not yet with a real one.
+- **User secrets beat environment variables in Development**, which is the opposite of ASP.NET's usual order:
+  `Program.cs` adds them after the builder's defaults. So `Agent__Default=claude-code` on the command line does
+  nothing while `Agent:Default` is in user secrets. `tools/e2e/turn.mjs --agent <key>` picks the agent for one turn
+  without touching either.
 - **Publishing goes to a directory by default.** `Deployment:Provider` is `filesystem`, which runs the real
   `next build` and writes the export to `.run/published/{nanoid}`, served at
   `https://localhost:5000/published/{nanoid}/`. So the publish path — including a failed build blocking it — is

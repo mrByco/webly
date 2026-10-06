@@ -257,6 +257,16 @@ public static class ServiceCollectionExtensions
         services.AddOptions<SandboxOptions>().Bind(configuration.GetSection(SandboxOptions.SectionName));
         services.AddOptions<LocalSandboxOptions>().Bind(configuration.GetSection(LocalSandboxOptions.SectionName));
         services.AddOptions<CodingAgentOptions>().Bind(configuration.GetSection(CodingAgentOptions.SectionName));
+
+        // A Claude subscription is one person's, so it runs that person's own turns and nobody else's. Refused at
+        // boot rather than trusted to a comment, like the local sandbox below: a production deployment running every
+        // customer's turns on a developer's subscription would work perfectly right up until it was a breach.
+        if (!environment.IsDevelopment()
+            && !string.IsNullOrWhiteSpace(configuration[$"{CodingAgentOptions.SectionName}:ClaudeCode:OAuthToken"]))
+            throw new InvalidOperationException(
+                "Agent:ClaudeCode:OAuthToken is a Claude subscription, for a developer's own testing only. "
+                + "Use Agent:ClaudeCode:ApiKey outside Development.");
+
         services.AddOptions<DeploymentOptions>().Bind(configuration.GetSection(DeploymentOptions.SectionName));
 
         // One named client for every call into a sandbox — the provider's control API and, once one is running,

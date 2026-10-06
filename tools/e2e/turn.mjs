@@ -12,7 +12,7 @@
  * would be a second way to start one. So the only way to press this button is a SignalR client, and this is
  * the smallest one that presses it.
  *
- *   node tools/e2e/turn.mjs --site <nanoid> --cookies <jar> [--stop-after <seconds>] "make the headline say ..."
+ *   node tools/e2e/turn.mjs --site <nanoid> --cookies <jar> [--agent <key>] [--stop-after <seconds>] "make the headline say ..."
  *
  * `--cookies` is a curl cookie jar from a signed-in session; the two Webly cookies are read out of it and
  * sent as a header, which a browser could not do on a WebSocket upgrade and a script can.
@@ -33,12 +33,14 @@ const option = (name, fallback) => {
 const origin = option('origin', 'https://localhost:5000');
 const site = option('site');
 const jar = option('cookies', '/tmp/jar.txt');
+// Which agent runs the turn — `claude-code`, `opencode` or `mock` — or the deployment's default when not given.
+const agent = option('agent', null);
 const message = args.filter((value, index) =>
     !value.startsWith('--') && !args[index - 1]?.startsWith('--')).join(' ')
     || 'Say we are Koopman Cycles, a bike repair shop in Utrecht.';
 
 if (!site) {
-    console.error('usage: node tools/e2e/turn.mjs --site <nanoid> [--cookies <jar>] "<message>"');
+    console.error('usage: node tools/e2e/turn.mjs --site <nanoid> [--cookies <jar>] [--agent <key>] "<message>"');
     process.exit(2);
 }
 
@@ -122,7 +124,7 @@ connection.on('RunEvent', envelope => {
 await connection.start();
 console.log(`connected; starting a turn on ${site}`);
 
-const started = await connection.invoke('StartChat', { siteNanoid: site, message, agent: null });
+const started = await connection.invoke('StartChat', { siteNanoid: site, message, agent });
 const runId = started.runId ?? started.RunId;
 
 console.log(`run ${runId}`);

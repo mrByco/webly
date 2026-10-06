@@ -59,7 +59,21 @@ public class CodingAgentOptions
         /// </summary>
         public string ApiKey { get; set; } = string.Empty;
 
-        public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
+        /// <summary>
+        /// A Claude subscription instead of an API key, for a developer's own testing: the long-lived token
+        /// <c>claude setup-token</c> prints, which the CLI reads from <c>CLAUDE_CODE_OAUTH_TOKEN</c>.
+        ///
+        /// <b>Development only, and refused at startup anywhere else</b> (<c>AddWeblySites</c>). A consumer
+        /// subscription is licensed for the subscriber's own use; running customers' turns on it is not that, and a
+        /// product built on Claude runs on API keys under commercial terms. When both are set the API key wins, so
+        /// adding a real key never leaves a subscription quietly in charge.
+        ///
+        /// What <c>/admin/usage</c> records for a turn on it is the CLI's own figure, priced at the API's list price —
+        /// what the turn would have cost, not what the subscription costs.
+        /// </summary>
+        public string OAuthToken { get; set; } = string.Empty;
+
+        public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey) || !string.IsNullOrWhiteSpace(OAuthToken);
     }
 
     public class OpenCodeOptions
