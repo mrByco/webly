@@ -433,6 +433,7 @@ export class SiteEditorPage {
     const deployment = this.deployment;
 
     this.deployment = undefined;
+    this.joinAttempts = 0;
     this.publishing.set(false);
     this.publishStatus.set(undefined);
     this.confirmingStarter.set(false);
