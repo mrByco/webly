@@ -85,7 +85,7 @@ public class CodingAgentOptions
         public string ApiKey { get; set; } = string.Empty;
 
         /// <summary>Provider-qualified, the way OpenCode names models.</summary>
-        public string Model { get; set; } = "anthropic/claude-opus-5";
+        public string Model { get; set; } = "anthropic/claude-opus-5.5";
 
         public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
     }
