@@ -1342,6 +1342,12 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   site is live" again over a publish from an hour before. The editor also holds the publish's subscription and
   lets go of it on a site switch, the chat's `detach` again: before, the next site's Publish button read
   "Building…" for the last one's build and then said "Your site is live" over a site nobody had published.
+- **A publish that cannot be followed is not a publish that failed.** Only a failure to *start* one is an error
+  on the editor; once its row exists it is happening, and failing to join its run — Webly restarting, or a publish
+  queued just before a restart, whose run the new process registers only when its runner picks the row up — keeps
+  the button on "Publishing…" and asks the row again every few seconds for about two minutes (`rejoinSoon`). It
+  used to end the publish on screen instead: "Publish" under "Webly cannot be reached", over a build that went
+  on after the restart and went live with nothing watching it.
 - **Coming back to a tab catches it up** (`shared/on-return.ts`). A turn or a publish started from one tab never
   reached another open on the same site — a laptop and a phone, say — which went on showing the thread and the
   Publish button as they were when it loaded, however often it was brought forward. On `visibilitychange` or

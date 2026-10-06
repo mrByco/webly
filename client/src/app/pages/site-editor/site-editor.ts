@@ -10,6 +10,7 @@ import { SitePreview } from '../../components/site-preview/site-preview';
 import { Modal } from '../../components/modal/modal';
 import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
+import { DeploymentResponse } from '../../api/models/deployment-response';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf, unreachable } from '../../models/problem-details';
@@ -378,21 +379,35 @@ export class SiteEditorPage {
     this.publishStatus.set(status);
 
     // Checked per event as well as after the wait, because the replay arrives *during* it.
-    const events = await this.realtime.watch('Deploy', nanoid, {
-      next: event => {
-        if (this.nanoid() !== site) return;
+    let events: Subscription;
 
-        this.applyDeployEvent(event);
+    try {
+      events = await this.realtime.watch('Deploy', nanoid, {
+        next: event => {
+          if (this.nanoid() !== site) return;
 
-        // Over, so let go of it, as the chat does. Kept, a finished run stayed watched for the life of the page,
-        // and the next hub reconnect — any restart of Webly — found it evicted, errored its stream and announced
-        // "Your site is live" again over a publish from an hour before.
-        if (event.type === 'Completed' || event.type === 'Failed') void this.realtime.unwatch(nanoid);
-      },
-      error: () => {
-        if (this.nanoid() === site) void this.rejoinDeployment();
-      },
-    });
+          this.applyDeployEvent(event);
+
+          // Over, so let go of it, as the chat does. Kept, a finished run stayed watched for the life of the page,
+          // and the next hub reconnect — any restart of Webly — found it evicted, errored its stream and announced
+          // "Your site is live" again over a publish from an hour before.
+          if (event.type === 'Completed' || event.type === 'Failed') void this.realtime.unwatch(nanoid);
+        },
+        error: () => {
+          if (this.nanoid() === site) void this.rejoinDeployment();
+        },
+      });
+    } catch {
+      // Could not join it — Webly is restarting, or this is a publish queued just before a restart, whose run the
+      // new process registers only when its runner picks the row up. The publish is a row and carries on either
+      // way, so the button keeps saying so and the row is asked again shortly. This used to end the publish on
+      // screen: "Publish" under "Webly cannot be reached", over a build that went on and went live unwatched.
+      if (this.nanoid() === site) this.rejoinSoon(site);
+
+      return;
+    }
+
+    this.joinAttempts = 0;
 
     // Left while the hub answered: the publish carries on, and coming back joins it again the way a reload does.
     if (this.nanoid() !== site) {
@@ -438,25 +453,48 @@ export class SiteEditorPage {
     const nanoid = this.nanoid();
 
     this.deployment = undefined;
-    this.publishing.set(false);
-    this.publishStatus.set(undefined);
 
-    await this.sites.reload();
+    const site = await this.sites.load(nanoid).catch(() => undefined);
 
     if (this.nanoid() !== nanoid) return;
 
-    const active = this.site()?.activeDeploymentNanoid;
+    // Still out of reach: the button goes on saying "Publishing…", which is the last thing known to be true.
+    if (!site) return this.rejoinSoon(nanoid);
 
-    if (active) {
-      await this.watchDeployment(nanoid, active, 'Publishing');
-    } else if (nanoid) {
-      const [latest] = await this.deployments.list(nanoid);
+    if (site.activeDeploymentNanoid) return this.watchDeployment(nanoid, site.activeDeploymentNanoid, 'Publishing');
 
-      if (this.nanoid() !== nanoid) return;
+    this.publishing.set(false);
+    this.publishStatus.set(undefined);
 
-      if (latest?.status === 'Failed') this.error.set(latest.error ?? 'Publishing failed.');
-      if (latest?.status === 'Ready') this.justPublished.set(true);
+    const [latest] = await this.deployments.list(nanoid).catch(() => []);
+
+    if (this.nanoid() !== nanoid) return;
+
+    if (latest?.status === 'Failed') this.error.set(latest.error ?? 'Publishing failed.');
+    if (latest?.status === 'Ready') this.justPublished.set(true);
+  }
+
+  /** How many times in a row joining the publish has failed. See `rejoinSoon`. */
+  private joinAttempts = 0;
+
+  /**
+   * Asks the deployment row again in a few seconds — for about two minutes, which is longer than any restart of
+   * Webly and short enough not to poll for ever behind a tab nobody is looking at. After that the button lets go
+   * and says so, and coming back to the tab or reloading it joins whatever is still going.
+   */
+  private rejoinSoon(site: string): void {
+    if (++this.joinAttempts > 40) {
+      this.joinAttempts = 0;
+      this.publishing.set(false);
+      this.publishStatus.set(undefined);
+      this.error.set('This page lost track of the publish. It may still be going — reload the page to see how it went.');
+
+      return;
     }
+
+    setTimeout(() => {
+      if (this.nanoid() === site) void this.rejoinDeployment();
+    }, 3000);
   }
 
   /**
@@ -506,17 +544,23 @@ export class SiteEditorPage {
     this.justPublished.set(false);
     this.error.set(undefined);
 
-    try {
-      const deployment = await this.deployments.publish(nanoid);
+    let deployment: DeploymentResponse;
 
-      await this.watchDeployment(nanoid, deployment.nanoid, 'Queued');
+    // Only a failure to *start* it is an error here. Once the row exists the publish is happening, and failing to
+    // follow it is `watchDeployment`'s to recover from rather than a reason to say it did not happen.
+    try {
+      deployment = await this.deployments.publish(nanoid);
     } catch (failure) {
       if (this.nanoid() !== nanoid) return;
 
       this.error.set(messageOf(failure));
       this.publishing.set(false);
       this.publishStatus.set(undefined);
+
+      return;
     }
+
+    await this.watchDeployment(nanoid, deployment.nanoid, 'Queued');
   }
 
   private applyDeployEvent(event: RunEvent): void {

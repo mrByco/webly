@@ -1463,6 +1463,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     — the sentence the startup sweep already used for a process that died — with no build log. A stop during
     "Building…" usually lets `next build` finish within the thirty-second shutdown, and the site goes live.
 
+105. **Pressing Publish just before a restart lost the publish on screen.** The row was queued, then following its
+    run failed because Webly was down, and the editor treated that as the publish failing: "Publish" under "Webly
+    cannot be reached", while the new process picked the row up and built and published it unwatched. Following
+    is now retried against the row until it can join or knows the ending; walked by pressing Publish and stopping
+    Webly in the same second — "Building…" after the restart, then "Published" and "Your site is live".
+
 
 ## What is still intent
 
