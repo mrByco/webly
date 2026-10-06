@@ -1526,6 +1526,16 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     clicking around in it ended, ten minutes after the wake, with the sandbox stopped mid-browse. A preview request
     counts now. Walked with `Sandbox:IdleTimeout` at one minute: clicking between Home and Contact every fifteen
     seconds kept it for 152 seconds, and once the clicking stopped the reaper took it 86 seconds later.
+114. **Five wrong codes was not a limit when they arrived together.** The confirmation code's count of tries was
+    read, the code compared, and the count written back — so every request of a burst read the same count. Sixty
+    wrong codes sent at once against the running app left it at four and the right code was accepted after them,
+    which is a verified account for an address nobody proved, and with it Google sign-in linking onto an account
+    whose password somebody else set. A try is now claimed before it is compared, in one conditional `UPDATE`;
+    the same burst, and one of two hundred, leaves exactly five and refuses the right code. The column is
+    `CodeAttempts`, since a correct code is a try too. `EmailCodeTests` is the first test of the code path at all,
+    and its burst is red on the old order. A cap across every code an account is sent was written and taken out
+    again: deleting the account and registering the address afresh resets anything counted per account, so it
+    bounded nothing the per-IP mail limit does not.
 
 
 ## What is still intent

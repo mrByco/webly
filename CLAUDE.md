@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 255-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 261-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -428,6 +428,12 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
 - **Verification is a blocking onboarding step.** Registering lands on `/verify-email` and nothing else is
   reachable until the address is proven: a site publishes to the public internet under our infrastructure.
   Google-created accounts arrive verified and skip it.
+- **A confirmation code's try is paid for before it is compared.** The count of tries is the only thing between six
+  digits and a machine, and it was read, compared and written back — so a burst all read the same count: sixty
+  wrong codes at once left it at four and the right code was accepted after them. `TryClaimCodeAttemptAsync` is
+  one `UPDATE … WHERE CodeAttempts < max`, which Postgres re-checks against the row a concurrent update just wrote,
+  so a burst of two hundred gets exactly five. `EmailCodeTests` drives the burst and is red on the old order. Do
+  not count per account instead: deleting the account and registering the address again resets that.
 - **The sixth digit of the confirmation code is what submits it.** It used to fill the box and light a button,
   which is one step more than a one-time code needs: the length is known, there is exactly one thing that can
   happen next, and the code is on a phone while the box is on a laptop. `onCodeInput` calls `submitCode`, which

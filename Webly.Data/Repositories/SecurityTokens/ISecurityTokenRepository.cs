@@ -33,6 +33,17 @@ public interface ISecurityTokenRepository
         DateTime consumedAt,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Takes one try at a token's code, or answers false when it has none left. One conditional update rather
+    /// than a read and a write, because only the database can make "under the limit" and "one more" a single
+    /// fact: Postgres re-checks the condition against the row a concurrent update just wrote, so a burst gets
+    /// exactly as many tries as are left and every other request in it gets false.
+    /// </summary>
+    Task<bool> TryClaimCodeAttemptAsync(
+        int tokenId,
+        int maxAttempts,
+        CancellationToken cancellationToken = default);
+
     /// <summary>The most recently issued token of a purpose, used to throttle re-sends.</summary>
     Task<UserSecurityToken?> FindLatestAsync(
         int userId,

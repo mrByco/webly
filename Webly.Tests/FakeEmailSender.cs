@@ -34,6 +34,19 @@ public partial class FakeEmailSender : IEmailSender
             : throw new InvalidOperationException($"No token link in:\n{message.TextBody}");
     }
 
+    /// <summary>The six digits the most recent email carries in its subject, as a person reading it on a phone sees them.</summary>
+    public string CodeFromLast()
+    {
+        var match = CodePattern().Match(Last.Subject);
+
+        return match.Success
+            ? match.Value
+            : throw new InvalidOperationException($"No code in: {Last.Subject}");
+    }
+
     [GeneratedRegex(@"[?&]token=([^\s&]+)")]
     private static partial Regex TokenPattern();
+
+    [GeneratedRegex(@"\b\d{6}\b")]
+    private static partial Regex CodePattern();
 }

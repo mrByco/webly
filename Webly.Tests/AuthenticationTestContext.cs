@@ -116,7 +116,7 @@ public sealed class AuthenticationTestContext(WeblyDbContext dbContext) : IDispo
         new(SecurityTokenService, SecurityTokens, EmailVerification);
 
     public VerifyEmailWithCode VerifyEmailWithCode =>
-        new(SecurityTokenService, SecurityTokens, EmailVerification, TokenOptions, Db);
+        new(SecurityTokenService, SecurityTokens, EmailVerification, TokenOptions);
 
     public RequestPasswordReset RequestPasswordReset =>
         new(Users, SecurityTokenService, SecurityTokens, Emails, App, TokenOptions, Db);

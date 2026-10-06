@@ -24,8 +24,10 @@ public class EmailTokenOptions
     public TimeSpan PasswordResetLifetime { get; set; } = TimeSpan.FromHours(1);
 
     /// <summary>
-    /// Wrong codes allowed before the credential dies and a new mail is needed. Six digits is a
-    /// space a machine walks instantly, so this counter — not the length — is what protects it.
+    /// Tries at one code: this many wrong ones and it dies, and a new mail is needed. Six digits is a space a
+    /// machine walks instantly, so this counter — not the length — is what protects it, and only because each try
+    /// is claimed before it is compared
+    /// (<see cref="Webly.Data.Repositories.SecurityTokens.ISecurityTokenRepository.TryClaimCodeAttemptAsync"/>).
     /// </summary>
     public int MaxCodeAttempts { get; set; } = 5;
 
