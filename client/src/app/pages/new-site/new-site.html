@@ -26,7 +26,7 @@
         </label>
 
         @if (error()) {
-          <p class="text-sm font-semibold text-error">{{ error() }}</p>
+          <p class="text-sm font-semibold text-error" role="alert">{{ error() }}</p>
         }
 
         <button class="btn btn-primary btn-lg" type="submit" [disabled]="saving() || !name.trim()">

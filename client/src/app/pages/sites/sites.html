@@ -17,7 +17,7 @@
     </header>
 
     @if (error()) {
-      <div class="alert alert-error mb-4">
+      <div class="alert alert-error mb-4" role="alert">
         <app-icon class="size-5" name="circle-alert" />
         <span>{{ error() }}</span>
         <button class="btn btn-sm" type="button" (click)="load()">Try again</button>

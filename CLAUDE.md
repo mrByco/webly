@@ -1421,6 +1421,10 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   facts in a product that promises they never touch code was reading a note about a TypeScript constant. The
   same class as the comments that were travelling inside every email, except rendered in full rather than
   invisible. It lives in `AGENTS.md` now, which also tells the agent that the owner reads that file.
+- **An error that appears after something was pressed is `role="alert"`.** The sign-in screens always were and
+  none of the editor's were, so a failed send, publish, rename, upload or domain was silent to a screen reader —
+  the banner arrived, and nothing said so. Static error text inside a list (a failed publish in the history, a
+  domain's last error) is not an alert: it is content, and announcing every one of them on load is noise.
 - **Enter sends; Shift+Enter writes a second line.** Bound explicitly, because a `<textarea>` does not submit
   its form on Enter and an `<input>` does — so the composer's growing to fit a message silently took away the
   only way to send one with the keyboard, in a product whose entire interface is a box you type a sentence

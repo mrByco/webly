@@ -147,7 +147,7 @@
 
     <form class="border-t border-base-300 p-3" (ngSubmit)="send()">
       @if (error()) {
-        <p class="mb-2 text-xs font-semibold text-error">{{ error() }}</p>
+        <p class="mb-2 text-xs font-semibold text-error" role="alert">{{ error() }}</p>
       }
 
       <!-- Only while a turn is in flight. The connection is deliberately lazy — an editor nobody is talking to

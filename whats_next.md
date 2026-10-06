@@ -1481,6 +1481,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     counts as theft now. Walked: after a reset both old browsers get 401 and the new password works; after a change
     the laptop stays signed in and the phone lands on the sign-in page. Five tests, all red on the old code.
 
+107. **The editor's errors were silent to a screen reader.** Every in-app error banner and line — the chat's,
+    the editor's, Settings, Domains, History, Code, Messages, the sites list, a new site, closing an account — was
+    plain text that appeared, where the sign-in screens' were `role="alert"`. Ten of them are now; checked by finding
+    the Domains refusal through its role in the browser.
+
 
 ## What is still intent
 

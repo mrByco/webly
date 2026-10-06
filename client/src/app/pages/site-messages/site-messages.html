@@ -16,7 +16,7 @@
     </div>
 
     @if (error(); as failure) {
-      <p class="flex items-center gap-2 rounded-field bg-error/10 px-3 py-2 text-sm text-error">
+      <p class="flex items-center gap-2 rounded-field bg-error/10 px-3 py-2 text-sm text-error" role="alert">
         <app-icon class="size-4" name="circle-alert" />
         {{ failure }}
       </p>
