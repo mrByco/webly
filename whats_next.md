@@ -1398,6 +1398,17 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     first one with it — and the preview arrived 16 seconds after the backend did. A wake that fails outright says
     so in the preview pane beside "Try again" (5.5:1 light, 5.9:1 dark), and pressing it clears it.
 
+97. **Three ways a publish or a turn reached the wrong screen, or none.** Publishing one site and clicking on to
+    another put the first one's "Preparing… / Building…" on the second site's button and ended with "Your site is
+    live" over a site nobody had published — the editor never let go of a publish. A finished publish was never
+    let go of either, so after a backend restart the stream of the evicted run errored and a dismissed "Your site
+    is live" came back three seconds later; in production that is every Webly deploy. And **no replay ever reached
+    the page**: the hub sends it before `Subscribe` returns and the stream was subscribed to afterwards, so a
+    reload mid-turn showed a Stop button and nothing else, although the hub's frames had the "Waking up your site"
+    event on the wire. `watch` takes the observer now. Walked all three: the second site keeps its own button,
+    no banner returns after a restart, a reload mid-wake shows the waking line at once, and coming back to a
+    publish shows its real stage ("Preparing…") instead of a generic "Publishing…".
+
 
 ## What is still intent
 

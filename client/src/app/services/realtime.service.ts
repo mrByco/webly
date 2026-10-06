@@ -1,7 +1,7 @@
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
-import { Subject } from 'rxjs';
+import { Observer, Subject, Subscription } from 'rxjs';
 import { RunEvent } from '../api/models/run-event';
 import { RunEventEnvelope } from '../api/models/run-event-envelope';
 import { RunKind } from '../api/models/run-kind';
@@ -77,24 +77,43 @@ export class RealtimeService {
   }
 
   /**
-   * Subscribes to a run and returns its event stream. Replays everything since `lastSeq`, so calling
-   * this after a reload plays the turn back from wherever the page left off.
+   * Follows a run: `observer` is given everything the run has said so far and then everything it says next, so
+   * calling this after a reload plays the turn back from the start. Ending the subscription stops this caller
+   * listening; `unwatch` is what leaves the run.
+   *
+   * <b>The observer is attached before the hub is asked</b> — the hub's own "join, then replay" rule, one layer
+   * out. The hub sends the replay *before* `Subscribe` returns, and this used to hand back a stream for the caller
+   * to subscribe to afterwards, so the replay went into a Subject nobody was listening to yet while `lastSeq`
+   * moved past it. Reloading during a turn showed the person's message and a Stop button with nothing about the
+   * turn so far; coming back to a publish said "Publishing" over a build already under way; and a run that ended
+   * in the moment between being found and being joined never ended on screen at all.
    */
-  async watch(kind: RunKind, runId: string): Promise<Subject<RunEvent>> {
+  async watch(kind: RunKind, runId: string, observer: Partial<Observer<RunEvent>>): Promise<Subscription> {
     const hub = await this.ensureConnected();
     const existing = this.watched.get(runId);
 
     if (existing) {
-      return existing.events;
+      return existing.events.subscribe(observer);
     }
 
     const entry: Watched = { kind, events: new Subject<RunEvent>(), lastSeq: 0 };
     this.watched.set(runId, entry);
 
-    const subscription = await hub.invoke<RunSubscription>('Subscribe', kind, runId, entry.lastSeq);
-    entry.lastSeq = Math.max(entry.lastSeq, subscription.lastSeq ?? 0);
+    const subscription = entry.events.subscribe(observer);
 
-    return entry.events;
+    try {
+      const answer = await hub.invoke<RunSubscription>('Subscribe', kind, runId, entry.lastSeq);
+      entry.lastSeq = Math.max(entry.lastSeq, answer.lastSeq ?? 0);
+    } catch (failure) {
+      // Not joined, so not watched: a later `watch` of the same run has to ask the hub again, rather than be
+      // handed a stream that nothing will ever write to.
+      if (this.watched.get(runId) === entry) this.watched.delete(runId);
+
+      subscription.unsubscribe();
+      throw failure;
+    }
+
+    return subscription;
   }
 
   async unwatch(runId: string): Promise<void> {

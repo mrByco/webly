@@ -349,13 +349,16 @@ export class SiteChat {
     this.runId = runId;
     this.running.set(true);
 
-    const events = await this.realtime.watch('Chat', runId);
+    const events = await this.realtime.watch('Chat', runId, {
+      next: event => this.apply(event),
+      error: () => void this.reread(),
+    });
 
-    // Kept, and the previous one ended first. `watch` hands back the *same* stream for a run it is already
-    // watching, so subscribing twice to it is not a second stream — it is every event applied twice, which is
-    // how coming back to a site mid-turn drew its last two entries in duplicate.
+    // Kept, and the previous one ended. `watch` attaches to the *same* stream for a run it is already watching, so
+    // a second subscription is not a second stream — it is every event applied twice, which is how coming back to
+    // a site mid-turn drew its last two entries in duplicate.
     this.events?.unsubscribe();
-    this.events = events.subscribe({ next: event => this.apply(event), error: () => void this.reread() });
+    this.events = events;
   }
 
   /**

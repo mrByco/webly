@@ -2,7 +2,7 @@ import { Component, ElementRef, PLATFORM_ID, afterNextRender, computed, effect, 
 import { isPlatformBrowser } from '@angular/common';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { Subscription, filter, map } from 'rxjs';
 import { AppRoutes } from '../../app.routes.paths';
 import { AppShell } from '../../components/app-shell/app-shell';
 import { SiteChat } from '../../components/site-chat/site-chat';
@@ -298,6 +298,8 @@ export class SiteEditorPage {
   }
 
   private async load(nanoid: string): Promise<void> {
+    void this.releaseDeployment();
+
     try {
       const site = await this.sites.load(nanoid);
 
@@ -316,7 +318,7 @@ export class SiteEditorPage {
       // is still showing "loading your site", so there is no tab row to scroll.
       this.centreOpenTab();
 
-      if (site.activeDeploymentNanoid) await this.watchDeployment(site.activeDeploymentNanoid, 'Publishing');
+      if (site.activeDeploymentNanoid) await this.watchDeployment(nanoid, site.activeDeploymentNanoid, 'Publishing');
     } catch (failure) {
       if (this.nanoid() === nanoid) this.error.set(messageOf(failure));
     }
@@ -334,7 +336,9 @@ export class SiteEditorPage {
    * The same two steps the chat takes for the same reason — start, then watch — which is why a reload can join
    * either one.
    */
-  private async watchDeployment(nanoid: string, status: string): Promise<void> {
+  private async watchDeployment(site: string, nanoid: string, status: string): Promise<void> {
+    if (this.nanoid() !== site) return;
+
     this.publishing.set(true);
 
     // "Queued" is the truth when this call is what just created the row, and a guess when it is a reload
@@ -342,9 +346,55 @@ export class SiteEditorPage {
     // cannot know. The first `DeploymentProgress` replaces it either way.
     this.publishStatus.set(status);
 
-    const events = await this.realtime.watch('Deploy', nanoid);
+    // Checked per event as well as after the wait, because the replay arrives *during* it.
+    const events = await this.realtime.watch('Deploy', nanoid, {
+      next: event => {
+        if (this.nanoid() !== site) return;
 
-    events.subscribe({ next: event => this.applyDeployEvent(event), error: () => void this.rejoinDeployment() });
+        this.applyDeployEvent(event);
+
+        // Over, so let go of it, as the chat does. Kept, a finished run stayed watched for the life of the page,
+        // and the next hub reconnect — any restart of Webly — found it evicted, errored its stream and announced
+        // "Your site is live" again over a publish from an hour before.
+        if (event.type === 'Completed' || event.type === 'Failed') void this.realtime.unwatch(nanoid);
+      },
+      error: () => {
+        if (this.nanoid() === site) void this.rejoinDeployment();
+      },
+    });
+
+    // Left while the hub answered: the publish carries on, and coming back joins it again the way a reload does.
+    if (this.nanoid() !== site) {
+      events.unsubscribe();
+
+      return void this.realtime.unwatch(nanoid);
+    }
+
+    this.deployment?.events.unsubscribe();
+    this.deployment = { nanoid, events };
+  }
+
+  /** The publish this page is following, held so that leaving the site can let go of it. */
+  private deployment?: { nanoid: string; events: Subscription };
+
+  /**
+   * Stops following a publish, without stopping it — the chat's `detach`, for the same reason. The router reuses
+   * this component between sites, and nothing let go of the run: publish one site, click on to another, and the
+   * second site's Publish button read "Building…" for the first one's build and then told its owner "Your site is
+   * live" over a site nobody had published. Coming back joins it again through `activeDeploymentNanoid`.
+   */
+  private async releaseDeployment(): Promise<void> {
+    const deployment = this.deployment;
+
+    this.deployment = undefined;
+    this.publishing.set(false);
+    this.publishStatus.set(undefined);
+    this.confirmingStarter.set(false);
+
+    if (deployment) {
+      deployment.events.unsubscribe();
+      await this.realtime.unwatch(deployment.nanoid);
+    }
   }
 
   /**
@@ -354,18 +404,24 @@ export class SiteEditorPage {
    * "Publish", which reads as a publish that worked.
    */
   private async rejoinDeployment(): Promise<void> {
+    const nanoid = this.nanoid();
+
+    this.deployment = undefined;
     this.publishing.set(false);
     this.publishStatus.set(undefined);
 
     await this.sites.reload();
 
-    const nanoid = this.nanoid();
+    if (this.nanoid() !== nanoid) return;
+
     const active = this.site()?.activeDeploymentNanoid;
 
     if (active) {
-      await this.watchDeployment(active, 'Publishing');
+      await this.watchDeployment(nanoid, active, 'Publishing');
     } else if (nanoid) {
       const [latest] = await this.deployments.list(nanoid);
+
+      if (this.nanoid() !== nanoid) return;
 
       if (latest?.status === 'Failed') this.error.set(latest.error ?? 'Publishing failed.');
       if (latest?.status === 'Ready') this.justPublished.set(true);
@@ -400,6 +456,9 @@ export class SiteEditorPage {
     if (!confirmed && !this.site()?.summary.publishedAt) {
       const versions = await this.sites.versions(nanoid).catch(() => []);
 
+      // A question about the site somebody has since left would be answered about the one they are on now.
+      if (this.nanoid() !== nanoid) return;
+
       if (!versions.some(version => version.origin === 'Agent')) {
         this.confirmingStarter.set(true);
 
@@ -419,8 +478,10 @@ export class SiteEditorPage {
     try {
       const deployment = await this.deployments.publish(nanoid);
 
-      await this.watchDeployment(deployment.nanoid, 'Queued');
+      await this.watchDeployment(nanoid, deployment.nanoid, 'Queued');
     } catch (failure) {
+      if (this.nanoid() !== nanoid) return;
+
       this.error.set(messageOf(failure));
       this.publishing.set(false);
       this.publishStatus.set(undefined);

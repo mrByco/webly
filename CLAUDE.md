@@ -1304,6 +1304,18 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   two steps, so a reload re-attaches by the same path; `GetChat` reports `activeRunId` for exactly that;
   `lastSeq` per run is the resume point and the duplicate filter; every watched run is re-subscribed on
   reconnect.
+- **`RealtimeService.watch` takes the observer, because the replay arrives before `Subscribe` returns.** It
+  used to hand back a stream for the caller to subscribe to afterwards, so everything the hub replayed went into
+  a Subject nobody was listening to yet, and `lastSeq` moved past it: a reload mid-turn showed the person's
+  message and a Stop button with nothing about the turn so far, and a run that ended between being found and
+  being joined never ended on screen. Attaching first is the hub's own "join, then replay", one layer out.
+  Found by reloading during a turn's wake and reading the hub's frames: the replay was on the wire.
+- **A finished run is let go of, as well as a left one.** The chat always unwatched on its terminal event and
+  the editor's publish did not, so a finished publish stayed watched for the life of the page — and the next hub
+  reconnect, which is any restart of Webly, found it evicted, errored its stream, and the editor announced "Your
+  site is live" again over a publish from an hour before. The editor also holds the publish's subscription and
+  lets go of it on a site switch, the chat's `detach` again: before, the next site's Publish button read
+  "Building…" for the last one's build and then said "Your site is live" over a site nobody had published.
 - **Switching sites has to let go of the run**, and it did not. The editor keeps one `SiteChat` alive across
   the switch — an effect reloads it — so a turn running on the site being left went on writing into the new
   site's transcript: its "waking up your site" line appeared under somebody else's history, and the composer
