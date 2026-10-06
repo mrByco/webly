@@ -13,6 +13,7 @@ import { DeploymentService } from '../../services/deployment.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { SiteService } from '../../services/site.service';
 import { messageOf, unreachable } from '../../models/problem-details';
+import { onReturn } from '../../shared/on-return';
 
 /**
  * The editor, and the shell every per-site screen renders inside.
@@ -167,6 +168,8 @@ export class SiteEditorPage {
       void this.load(nanoid);
     });
 
+    onReturn(() => void this.catchUp());
+
     // The open tab, brought into view. At phone width the five tabs are a row somebody swipes and the last of
     // them sits off the right edge, so arriving on Settings — from a link, a reload or the back gesture — left the
     // row showing Editor while the screen showed something else. Browser only; `block: 'nearest'` moves the row
@@ -288,6 +291,34 @@ export class SiteEditorPage {
       this.workspaceProgress.set(undefined);
       this.previewFailure.set(messageOf(failure, 'Your preview did not start.'));
     }
+  }
+
+  /**
+   * Somebody came back to this tab, so the site is read again: what another tab or device did meanwhile — a
+   * version, a publish it started, a sandbox the reaper closed — would otherwise stay invisible here until a reload.
+   * A publish going on elsewhere is joined, the way a reload joins one. A wake this page is running is left to
+   * finish, since it is already polling the same thing.
+   */
+  private async catchUp(): Promise<void> {
+    const nanoid = this.nanoid();
+
+    if (!nanoid || this.workspaceProgress()) return;
+
+    const site = await this.sites.load(nanoid).catch(() => undefined);
+
+    if (!site || this.nanoid() !== nanoid || this.workspaceProgress()) return;
+
+    // Only the change that matters to the frame: asleep to awake gets a fresh one, awake to asleep shows the
+    // sentence instead of a frame over a dev server that is gone.
+    if (site.workspaceReady !== this.workspaceReady()) {
+      this.workspaceReady.set(site.workspaceReady);
+
+      if (site.workspaceReady) this.previewKey.update(key => key + 1);
+    }
+
+    const active = site.activeDeploymentNanoid;
+
+    if (active && active !== this.deployment?.nanoid) await this.watchDeployment(nanoid, active, 'Publishing');
   }
 
   /** The end of a wake that worked: a new frame, at an address no earlier one has loaded. */

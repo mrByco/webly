@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { AppRoutes } from '../../app.routes.paths';
 import { Icon } from '../../shared/icon';
 import { AutoGrow } from '../../shared/auto-grow';
+import { onReturn } from '../../shared/on-return';
 import { ChatService } from '../../services/chat.service';
 import { Subscription } from 'rxjs';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
@@ -11,6 +12,7 @@ import { messageOf } from '../../models/problem-details';
 import { shrinkImage } from '../../models/image-file';
 import { ImageService } from '../../services/image.service';
 import { ChatMessageResponse } from '../../api/models/chat-message-response';
+import { ConversationResponse } from '../../api/models/conversation-response';
 
 /** A line in the transcript. One shape for everything the stream can produce. */
 export interface ChatEntry {
@@ -139,6 +141,13 @@ export class SiteChat {
   private runId?: string;
 
   /**
+   * The newest message of the thread that this transcript already shows — read from the server, because the live
+   * stream builds its entries from events and never learns the ids of the messages they became. What `catchUp`
+   * compares against to tell "nothing happened while you were away" from "somebody used another tab".
+   */
+  private seen?: string;
+
+  /**
    * The subscription to the watched run, held so that leaving can end it.
    *
    * Dropping it on the floor is what made switching sites mid-turn write one site's turn into another's
@@ -155,6 +164,8 @@ export class SiteChat {
       const nanoid = this.siteNanoid();
       void this.load(nanoid);
     });
+
+    onReturn(() => void this.catchUp());
 
     // Back at the newest entry whenever the chat is shown again. Below `lg` the editor shows the chat or the
     // preview, never both, and a transcript that was `display: none` while a turn wrote into it comes back
@@ -189,30 +200,34 @@ export class SiteChat {
     }
 
     try {
-      const conversation = await this.chat.conversation(siteNanoid);
-
-      this.entries.set(
-        conversation.messages.map((message: ChatMessageResponse) => ({
-          kind: KIND_OF_ROLE[message.role] ?? 'assistant',
-          text: message.text,
-          versionNanoid: message.producedVersionNanoid ?? undefined,
-        })),
-      );
-
-      // The newest message, which is what somebody opening a site came to read. Without it the transcript
-      // opened at the *oldest* — 2200px of history above the fold on a desktop and 2600px on a phone — so the
-      // last thing the assistant said, whether it committed anything, and whether the site is broken were all
-      // below the composer. `scrollToEnd` existed and was only ever called from the run-event handler, so it
-      // looked right the moment anybody typed and wrong every time they arrived. Measured rather than judged
-      // by eye: `scrollTop` was 0 with the pane two and a half screens short of its end.
-      this.scrollToEnd();
-
-      // A turn that is still running: re-attach and let the replay finish the transcript.
-      if (conversation.activeRunId) {
-        await this.attach(conversation.activeRunId);
-      }
+      await this.show(await this.chat.conversation(siteNanoid));
     } catch (failure) {
       this.error.set(messageOf(failure));
+    }
+  }
+
+  /** Draws a thread as the server has it, and joins its turn if one is running. */
+  private async show(conversation: ConversationResponse): Promise<void> {
+    this.entries.set(
+      conversation.messages.map((message: ChatMessageResponse) => ({
+        kind: KIND_OF_ROLE[message.role] ?? 'assistant',
+        text: message.text,
+        versionNanoid: message.producedVersionNanoid ?? undefined,
+      })),
+    );
+    this.seen = conversation.messages.at(-1)?.nanoid;
+
+    // The newest message, which is what somebody opening a site came to read. Without it the transcript
+    // opened at the *oldest* — 2200px of history above the fold on a desktop and 2600px on a phone — so the
+    // last thing the assistant said, whether it committed anything, and whether the site is broken were all
+    // below the composer. `scrollToEnd` existed and was only ever called from the run-event handler, so it
+    // looked right the moment anybody typed and wrong every time they arrived. Measured rather than judged
+    // by eye: `scrollTop` was 0 with the pane two and a half screens short of its end.
+    this.scrollToEnd();
+
+    // A turn that is still running: re-attach and let the replay finish the transcript.
+    if (conversation.activeRunId) {
+      await this.attach(conversation.activeRunId);
     }
   }
 
@@ -387,6 +402,24 @@ export class SiteChat {
    * how a turn ended in every case, the restart included (the server notes those as it starts), so it is read
    * again.
    */
+  /**
+   * Somebody came back to this tab. When the thread moved on without it — a turn sent from another tab or another
+   * device, finished or still going — it is loaded again, which joins a running turn through its replay exactly as
+   * a reload does. When it did not, nothing is touched: a reload draws a turn more plainly than the live stream did,
+   * and the transcript somebody was reading should not change under them for nothing.
+   */
+  private async catchUp(): Promise<void> {
+    const siteNanoid = this.siteNanoid();
+
+    if (!this.enabled() || this.running()) return;
+
+    const conversation = await this.chat.conversation(siteNanoid).catch(() => undefined);
+
+    if (!conversation || this.siteNanoid() !== siteNanoid || this.running()) return;
+
+    if (conversation.activeRunId || conversation.messages.at(-1)?.nanoid !== this.seen) await this.show(conversation);
+  }
+
   private async reread(): Promise<void> {
     this.turnFinished.emit();
 
@@ -533,6 +566,16 @@ export class SiteChat {
       void this.realtime.unwatch(this.runId);
       this.runId = undefined;
     }
+
+    // What this turn wrote into the thread, so coming back to the tab later does not mistake it for news.
+    const siteNanoid = this.siteNanoid();
+
+    void this.chat
+      .conversation(siteNanoid)
+      .then(conversation => {
+        if (this.siteNanoid() === siteNanoid) this.seen = conversation.messages.at(-1)?.nanoid;
+      })
+      .catch(() => undefined);
   }
 
   private say(line: string): void {

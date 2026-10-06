@@ -1415,6 +1415,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     right now", and one Enter sends it. Walked twice: with no hub connection yet, and with one open that SignalR
     was still trying to reconnect when Send was pressed.
 
+99. **A second tab on the same site never heard about the first.** A turn sent from one tab left the other showing
+    the thread as it was when it loaded, and its Publish button read "Published" over changes the other tab had
+    made — however often it was brought forward. Coming back to a tab now catches it up: walked with two tabs, the
+    second joined the first one's turn mid-wake (waking line, Stop button) and followed it to the end; joined a
+    publish at its real stage ("Preparing…") and ended on "Your site is live" in both; and redrew nothing when
+    nothing had changed. Headless Chromium does not reliably fire `focus` on `bringToFront`, so the walk fires it
+    where a real browser would.
+
 
 ## What is still intent
 

@@ -1316,6 +1316,15 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   site is live" again over a publish from an hour before. The editor also holds the publish's subscription and
   lets go of it on a site switch, the chat's `detach` again: before, the next site's Publish button read
   "Building…" for the last one's build and then said "Your site is live" over a site nobody had published.
+- **Coming back to a tab catches it up** (`shared/on-return.ts`). A turn or a publish started from one tab never
+  reached another open on the same site — a laptop and a phone, say — which went on showing the thread and the
+  Publish button as they were when it loaded, however often it was brought forward. On `visibilitychange` or
+  `focus` (both: side-by-side windows never stop being visible) the editor re-reads the site and joins a publish
+  going on elsewhere, and the chat re-reads the thread when its newest message is not the one it last saw, joining
+  a running turn through the replay. When nothing changed nothing is redrawn, because a reloaded thread is plainer
+  than the live stream and a transcript should not change under somebody for nothing — which is why the chat
+  records what its own turn wrote when the turn ends. Not a push: a second window sitting visible beside the first
+  catches up when it is clicked into, and a site-level hub group is what would close that.
 - **Switching sites has to let go of the run**, and it did not. The editor keeps one `SiteChat` alive across
   the switch — an effect reloads it — so a turn running on the site being left went on writing into the new
   site's transcript: its "waking up your site" line appeared under somebody else's history, and the composer
