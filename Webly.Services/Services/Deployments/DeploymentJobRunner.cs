@@ -230,7 +230,13 @@ public class DeploymentJobRunner(
         }
         catch (Exception exception)
         {
-            var message = exception switch
+            // Webly shutting down — a deploy of it — is not a failure of the site, and it has no log worth showing.
+            // It used to land in the last arm below: the owner was emailed "Publishing failed unexpectedly" with "The
+            // operation was canceled." as the build output. It gets the sentence the startup sweep gives a publish a
+            // dead process left behind, because it is the same event, seen before the process went rather than after.
+            var interrupted = exception is OperationCanceledException && stoppingToken.IsCancellationRequested;
+
+            var message = interrupted ? InterruptedError : exception switch
             {
                 DeploymentFailedException failure => failure.Message,
                 SandboxException => "Publishing could not start because no build machine was available. Please try again.",
@@ -241,14 +247,17 @@ public class DeploymentJobRunner(
             // Through the same reader the chat's build block uses: this text is shown to the site's owner, and a
             // build log with the terminal's colour codes in it, a Rust backtrace from SWC's internals and the
             // absolute path of a machine they have never seen is not something anybody can act on.
-            var detail = Tail(CompilerOutput.Readable(exception switch
+            var detail = interrupted ? null : Tail(CompilerOutput.Readable(exception switch
             {
                 DeploymentFailedException failure => failure.ProviderDetail ?? string.Empty,
                 SandboxException sandboxFailure => sandboxFailure.Detail ?? string.Empty,
                 _ => exception.Message
             }));
 
-            logger.LogError(exception, "Deployment {Deployment} of site {Site} failed.", deployment.Nanoid, site.Nanoid);
+            if (interrupted)
+                logger.LogInformation("Deployment {Deployment} of site {Site} was cut off by a shutdown.", deployment.Nanoid, site.Nanoid);
+            else
+                logger.LogError(exception, "Deployment {Deployment} of site {Site} failed.", deployment.Nanoid, site.Nanoid);
 
             deployment.Status = DeploymentStatus.Failed;
             // Both, because they answer different questions: the message is for the person, the detail is the

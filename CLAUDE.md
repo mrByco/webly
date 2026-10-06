@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 247-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 248-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -1011,6 +1011,14 @@ has two lines — the model and the machine — and "what does this site cost us
   `CompilerOutput.Readable` and **then** trimmed to a tail, in that order: it reached the screen raw until a failed
   publish was watched in a browser, and trimming first sliced the middle out of SWC's backtrace, which left the
   frames in and the marker that identifies them out.
+- **A publish Webly's own restart cut off says so, both ways it can happen.** A process that dies mid-build leaves
+  the row `Preparing`/`Building`, and `FailInterruptedAsync` ends it at the next start with
+  `InterruptedError`. A *polite* shutdown — a deploy — cancels the build's token instead, and that fell into the
+  generic catch: "Publishing failed unexpectedly", with "The operation was canceled." stored and emailed as the
+  site's build log. The runner tells a shutdown's cancellation apart now and records the same sentence with no
+  log; `InterruptedPublishTests` drives it with a build machine that never arrives, and is red on the old line.
+  Whether a stop lands there depends on what the build is doing: a `next build` already running ignores the token
+  and usually finishes inside the host's thirty-second shutdown, and its site goes live.
 - **Deleting a site takes it off the internet, which it did not.** `DeleteSite` removed the rows, the
   repository and the custom domains, and left the published site answering at its Webly subdomain and at the
   provider's own URL — the one action somebody takes to get a page down did not get it down. Found by

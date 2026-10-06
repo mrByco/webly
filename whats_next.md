@@ -1455,6 +1455,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     a minute after Webly was back. It retries for ever now and resolved within five seconds of Webly returning.
     Also: the waking line's spinner no longer keeps turning above a turn that has ended.
 
+104. **And a deploy of Webly told somebody mid-publish that their publish had "failed unexpectedly".** The same
+    polite shutdown, on the publish side: it cancelled the build's token, the runner's generic catch recorded
+    "Publishing failed unexpectedly. Your live site is unchanged." with "The operation was canceled." as the build
+    log, and emailed both. Reproduced by stopping the backend while a publish said "Preparing…"; now the editor,
+    Settings and the email all say "Webly restarted while your site was being built, so nothing was published."
+    — the sentence the startup sweep already used for a process that died — with no build log. A stop during
+    "Building…" usually lets `next build` finish within the thirty-second shutdown, and the site goes live.
+
 
 ## What is still intent
 

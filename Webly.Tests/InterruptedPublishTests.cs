@@ -1,15 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Webly.Data;
 using Webly.Data.Models.Authentication;
 using Webly.Data.Models.Deployments;
 using Webly.Data.Models.Sites;
 using Webly.Data.Repositories.Deployments;
+using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Users;
+using Webly.Services.DTO.Realtime;
+using Webly.Services.Services;
 using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Email;
 using Webly.Services.Services.Realtime;
+using Webly.Services.Services.Repositories;
+using Webly.Services.Services.Sandboxes;
+using Webly.Services.UseCases.Sites;
 
 namespace Webly.Tests;
 
@@ -59,6 +66,80 @@ public class InterruptedPublishTests : PostgresTestBase
             Assert.That(rows[ready].Status, Is.EqualTo(DeploymentStatus.Ready));
             Assert.That(mail.Sent, Has.Count.EqualTo(2), "the owner hears about each, having perhaps closed the tab");
         });
+    }
+
+    /// <summary>
+    /// A shutdown in the middle of a publish — which is what a deploy of Webly is — is the same event as the one above,
+    /// seen before the process went rather than after, and says the same thing. It used to fall through to "Publishing
+    /// failed unexpectedly", with "The operation was canceled." stored and emailed as the site's build log.
+    /// </summary>
+    [Test]
+    public async Task A_shutdown_mid_publish_is_an_interruption_not_a_failure_with_a_build_log()
+    {
+        var id = await DeploymentAsync(DeploymentStatus.Queued);
+        var mail = new FakeEmailSender();
+        var preparing = new TaskCompletionSource();
+
+        await using var services = new ServiceCollection()
+            .AddScoped(_ => CreateContext())
+            .AddScoped<IDeploymentRepository, DeploymentRepository>()
+            .AddScoped<IDomainRepository, DomainRepository>()
+            .AddScoped<IUserRepository, UserRepository>()
+            .AddSingleton<IEmailSender>(mail)
+            .AddSingleton<IRunEventSink>(new SilentSink())
+            .AddSingleton<ISandboxProvider>(new HangingProvider(preparing))
+            .AddSingleton<ISiteRepositoryStore>(new GitSiteRepositoryStore(
+                Options.Create(new RepositoryOptions { Root = Path.GetTempPath() }),
+                NullLogger<GitSiteRepositoryStore>.Instance))
+            .AddSingleton<IDeploymentTarget>(new FileSystemDeploymentTarget(
+                Options.Create(new DeploymentOptions()),
+                NullLogger<FileSystemDeploymentTarget>.Instance))
+            .AddSingleton(Options.Create(new SitesOptions { BaseDomain = "webly.site" }))
+            .AddSingleton(Options.Create(new AppOptions { BaseUrl = "https://localhost:5000" }))
+            .AddSingleton<SiteMapper>()
+            .BuildServiceProvider();
+
+        var runner = new DeploymentJobRunner(
+            services.GetRequiredService<IServiceScopeFactory>(),
+            new RunRegistry(),
+            NullLogger<DeploymentJobRunner>.Instance);
+
+        await runner.StartAsync(CancellationToken.None);
+        await preparing.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await runner.StopAsync(CancellationToken.None);
+
+        await using var db = CreateContext();
+        var row = await db.Deployments.SingleAsync(x => x.Id == id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(row.Status, Is.EqualTo(DeploymentStatus.Failed));
+            Assert.That(row.Error, Is.EqualTo(DeploymentJobRunner.InterruptedError));
+            Assert.That(row.ErrorDetail, Is.Null, "nothing was built, so there is no build log to show");
+            Assert.That(mail.Sent, Has.Count.EqualTo(1));
+            Assert.That(mail.Last.HtmlBody, Does.Contain("so nothing was published"));
+            Assert.That(mail.Last.HtmlBody, Does.Not.Contain("canceled").And.Not.Contain("unexpectedly"));
+        });
+    }
+
+    /// <summary>A build machine that never arrives, until Webly stops waiting for it.</summary>
+    private sealed class HangingProvider(TaskCompletionSource preparing) : ISandboxProvider
+    {
+        public string Name => "hanging";
+
+        public async Task<ISandbox> StartAsync(SandboxSpec spec, CancellationToken cancellationToken = default)
+        {
+            preparing.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+
+            throw new InvalidOperationException("Unreachable.");
+        }
+    }
+
+    private sealed class SilentSink : IRunEventSink
+    {
+        public Task EmitAsync(string runId, RunEvent runEvent, bool isTerminal = false, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     /// <summary>One deployment on a site of its own: a site has one live publish at a time, by index.</summary>
