@@ -1,6 +1,5 @@
 using Webly.Data;
 using Webly.Data.Models.Authentication;
-using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Authentication;
 using Webly.Services.Services.Authentication;
@@ -22,7 +21,6 @@ namespace Webly.Services.UseCases.Authentication;
 /// </summary>
 public class SignInWithExternalLogin(
     IUserRepository userRepository,
-    IRefreshTokenRepository refreshTokenRepository,
     IAuthSessionService authSessionService,
     IEmailSender emailSender,
     WeblyDbContext dbContext)
@@ -74,7 +72,7 @@ public class SignInWithExternalLogin(
             // Without this, registering with a stranger's address and waiting would be a way to
             // inherit their account the moment they signed in with Google.
             user!.PasswordHash = null;
-            await refreshTokenRepository.RevokeAllForUserAsync(user.Id, now, cancellationToken);
+            await authSessionService.EndAllAsync(user.Id, cancellationToken);
         }
 
         user!.EmailVerifiedAt ??= now;

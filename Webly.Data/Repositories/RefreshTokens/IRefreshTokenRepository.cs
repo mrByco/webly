@@ -16,6 +16,9 @@ public interface IRefreshTokenRepository
     /// <summary>Revokes one token — ending a single session.</summary>
     Task RevokeAsync(RefreshToken token, DateTime revokedAt, CancellationToken cancellationToken = default);
 
-    /// <summary>Revokes every live token of a user: used on detected token reuse.</summary>
-    Task RevokeAllForUserAsync(int userId, DateTime revokedAt, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Revokes every live token of a user and says which sessions those were, because a session holds more than its
+    /// refresh token and the caller has to end the rest — see <c>IAuthSessionService.EndAllAsync</c>, the one caller.
+    /// </summary>
+    Task<IReadOnlyList<string>> RevokeAllForUserAsync(int userId, DateTime revokedAt, CancellationToken cancellationToken = default);
 }

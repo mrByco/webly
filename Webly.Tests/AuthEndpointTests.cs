@@ -149,6 +149,45 @@ public class AuthEndpointTests : AuthEndpointTestBase
         Assert.That(body.RootElement.GetProperty("isAuthenticated").GetBoolean(), Is.False);
     }
 
+    /// <summary>
+    /// A password reset ends every other session at once, not only their refresh tokens. The other browser's access
+    /// cookie used to go on answering 200 for the rest of its fifteen minutes — its preview cookie for twelve hours,
+    /// its hub socket for as long as it stayed open — after somebody reset their password because they suspected
+    /// that browser was not theirs.
+    /// </summary>
+    [Test]
+    public async Task A_password_reset_ends_the_other_sessions_at_once()
+    {
+        await RegisterAsync();
+        await Client.PostAsync("/api/auth/email/verify", Json(new { token = LatestTokenFor("endre@example.com") }));
+
+        var other = await Client.PostAsync(
+            "/api/auth/login",
+            Json(new { email = "endre@example.com", password = "hunyadi-matyas-1458" }));
+        var otherAccess = CookieValue(other, AuthCookies.AccessTokenName)!;
+
+        var before = await Client.SendAsync(Request(HttpMethod.Get, "/api/sites", (AuthCookies.AccessTokenName, otherAccess)));
+
+        await Client.PostAsync("/api/auth/password/forgot", Json(new { email = "endre@example.com" }));
+        var reset = await Client.PostAsync(
+            "/api/auth/password/reset",
+            Json(new { token = LatestTokenFor("endre@example.com"), newPassword = "a-new-password-2026" }));
+
+        var after = await Client.SendAsync(Request(HttpMethod.Get, "/api/sites", (AuthCookies.AccessTokenName, otherAccess)));
+        var resetter = await Client.SendAsync(Request(
+            HttpMethod.Get,
+            "/api/sites",
+            (AuthCookies.AccessTokenName, CookieValue(reset, AuthCookies.AccessTokenName)!)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(before.StatusCode, Is.EqualTo(HttpStatusCode.OK), "the other browser was signed in");
+            Assert.That(reset.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(after.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized), "and is not, the moment the reset lands");
+            Assert.That(resetter.StatusCode, Is.EqualTo(HttpStatusCode.OK), "while the session the reset began works");
+        });
+    }
+
     [Test]
     public async Task A_replayed_access_token_stops_working_after_logout()
     {

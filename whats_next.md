@@ -1469,6 +1469,18 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     is now retried against the row until it can join or knows the ending; walked by pressing Publish and stopping
     Webly in the same second — "Building…" after the restart, then "Published" and "Your site is live".
 
+106. **A password reset left the other browsers signed in.** It revoked their refresh tokens and nothing else, so —
+    walked with a second browser signed in before the reset — that browser went on answering 200; its preview
+    cookie would have lasted twelve hours and an open hub socket, which starts turns, indefinitely. The same was
+    true of a password change, a detected token theft, the Google takeover of an unverified account and a cookie-less
+    sign-out. All five now go through one `EndAllAsync` that blacklists each session and closes the user's sockets,
+    and a token is refused when its session has ended. **Fixing it exposed an older defect**: the other device's
+    next request then carried a refresh cookie the change had revoked, the refresh path read any revoked token as a
+    stolen one, and ended every session — including the one the change had just made, so the laptop that changed
+    the password was signed out by the phone. It used to take fifteen minutes to happen. Only a *rotated* token
+    counts as theft now. Walked: after a reset both old browsers get 401 and the new password works; after a change
+    the laptop stays signed in and the phone lands on the sign-in page. Five tests, all red on the old code.
+
 
 ## What is still intent
 

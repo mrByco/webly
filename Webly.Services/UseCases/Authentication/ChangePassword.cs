@@ -1,5 +1,4 @@
 using Webly.Data;
-using Webly.Data.Repositories.RefreshTokens;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Authentication;
 using Webly.Services.Services.Authentication;
@@ -14,7 +13,6 @@ namespace Webly.Services.UseCases.Authentication;
 /// </summary>
 public class ChangePassword(
     IUserRepository userRepository,
-    IRefreshTokenRepository refreshTokenRepository,
     IPasswordHasher passwordHasher,
     IAuthSessionService authSessionService,
     IEmailSender emailSender,
@@ -50,7 +48,7 @@ public class ChangePassword(
 
         // Every session drops, then the caller gets a fresh one below — so a stolen session
         // elsewhere dies, and the person who made the change stays signed in.
-        await refreshTokenRepository.RevokeAllForUserAsync(userId, DateTime.UtcNow, cancellationToken);
+        await authSessionService.EndAllAsync(userId, cancellationToken);
 
         await emailSender.SendAsync(
             WeblyEmails.PasswordChanged(user.Email, user.DisplayName),

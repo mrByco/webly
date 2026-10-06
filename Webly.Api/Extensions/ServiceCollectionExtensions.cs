@@ -98,6 +98,7 @@ public static class ServiceCollectionExtensions
                     OnTokenValidated = context =>
                     {
                         var tokenId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                        var sessionId = context.Principal?.FindFirstValue(JwtTokenService.SessionIdClaim);
                         var userId = context.Principal.GetUserIdUnverified();
                         var emailVerified = context.Principal.IsEmailVerified();
 
@@ -109,6 +110,11 @@ public static class ServiceCollectionExtensions
                         {
                             context.Fail("This access token was revoked.");
                         }
+
+                        // The session as well as the token: ending every session of a user — a password reset —
+                        // names sessions, not the ids of the access tokens each of them happens to hold.
+                        if (sessionId is not null && blacklist.IsSessionRevoked(sessionId))
+                            context.Fail("This session has ended.");
 
                         return Task.CompletedTask;
                     }

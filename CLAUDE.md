@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 248-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 253-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -384,7 +384,20 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   the missing refresh token with a `!`, so every request of the batch but one answered 500.
   `AuthEndpointTests` drives that path over HTTP now. The window is keyed on `RefreshToken.ReplacedAt`, not `RevokedAt`, because both a rotation and a
   sign-out revoke — and a sign-out that keeps working for another thirty seconds is not a sign-out. Only the
-  HMAC hash is stored.
+  HMAC hash is stored. **And only a rotated token is a theft**: one revoked on purpose — a sign-out, a password
+  change, a reset — has no successor for a thief to hold, so presenting it again just refuses that request. It
+  used to end every session, which made changing a password sign out the device that changed it the moment the
+  other device's next request arrived with its revoked cookie. `PasswordAuthenticationTests` has the theft, the
+  sign-out and the password-change cases; nothing had tested this path at all.
+- **Ending every session ends what each one holds** (`IAuthSessionService.EndAllAsync`). Five places mean
+  "nobody is signed in as this person any more" — a reset, a password change, a replayed rotated token, an
+  unverified account taken over by the address's real owner, a sign-out with no cookie to name its session — and
+  all five revoked refresh tokens and nothing else: each session's access token went on working for its fifteen
+  minutes, its preview cookie for twelve hours, and its hub socket, which starts turns, for as long as it stayed
+  open. Found by resetting a password with a second browser signed in, which went on answering 200. Now the
+  sessions go on the blacklist, every socket of the user is closed, and the API, the cookie middleware and the hub
+  all ask whether a token's **session** has ended rather than only its own id — which also makes a sign-out
+  refuse every access token of that session at once, not just the one it was presented with.
 - **The verification gate lives in the accessors, not in an attribute.** `GetUserId()` /
   `GetUserIdIfLoggedIn()` return a caller **only if their email is verified** and throw
   `EmailNotVerifiedException` (→ 403, `email_not_verified`) otherwise; `GetUserIdUnverified()` is the

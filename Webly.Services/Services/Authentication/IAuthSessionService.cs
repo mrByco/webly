@@ -20,5 +20,18 @@ public interface IAuthSessionService
         string? continuingSessionId = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Ends every session a user has — their refresh tokens, and everything those sessions already hold: the access
+    /// tokens and preview cookies they minted, through the blacklist, and their open hub connections.
+    ///
+    /// <b>Revoking the refresh tokens was all that used to happen</b>, at five call sites that each meant "nobody is
+    /// signed in as this person any more": a password reset, a password change, a replayed refresh token, an
+    /// unverified account taken over by the address's real owner, and a sign-out with no cookie to name its session.
+    /// Everything already minted lived on — an access token for its fifteen minutes, a preview cookie for twelve
+    /// hours, and an open hub socket, which is how a turn is started, for as long as it stayed open. Found by
+    /// resetting a password with a second browser signed in, which went on answering 200.
+    /// </summary>
+    Task EndAllAsync(int userId, CancellationToken cancellationToken = default);
+
     MeResponse Describe(User user);
 }

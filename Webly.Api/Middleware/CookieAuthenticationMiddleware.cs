@@ -106,8 +106,10 @@ public class CookieAuthenticationMiddleware(
                 bool.TryParse(parsed.GetClaim(JwtTokenService.EmailVerifiedClaim)?.Value, out var flag) && flag;
 
             var blacklist = context.RequestServices.GetRequiredService<IAccessTokenBlacklist>();
+            var sessionId = parsed.GetClaim(JwtTokenService.SessionIdClaim)?.Value;
 
-            return !blacklist.IsRevoked(parsed.Id, userId, emailVerified);
+            return !blacklist.IsRevoked(parsed.Id, userId, emailVerified)
+                && (sessionId is null || !blacklist.IsSessionRevoked(sessionId));
         }
         catch (ArgumentException)
         {
