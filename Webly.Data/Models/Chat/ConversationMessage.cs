@@ -1,14 +1,16 @@
 using Webly.Data.Models.Interfaces;
 using Webly.Data.Models.Sites;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Nodes;
 
 namespace Webly.Data.Models.Chat;
 
 /// <summary>
-/// One message in a thread. Text is the rendered content; <see cref="Parts"/> carries the structured
-/// extras (tool calls, their results, a question the agent asked and the answer it got) as jsonb, so
-/// reloading the editor reconstructs the same stream the person watched arrive.
+/// One message in a thread: who said it and what they said, and for a reply, the version it produced.
+///
+/// <b>Nothing of the turn's activity is kept</b> — the files it touched, the lines it ran — and that is the decision
+/// rather than a gap. There was a <c>Parts</c> column for it, documented as what let a reload redraw the stream the
+/// person watched arrive, and nothing ever wrote to it or read it. A reloaded thread is the plainer form of a turn:
+/// the reply, and a link to the version, whose diff says what the activity lines only gestured at.
 /// </summary>
 public class ConversationMessage : IHasNanoid, IHasCreatedAt
 {
@@ -37,9 +39,6 @@ public class ConversationMessage : IHasNanoid, IHasCreatedAt
     public int Sequence { get; set; }
 
     public string Text { get; set; } = string.Empty;
-
-    /// <summary>Structured content beyond the text. Null for a plain message.</summary>
-    public JsonArray? Parts { get; set; }
 
     /// <summary>
     /// The version this turn committed, if it changed anything. The inverse of

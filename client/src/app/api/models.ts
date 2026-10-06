@@ -18,8 +18,6 @@ export type { ForgotPasswordRequest } from './models/forgot-password-request';
 export type { FormFieldResponse } from './models/form-field-response';
 export type { FormSubmissionResponse } from './models/form-submission-response';
 export type { HealthResponse } from './models/health-response';
-export type { JsonNode } from './models/json-node';
-export type { JsonNodeOptions } from './models/json-node-options';
 export type { LoginRequest } from './models/login-request';
 export type { MeResponse } from './models/me-response';
 export type { MessageRole } from './models/message-role';

@@ -1423,6 +1423,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     nothing had changed. Headless Chromium does not reliably fire `focus` on `bringToFront`, so the walk fires it
     where a real browser would.
 
+100. **A column that promised something nothing did.** `ConversationMessages.Parts` was documented, on the entity
+    and on the response, as what let a reload redraw a turn's activity — and nothing ever wrote it or read it: null
+    in all 121 rows here. Found while deciding what "catching up" a tab should draw. Dropped, with its converter,
+    its field on the API and the generated client's two `JsonNode` models; the entity now says what a reloaded
+    thread is instead — the reply and a link to its version.
+
 
 ## What is still intent
 
