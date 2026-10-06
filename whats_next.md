@@ -1409,6 +1409,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     no banner returns after a restart, a reload mid-wake shows the waking line at once, and coming back to a
     publish shows its real stage ("Preparing…") instead of a generic "Publishing…".
 
+98. **Sending while Webly was down lost the message.** It stayed in the transcript as if it had gone, the
+    composer was emptied, and the error said "That could not be saved." — so once Webly was back, Enter did
+    nothing and the message had to be typed again. Now it goes back in the box with "Webly cannot be reached
+    right now", and one Enter sends it. Walked twice: with no hub connection yet, and with one open that SignalR
+    was still trying to reconnect when Send was pressed.
+
 
 ## What is still intent
 

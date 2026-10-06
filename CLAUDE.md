@@ -1388,6 +1388,13 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   during the same synchronous pass, so there is nothing to race. **cookta-rework records the same cause**
   under a different symptom — an ingredient adder whose field would not clear — so treat `ngModel` as
   unsuitable anywhere a directive or a sibling reads the DOM in the same pass.
+- **A message that was not sent goes back in the box.** The transcript shows a message the moment Send is
+  pressed, and a failed start left it there, looking sent, over an emptied composer — so after Webly came back
+  the Enter that should have retried it did nothing, and the error under it read "That could not be saved." Now
+  a failed `startChat` takes it back out of the transcript and puts it back in the composer; a failure *after*
+  the start leaves it, because the turn is running. The sentence needed `RealtimeService` to describe a hub it
+  could not reach the way an HTTP failure is described — `status` 0, or the handshake's own status — which is
+  what `messageOf` and `unreachable` already read. Walked with the hub never connected and with it mid-reconnect.
 - **The chat's entries are one shape**, including the ones that are not messages: `activity` chips, a
   single growing `files` entry per turn (a chip per write buries the sentence explaining them), a `waking`
   line that is replaced rather than appended while the workspace starts and removed once it has, and a `build`

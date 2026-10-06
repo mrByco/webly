@@ -1,6 +1,6 @@
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+import { HttpError, HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { Observer, Subject, Subscription } from 'rxjs';
 import { RunEvent } from '../api/models/run-event';
 import { RunEventEnvelope } from '../api/models/run-event-envelope';
@@ -159,6 +159,9 @@ export class RealtimeService {
       .then(() => {
         this.connected.set(true);
       })
+      .catch((failure: unknown) => {
+        throw connectionFailure(failure);
+      })
       .finally(() => (this.starting = undefined));
 
     await this.starting;
@@ -263,4 +266,17 @@ export class RealtimeService {
       }
     }
   }
+}
+
+/**
+ * A connection that could not be made, described the way an HTTP failure is: `status` 0 when nothing answered — the
+ * handshake never got a response, or SignalR is still reconnecting and refuses to start — and the handshake's own
+ * status when something did. So `messageOf` says Webly cannot be reached for a message sent while it is down, where
+ * it said "That could not be saved." about something nobody was saving, and `unreachable` can tell a caller it is
+ * the kind of failure worth trying again.
+ */
+function connectionFailure(failure: unknown): Error & { status: number } {
+  const status = failure instanceof HttpError ? failure.statusCode : 0;
+
+  return Object.assign(new Error('The realtime connection could not be made.', { cause: failure }), { status });
 }

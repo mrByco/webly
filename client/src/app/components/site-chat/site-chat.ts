@@ -324,13 +324,32 @@ export class SiteChat {
       return;
     }
 
+    const sent: ChatEntry = { kind: 'user', text };
+
     this.message = '';
     this.error.set(undefined);
     this.spoken.set([]);
-    this.append({ kind: 'user', text });
+    this.append(sent);
+
+    let runId: string;
 
     try {
-      const runId = await this.realtime.startChat(this.siteNanoid(), text);
+      runId = await this.realtime.startChat(this.siteNanoid(), text);
+    } catch (failure) {
+      // Not sent — refused, or never heard. So it comes back out of the transcript and back into the box, and
+      // sending it again is one Enter. It used to stay in the transcript as if it had gone, over an empty composer,
+      // so the Enter that should have retried it did nothing and the person had to notice and type it all again.
+      this.entries.update(entries => entries.filter(entry => entry !== sent));
+      if (!this.message.trim()) this.message = text;
+
+      this.error.set(messageOf(failure, 'Your message was not sent.'));
+      this.running.set(false);
+
+      return;
+    }
+
+    // Sent, whatever happens next: the turn is running on the server, so the message stays where it is.
+    try {
       await this.attach(runId);
     } catch (failure) {
       this.error.set(messageOf(failure));
