@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Webly.Services.Services.Usage;
 using Webly.Api.Infrastructure;
@@ -183,6 +185,7 @@ public static class ServiceCollectionExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = WriteRejectionAsync;
 
             // Per IP rather than per address: the address is attacker-supplied, so limiting on it
             // alone would let someone walk through a list of victims unimpeded. The per-address
@@ -370,5 +373,51 @@ public static class ServiceCollectionExtensions
     {
         if (identity is not null && payload.TryGetProperty(name, out var value))
             identity.AddClaim(new Claim(name, value.ToString()));
+    }
+
+    /// <summary>
+    /// A refusal with something to read. Left to the default it was an empty 429: every screen fell back to its
+    /// generic sentence — a publish refused for being the twenty-first in an hour said "That could not be saved." —
+    /// and a visitor posting a customer's contact form once too often was shown a blank page. The form endpoint gets
+    /// a page, because a browser posted to it; everything else gets a sentence naming what was done too often, and
+    /// when to try again, which is also sent as <c>Retry-After</c>.
+    /// </summary>
+    private static async ValueTask WriteRejectionAsync(OnRejectedContext context, CancellationToken cancellationToken)
+    {
+        var http = context.HttpContext;
+        var wait = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) ? retryAfter : (TimeSpan?)null;
+
+        if (wait is { } seconds)
+            http.Response.Headers.RetryAfter = ((int)Math.Ceiling(seconds.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+
+        var minutes = wait is { } span ? Math.Max(1, (int)Math.Ceiling(span.TotalMinutes)) : (int?)null;
+        var when = minutes switch { null => "in a few minutes", 1 => "in a minute", var m => $"in {m} minutes" };
+
+        var policy = http.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+
+        if (policy == RateLimitPolicies.Forms)
+        {
+            await VisitorPage.WriteAsync(
+                http.Response,
+                StatusCodes.Status429TooManyRequests,
+                "Message not sent",
+                "Too many messages from here in a short time.",
+                $"Your message was not sent. Please wait, then press back and send it again {when}.");
+
+            return;
+        }
+
+        var title = policy switch
+        {
+            RateLimitPolicies.Deploy => "This account has published a lot in the last hour.",
+            RateLimitPolicies.Mail => "A lot of email has been asked for from here recently.",
+            _ => "That has been done a lot in a short time."
+        };
+
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+
+        await http.Response.WriteAsJsonAsync(
+            new ProblemDetails { Status = StatusCodes.Status429TooManyRequests, Title = title, Detail = $"Please try again {when}." },
+            cancellationToken);
     }
 }

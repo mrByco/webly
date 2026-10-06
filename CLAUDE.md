@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 253-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 254-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -1201,6 +1201,13 @@ exists and the answer to the question `MASTER_PLAN.md` P4 left open. A contact f
 - **`ISiteRepository.FindForSubmissionAsync` is the one lookup in the repository with no ownership check.** It
   says so at length, because the rule everywhere else is that a use case starts from `FindForOwnerAsync`. What
   makes it safe is that the operation cannot read anything back: it appends a row and sends one email.
+- **A refused message is a page, never JSON.** The endpoint's refusals — nothing filled in, too long, too many today,
+  a form pointed at no site — were ProblemDetails, so a visitor's browser printed
+  `{"title":"Nothing was filled in…","status":400}` across the screen of somebody's customer, and the rate limiter's
+  refusal was an empty 429, which is a blank page. `VisitorPage` is the one shell for all of them and for the thank-you
+  page. The rate limiter's `OnRejected` answers the form endpoint with that page and everything else with a sentence
+  naming what was done too often — a publish refused for being the twenty-first in an hour used to say "That could
+  not be saved." — and both carry `Retry-After`.
 - **Four things stand between it and abuse**, and each covers what the others cannot. The honeypot (`_ignore`)
   catches the bots, and answers success — telling one it was caught is telling it what to change. The size caps
   stop it being a way to write megabytes into somebody's database. The rate limit is per IP **and per site**, so

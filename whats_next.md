@@ -1494,6 +1494,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     live region that says the new title — sampled every 50ms through a site switch, the title never names the site
     being left.
 
+109. **A refused enquiry printed JSON on a customer's website.** The form endpoint answered its refusals as
+    ProblemDetails, and a contact form is a browser post — so a visitor who sent an empty form saw
+    `{"title":"Nothing was filled in, so nothing was sent.","status":400}` as the page, and one over the rate limit
+    saw a blank page. They are small pages in the thank-you page's style now, with `Retry-After` on the limit; the
+    app's own 429s say what was done too often instead of "That could not be saved." Three tests, red on the old code.
+
 
 ## What is still intent
 

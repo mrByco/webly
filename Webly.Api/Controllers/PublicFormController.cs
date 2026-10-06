@@ -107,59 +107,44 @@ public class PublicFormController(SubmitForm submitForm) : ControllerBase
         return Uri.TryCreate(referer, next, out var resolved) ? resolved.ToString() : referer.ToString();
     }
 
-    /// <summary>
-    /// The fallback answer: a page rather than a status code, because whoever sees it is a person who just
-    /// pressed a button on somebody's website and needs to know their message arrived. Self-contained, with no
-    /// link back — the site's own address is not this endpoint's business, and a wrong one would be worse than
-    /// none.
-    /// </summary>
-    private ContentResult Thanks() => Content(
-        """
-        <!doctype html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta name="robots" content="noindex">
-          <title>Message sent</title>
-        </head>
-        <body style="margin:0;font:400 16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#faf7f2;color:#2b2320;">
-          <main style="max-width:32rem;margin:0 auto;padding:4rem 1rem;text-align:center;">
-            <h1 style="font-size:1.5rem;margin:0 0 .5rem;">Thank you &mdash; your message has been sent.</h1>
-            <p style="margin:0;color:#6b615c;">You can close this page, or press back to return to the website.</p>
-          </main>
-        </body>
-        </html>
-        """,
-        "text/html",
-        System.Text.Encoding.UTF8);
+    /// <summary>The fallback answer, when the visitor cannot be sent back to the page they wrote on. See <see cref="VisitorPage"/>.</summary>
+    private static ContentResult Thanks() => VisitorPage.Result(
+        StatusCodes.Status200OK,
+        "Message sent",
+        "Thank you — your message has been sent.",
+        "You can close this page, or press back to return to the website.");
 
     /// <summary>
     /// Deliberately plain: a visitor on somebody else's website is the audience, so the sentences say what to do
     /// next rather than naming a rule of ours. A wrong site nanoid answers 404 because that is what it is — the
     /// form in the page is pointed at nothing, which is the site's bug and not the visitor's.
     /// </summary>
-    private ActionResult Failure(FormError error) => error switch
+    private static ContentResult Failure(FormError error) => error switch
     {
-        FormError.SiteNotFound => NotFound(new ProblemDetails
-        {
-            Title = "This form is not connected to a website."
-        }),
-        FormError.Empty => BadRequest(new ProblemDetails
-        {
-            Title = "Nothing was filled in, so nothing was sent."
-        }),
-        FormError.TooLarge => BadRequest(new ProblemDetails
-        {
-            Title = "That message is too long to send. Please shorten it and try again."
-        }),
-        FormError.TooMany => StatusCode(StatusCodes.Status429TooManyRequests, new ProblemDetails
-        {
-            Title = "This website has taken too many messages today. Please try again tomorrow."
-        }),
-        _ => StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
-        {
-            Title = "Your message could not be sent."
-        })
+        FormError.SiteNotFound => VisitorPage.Result(
+            StatusCodes.Status404NotFound,
+            "Message not sent",
+            "This form is not connected to a website.",
+            "Your message was not sent. Please contact the business another way."),
+        FormError.Empty => VisitorPage.Result(
+            StatusCodes.Status400BadRequest,
+            "Message not sent",
+            "Nothing was filled in, so nothing was sent.",
+            "Press back to return to the form."),
+        FormError.TooLarge => VisitorPage.Result(
+            StatusCodes.Status400BadRequest,
+            "Message not sent",
+            "That message is too long to send.",
+            "Press back, shorten it, and send it again."),
+        FormError.TooMany => VisitorPage.Result(
+            StatusCodes.Status429TooManyRequests,
+            "Message not sent",
+            "This website has taken too many messages today.",
+            "Your message was not sent. Please try again tomorrow, or contact the business another way."),
+        _ => VisitorPage.Result(
+            StatusCodes.Status500InternalServerError,
+            "Message not sent",
+            "Your message could not be sent.",
+            "Please press back and try again in a moment.")
     };
 }
