@@ -1,13 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Webly.Data;
 using Webly.Data.Models.Deployments;
-using Webly.Data.Repositories.Chat;
 using Webly.Data.Repositories.Deployments;
 using Webly.Data.Repositories.Domains;
 using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
-using Webly.Services.DTO.Realtime;
 using Webly.Services.DTO.Sites;
 using Webly.Services.Services.Deployments;
 using Webly.Services.Services.Realtime;
@@ -33,7 +31,7 @@ public class DeleteSite(
     ISiteRepository siteRepository,
     IDomainRepository domainRepository,
     IUserRepository userRepository,
-    IConversationRepository conversations,
+    SiteTurns turns,
     IDeploymentRepository deployments,
     IDeploymentTarget deploymentTarget,
     ISiteWorkspaceRegistry workspaces,
@@ -162,8 +160,7 @@ public class DeleteSite(
 
     private async Task StopTurnAsync(int siteId, int userId, CancellationToken cancellationToken)
     {
-        var conversation = await conversations.FindActiveAsync(siteId, cancellationToken);
-        var turn = conversation is null ? null : runs.FindByCorrelation(RunKind.Chat, conversation.Nanoid);
+        var turn = await turns.FindRunningAsync(siteId, cancellationToken);
 
         if (turn is null || !runs.TryCancel(turn.RunId, userId)) return;
 

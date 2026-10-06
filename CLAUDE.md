@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 268-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 271-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -656,6 +656,15 @@ changed-file count, who and which message — and duplicates nothing git already
   releasing it, so the dev server recompiles the restored files and the preview shows them by itself. Releasing was
   the first shape and it failed in the most visible way there is: the preview somebody was looking at when they
   pressed "bring this back" became "your preview is not running, send a message to wake it up".
+- **Nothing else changes a site while a turn is changing it.** A restore, a rename that writes into the pages, and
+  adding or removing a photograph each commit to the branch a running turn is about to commit to, then re-seed the
+  workspace that turn is using — and the re-seed waits on the turn's gate. So the request hung for the rest of the
+  turn, and then the turn's own commit was refused and its work thrown away: a restore pressed eight seconds into a
+  slow turn answered fourteen seconds later, and the turn failed with "Your site changed while this was being
+  saved". `SiteTurns` says whether a turn is running (the open thread's chat run in `RunRegistry`), and those four
+  refuse at once — 409, one sentence naming the two ways on, wait or Stop. The dashboard's label is not refused,
+  and a site delete stops the turn instead, for its own reasons. Not a lock: what is left is a window one commit
+  long, and what it costs is the old failure, cleanly.
 - **A version links to the chat message that produced it** and the message links back, which is what makes
   the history read as the conversation that caused it — and the editor says so: every reply that committed
   something carries a "see what changed" link into `history?version={nanoid}`. The link existed in the database
@@ -802,7 +811,9 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   read as a healthy site. A site with a syntax error in its home page reported a clean turn and served a 500 in the
   preview pane. `TouchPreviewAsync` now retries for fifteen seconds while the sandbox says the dev server is not
   answering yet, and only that answer is retried: a 500 from the dev server is a compiled page that threw, which is
-  the thing being looked for. Ask for the mock agent to "break the build" to see the whole path without a key.
+  the thing being looked for. Ask for the mock agent to "break the build" to see the whole path without a key — and
+  to "take your time" to make it wait twenty seconds between reading the site and writing it, which is the window
+  every mid-turn race lives in and one the mock was otherwise far too quick to have.
 - **A dev server can die on its own, and something has to notice.** It is a child process in the sandbox — the
   out-of-memory killer takes it first on a machine running several — and nothing did: the workspace stayed warm,
   `workspaceReady` stayed true, and the preview answered 502 for the rest of the session while every turn reported

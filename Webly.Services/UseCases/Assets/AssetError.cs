@@ -20,5 +20,8 @@ public enum AssetError
     /// A page still uses it. The detail names the files, because "ask the assistant to take it off the home
     /// page" is only actionable if the person knows which page it is on.
     /// </summary>
-    InUse
+    InUse,
+
+    /// <summary>The assistant is part-way through changing this site. See <c>SiteTurns</c>.</summary>
+    TurnInProgress
 }

@@ -3,6 +3,7 @@ using Webly.Data.Repositories.Sites;
 using Webly.Data.Repositories.Users;
 using Webly.Services.DTO.Common;
 using Webly.Services.DTO.Sites;
+using Webly.Services.Services.Realtime;
 using Webly.Services.Services.Repositories;
 using Webly.Services.Services.Workspaces;
 
@@ -24,6 +25,7 @@ public class RestoreSiteVersion(
     IUserRepository users,
     ISiteRepositoryStore repositories,
     ISiteWorkspaceRegistry workspaces,
+    SiteTurns turns,
     CommitSiteVersion commitSiteVersion)
 {
     public async Task<Result<SiteError, SiteVersionResponse>> ExecuteAsync(
@@ -41,6 +43,11 @@ public class RestoreSiteVersion(
 
         if (source is null || head is null)
             return Result<SiteError, SiteVersionResponse>.Fail(SiteError.VersionNotFound);
+
+        // Not underneath a turn: see SiteTurns. It is the case that found the rule — "bring this back" pressed while
+        // the assistant worked hung until the turn ended, and then threw the turn's work away.
+        if (await turns.IsRunningAsync(site.Id, cancellationToken))
+            return Result<SiteError, SiteVersionResponse>.Fail(SiteError.TurnInProgress);
 
         var user = await users.FindByIdAsync(userId, cancellationToken);
 

@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<GetSite>();
         services.AddScoped<RenameSite>();
         services.AddScoped<SwitchCurrentSite>();
+        services.AddScoped<SiteTurns>();
         services.AddScoped<DeleteSite>();
         services.AddScoped<ListSiteVersions>();
         services.AddScoped<GetSiteVersion>();

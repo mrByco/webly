@@ -1566,6 +1566,15 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     a side effect, so a failure between them can no longer leave a row with no head. `SiteLimitTests` is the first
     test of the limit at all, and its burst is red without the lock. CLAUDE.md said `CreateSite` saved the row
     first; it has written the repository first for a long time, and says so now.
+119. **"Bring this back" pressed while the assistant worked hung, and then broke the turn.** A restore commits and
+    re-seeds the workspace, and the re-seed waits on the turn's gate: the request sat for the rest of the turn, and
+    the turn's commit then found the head moved and was refused — "Your site changed while this was being saved",
+    the minute somebody paid for thrown away. Renaming with the pages ticked, and adding or removing a photograph
+    from a second tab, do the same. They refuse at once now while a turn runs, with a sentence naming wait or
+    Stop (`SiteTurns`). Reproducing it needed a turn longer than fifty milliseconds without a model key, so the mock
+    takes "take your time" literally: twenty seconds between reading the site and writing it. Driven both ways —
+    the probe's restore answered after 13.7 seconds and failed the turn; afterwards it answered 409 in no time and
+    the turn committed, and the same press in History worked once it had.
 
 
 ## What is still intent

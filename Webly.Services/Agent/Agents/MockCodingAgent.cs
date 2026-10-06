@@ -82,6 +82,19 @@ public class MockCodingAgent(
     /// </summary>
     public const string BreakTypesPhrase = "break the types";
 
+    /// <summary>
+    /// What a person types to make the mock take as long as a real agent does: it waits this long between reading the
+    /// site and writing to it, which is where a real turn spends its minute.
+    ///
+    /// Everything that can happen to a site <i>during</i> a turn — a restore pressed in History, a rename in Settings,
+    /// a photograph from a second tab, Stop — happens in that window, and without a model key there was no window: the
+    /// mock was over in fifty milliseconds, too quick to put anything in the middle of. Cancellable, so Stop ends it
+    /// the way it ends a real one.
+    /// </summary>
+    public const string SlowPhrase = "take your time";
+
+    public static readonly TimeSpan SlowFor = TimeSpan.FromSeconds(20);
+
     private const string BreakMarker = "// Added by the mock agent on purpose. Ask for anything else and it goes.";
 
     private const string BreakSnippet = $"\n\n{BreakMarker}\nexport const broken = (\n";
@@ -106,6 +119,12 @@ public class MockCodingAgent(
         // anything at all after a break fixes it. That is the product's own story about build errors — the next
         // message is the fix — and it means the mock cannot leave a site permanently broken.
         var before = Repaired(Encoding.UTF8.GetString(file.Content));
+
+        if (request.Message.Contains(SlowPhrase, StringComparison.OrdinalIgnoreCase))
+        {
+            await onEvent(new CodingAgentEvent.Activity("Taking its time, as asked", TargetPath));
+            await Task.Delay(SlowFor, cancellationToken);
+        }
 
         var breaking = request.Message.Contains(BreakPhrase, StringComparison.OrdinalIgnoreCase);
         var mistyping = request.Message.Contains(BreakTypesPhrase, StringComparison.OrdinalIgnoreCase);

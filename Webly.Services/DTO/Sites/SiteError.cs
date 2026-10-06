@@ -27,5 +27,11 @@ public enum SiteError
     /// No workspace could be started, so nothing can be edited or previewed right now. A capacity or
     /// configuration problem, never the person's fault, and the message says so.
     /// </summary>
-    WorkspaceUnavailable
+    WorkspaceUnavailable,
+
+    /// <summary>
+    /// The assistant is part-way through changing this site, and this would change it underneath — see
+    /// <c>SiteTurns</c>. Refused rather than queued, so nothing hangs and nothing the turn did is thrown away.
+    /// </summary>
+    TurnInProgress
 }
