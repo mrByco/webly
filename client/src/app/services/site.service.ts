@@ -65,9 +65,21 @@ export class SiteService {
     return site;
   }
 
+  /** Which `load` was asked for last. See below. */
+  private latestLoad = 0;
+
+  /**
+   * Fetches a site and makes it the open one — unless another load was asked for after this one, whose answer is
+   * the one that counts. Two can be on the wire at once: somebody clicks from one site to the next while a request
+   * for the first is still out, and whichever answered second used to win, which put the site being left back on
+   * the screen of the one just opened — its header, its preview, and its chat, so the next message went to it.
+   */
   async load(nanoid: string): Promise<SiteDetailResponse> {
+    const ticket = ++this.latestLoad;
     const site = await this.api.invoke(apiSitesNanoidGet$Json, { nanoid });
-    this.current.set(site);
+
+    if (ticket === this.latestLoad) this.current.set(site);
+
     this.mine.update(sites => sites.map(entry => (entry.nanoid === site.summary.nanoid ? site.summary : entry)));
 
     await this.issuePreviewAccess(nanoid);

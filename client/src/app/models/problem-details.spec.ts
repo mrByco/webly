@@ -1,4 +1,4 @@
-import { messageOf } from './problem-details';
+import { messageOf, unreachable } from './problem-details';
 
 /**
  * The one place a failure becomes a sentence, and three of its four shapes were found by watching the app show
@@ -48,5 +48,20 @@ describe('messageOf', () => {
     expect(messageOf(new Error('Failed to fetch'))).toBe('That could not be saved.');
     expect(messageOf(undefined)).toBe('That could not be saved.');
     expect(messageOf({ error: 'not json at all' }, 'Nothing was published.')).toBe('Nothing was published.');
+  });
+});
+
+/** What a caller may wait out: no answer at all, or a gateway answering for a server that is not there. */
+describe('unreachable', () => {
+  it('is true when nothing of ours answered', () => {
+    expect(unreachable({ status: 0, error: { type: 'error' } })).toBe(true);
+    expect(unreachable({ status: 502, error: '<html>Bad gateway</html>' })).toBe(true);
+    expect(unreachable({ status: 504, error: null })).toBe(true);
+  });
+
+  it('is false for an answer that is ours, whatever its status', () => {
+    expect(unreachable({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe(false);
+    expect(unreachable({ status: 404, error: { title: 'That site could not be found.' } })).toBe(false);
+    expect(unreachable(undefined)).toBe(false);
   });
 });

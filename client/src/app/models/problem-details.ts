@@ -60,8 +60,11 @@ const UNREACHABLE = 'Webly cannot be reached right now. Check your connection, o
  * The fallback used to cover these too, which is how an editor whose server was restarting said "That could not be
  * saved." over a page that had been trying to *load* something — the one sentence on screen, about the wrong verb,
  * blaming the person's change. The truth is shorter and tells them what to do.
+ *
+ * Exported because it is also the question "is this worth waiting out?" — a restart answers it with yes, and
+ * anything carrying our own sentence with no.
  */
-function unreachable(error: unknown): boolean {
+export function unreachable(error: unknown): boolean {
   const failure = error as { status?: unknown; error?: unknown };
 
   if (failure?.status === 0) return true;

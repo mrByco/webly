@@ -1387,6 +1387,17 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     by hand. The rest of the custom-domain path checked out: promote, the settings screen naming the customer's
     domain as the address with no "still being set up" note under it, remove, fall back.
 
+96. **Waking one site and switching to another put the first one back on screen.** The preview's wake polls for
+    two minutes, and each poll made the site it was waking the open one — so after clicking on to Brightwater
+    Florist the address said Brightwater while the header, the preview and the chat said Ridgeway Cycles, for
+    good, and a message typed there went to Ridgeway. The loop ends when the route moves on, and only the most
+    recently requested load says which site is open. Walked: the header stays Brightwater with its own preview
+    asleep. **And a restart in the middle of a wake** ended it at the first failed poll, with "Webly cannot be
+    reached" left over the editor for the 100 seconds the walk watched after Webly was back, above a preview still
+    asleep. It now says "Reconnecting to Webly", asks for the start again once Webly answers — the restart took the
+    first one with it — and the preview arrived 16 seconds after the backend did. A wake that fails outright says
+    so in the preview pane beside "Try again" (5.5:1 light, 5.9:1 dark), and pressing it clears it.
+
 
 ## What is still intent
 

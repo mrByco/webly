@@ -205,8 +205,11 @@ more than one restating what the line does.
 - **A template change that does not appear in the browser means a stale lazy chunk, not a wrong change.**
   `ng serve`'s incremental build sometimes keeps serving the previous version of a lazily loaded component's
   template — the rebuild logs "Application bundle generation complete", the new chunk is on disk and the page
-  loads the old one. It has cost two diagnoses here, each spent looking for a bug in perfectly correct code.
-  Restart the dev server before doubting the code.
+  loads the old one. It has cost three diagnoses here, each spent looking for a bug in perfectly correct code.
+  Restart the dev server before doubting the code. The third was half-stale, which is the confusing shape: a new
+  input on a child component did nothing although the class had the field, because the component's runtime
+  definition was the old one — `ng.getComponent(el).constructor.ɵcmp.inputs` in the browser's console lists
+  what Angular is actually binding, and a missing name there settles it.
 - Trust the dev cert once: `dotnet dev-certs https --trust`.
 - Logs and pidfiles live in `.run/` (gitignored). `Webly.Api` locks its build output while running —
   `app_build` handles stop/build/start.
@@ -1311,6 +1314,18 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   **same** stream for a run it is already watching, so subscribing twice is not a second stream, it is every
   event applied twice — which is how returning to a site mid-turn drew the tail of its transcript in
   duplicate. Found by switching between two sites while one was mid-turn.
+- **And so does anything else that outlives a click, which the preview's wake did not.** It polls for up to two
+  minutes, and every poll went through `SiteService.load`, which makes the site it loads the open one — so
+  pressing "Wake it up" and clicking on to another site put the first site's header, preview **and chat** back
+  on the second site's address two seconds later, for good, and the next message went to the wrong site. The
+  loop now ends when the route moves on, and `load` lets only the **most recently requested** load say which
+  site is open, which also settles two loads answering out of order. Found by waking one site and switching.
+- **The wake waits out Webly going away**, rather than stopping at the first failed poll and leaving "Webly
+  cannot be reached" over the editor long after it was back. A restart takes the start with it — the new process
+  has no workspace for the site and nothing asking for one — so once Webly answers again the loop asks again;
+  `WakeSiteWorkspace` is safe to ask twice because the registry's start lock makes the second wait for the
+  first. What the wake could not do is said in the preview pane beside "Try again", which clears it, rather than
+  in the editor's banner, which nothing about the preview ever cleared.
 - **The hub's DTOs are generated too**, which took a document filter. Swagger describes HTTP and a hub is not
   HTTP, so `ng-openapi-gen` deleted anything only the hub used and `realtime.service.ts` re-declared it by hand —
   including `RunEventType`, a union the client switches on, which meant adding a value on the server changed

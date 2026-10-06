@@ -85,9 +85,13 @@
             message, which starts an agent turn: a model call and a version, because somebody wanted to check
             what they had published.
           -->
+          @if (failure()) {
+            <p class="max-w-xs text-xs text-error" role="alert">{{ failure() }}</p>
+          }
+
           <button class="btn btn-sm mt-1" type="button" (click)="wake.emit()">
             <app-icon class="size-4" name="eye" />
-            Wake it up
+            @if (failure()) { Try again } @else { Wake it up }
           </button>
         }
       </div>

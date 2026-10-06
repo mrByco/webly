@@ -12,7 +12,7 @@ import { Icon } from '../../shared/icon';
 import { DeploymentService } from '../../services/deployment.service';
 import { RealtimeService, RunEvent } from '../../services/realtime.service';
 import { SiteService } from '../../services/site.service';
-import { messageOf } from '../../models/problem-details';
+import { messageOf, unreachable } from '../../models/problem-details';
 
 /**
  * The editor, and the shell every per-site screen renders inside.
@@ -60,6 +60,13 @@ export class SiteEditorPage {
    */
   protected readonly workspaceReady = signal(false);
   protected readonly workspaceProgress = signal<string | undefined>(undefined);
+
+  /**
+   * Why the last wake did not end in a preview, said in the preview pane beside the button that tries again — and
+   * cleared by pressing it. It used to be the editor's banner, which nothing about the preview ever cleared: wake
+   * it during a restart and "Webly cannot be reached right now" stayed over the screen long after Webly was back.
+   */
+  protected readonly previewFailure = signal<string | undefined>(undefined);
 
   protected readonly publishing = signal(false);
   protected readonly publishStatus = signal<string | undefined>(undefined);
@@ -211,51 +218,95 @@ export class SiteEditorPage {
 
     if (!nanoid || this.workspaceProgress()) return;
 
+    // Every signal this touches belongs to whichever site is open, and the router reuses this component between
+    // sites — so after each wait, a site that is no longer on screen ends the loop and touches nothing. It did
+    // not: the polls went on for two minutes after somebody clicked away, and each one made the site they had
+    // left the open one again, header, preview and chat included.
+    const here = () => this.nanoid() === nanoid;
+
     this.workspaceProgress.set('Waking up your site');
+    this.previewFailure.set(undefined);
 
     try {
       const { alreadyRunning } = await this.sites.wake(nanoid);
 
-      if (alreadyRunning) {
-        this.workspaceReady.set(true);
-        this.workspaceProgress.set(undefined);
-
-        return;
-      }
+      if (!here()) return;
+      if (alreadyRunning) return this.previewStarted();
 
       // Two minutes, which is longer than a cold start has ever taken and short enough to stop rather than
       // spin for ever if the machine never arrives.
+      let lost: unknown;
+
       for (let attempt = 0; attempt < 60; attempt++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const site = await this.sites.load(nanoid);
+        if (!here()) return;
+
+        // Webly going away while the machine starts — a restart, a deploy, somebody's train going into a tunnel —
+        // is waited out rather than reported. This loop used to stop at the first failed poll and put "Webly cannot
+        // be reached" over the editor, where it stayed long after Webly was back, above a preview still asleep.
+        const site = await this.sites.load(nanoid).catch((failure: unknown) => {
+          if (!unreachable(failure)) throw failure;
+
+          lost = failure;
+
+          return undefined;
+        });
 
         // A turn sent meanwhile says so itself, with `WorkspaceReady` — possibly while this request was out — and
         // reloading the frame a second time for the same news is a flicker.
-        if (this.workspaceReady()) return;
+        if (!here() || this.workspaceReady()) return;
 
-        if (site.workspaceReady) {
-          this.workspaceReady.set(true);
-          this.workspaceProgress.set(undefined);
-          this.previewKey.update(key => key + 1);
+        if (!site) {
+          this.workspaceProgress.set('Reconnecting to Webly');
+          continue;
+        }
 
-          return;
+        if (site.workspaceReady) return this.previewStarted();
+
+        // Back, and still not ready — so asked again. A restart takes whatever it was starting with it: the new
+        // process has no workspace for this site and nothing asking it for one, so polling alone would watch
+        // `workspaceReady` stay false for the rest of the two minutes. When it was only the connection that went,
+        // the start is still going and a second request waits on the registry's lock and finds it.
+        if (lost) {
+          lost = undefined;
+          this.workspaceProgress.set('Waking up your site');
+
+          const again = await this.sites.wake(nanoid);
+
+          if (!here()) return;
+          if (again.alreadyRunning) return this.previewStarted();
         }
       }
 
       this.workspaceProgress.set(undefined);
-      this.error.set('Your preview did not start. Try asking for a change instead.');
+      this.previewFailure.set(
+        lost ? messageOf(lost) : 'Your preview did not start. Try again, or ask for a change instead.');
     } catch (failure) {
+      if (!here()) return;
+
       this.workspaceProgress.set(undefined);
-      this.error.set(messageOf(failure));
+      this.previewFailure.set(messageOf(failure, 'Your preview did not start.'));
     }
+  }
+
+  /** The end of a wake that worked: a new frame, at an address no earlier one has loaded. */
+  private previewStarted(): void {
+    this.workspaceReady.set(true);
+    this.workspaceProgress.set(undefined);
+    this.previewKey.update(key => key + 1);
   }
 
   private async load(nanoid: string): Promise<void> {
     try {
       const site = await this.sites.load(nanoid);
+
+      // Somebody who clicks on to another site before this answers has asked a newer question.
+      if (this.nanoid() !== nanoid) return;
+
       this.workspaceReady.set(site.workspaceReady);
       this.workspaceProgress.set(undefined);
+      this.previewFailure.set(undefined);
       this.justPublished.set(false);
       this.previewFresh.set(false);
       this.previewKey.update(key => key + 1);
@@ -267,7 +318,7 @@ export class SiteEditorPage {
 
       if (site.activeDeploymentNanoid) await this.watchDeployment(site.activeDeploymentNanoid, 'Publishing');
     } catch (failure) {
-      this.error.set(messageOf(failure));
+      if (this.nanoid() === nanoid) this.error.set(messageOf(failure));
     }
   }
 

@@ -40,6 +40,9 @@ export class SitePreview {
   /** What the workspace is doing while it starts, straight from the run's events. */
   readonly progress = input<string | undefined>(undefined);
 
+  /** Why the last attempt to wake it did not work, said beside the button that tries again. */
+  readonly failure = input<string | undefined>(undefined);
+
   /** Changing this re-fetches the iframe. See the class comment. */
   readonly reloadKey = input<number>(0);
 
