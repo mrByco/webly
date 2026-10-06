@@ -1486,6 +1486,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     plain text that appeared, where the sign-in screens' were `role="alert"`. Ten of them are now; checked by finding
     the Domains refusal through its role in the browser.
 
+108. **Every screen was titled "Webly".** Two sites open meant two identical tabs, the browser history was a column
+    of "Webly", and a screen reader's first words about any page said nothing about it. Routes carry their screen's
+    name now and a title strategy adds the open site's: "History · Ridgeway Cycles · Webly", following a switch
+    and the back button, and "Sign in · Webly" in the prerendered HTML. The sweep fails a page titled only "Webly",
+    and did on 14 screens before the change.
+
 
 ## What is still intent
 

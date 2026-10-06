@@ -427,6 +427,12 @@ async function accessibility(page, { colourOnly = false } = {}) {
 
       if (headings.length === 0) problems.push('no h1 on the page');
       if (headings.length > 1) problems.push(`${headings.length} h1s on one page`);
+
+      // Every screen was titled "Webly": the tab bar of somebody with two sites open, their history, and the first
+      // thing a screen reader says about the page, none of which said which page it was.
+      const title = document.title.trim();
+
+      if (!title || title === 'Webly') problems.push(`the page's title does not say which page it is ("${title}")`);
     }
 
     return problems.slice(0, 4);

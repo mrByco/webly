@@ -29,7 +29,7 @@ It fails on eight things, and each was added the day something got past the ones
 | a screen that comes back blank | a route that renders nothing still answers 200 |
 | **a 404 on anything the page asked for** | a published site whose every stylesheet and chunk 404ed behind a document that was 200 |
 | **a pane that has started scrolling sideways** | a diff cut off at the window edge while `document.scrollWidth` never changed — clipping is what hides it |
-| **an obvious accessibility mistake** | an icon-only control that announced "link" and stopped; also `<img>` with no `alt`, a field with nothing naming it, a page with no `h1` or several |
+| **an obvious accessibility mistake** | an icon-only control that announced "link" and stopped; also `<img>` with no `alt`, a field with nothing naming it, a page with no `h1` or several, a page whose title is only "Webly" |
 | **a form field whose border is under 3:1** | every field in the product sat at 1.5:1, where WCAG 1.4.11 asks for 3:1 — and a border drawn too faintly *photographs* as a design choice, so the screenshots above it were no help at all |
 | **text under 4.5:1** against what is really behind it (3:1 when large) | the app's quiet text was four opacities written into the templates, all 3.1–4.1:1 — red in 38 places when the rule arrived. Both colour rules run again with the dark theme emulated |
 | **the editor scrolling as a whole** | pages routed into the editor had no host styles, so History's list never scrolled itself and clicking a version low in it slid the header off the top of the window |

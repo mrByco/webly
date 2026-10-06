@@ -1421,6 +1421,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   facts in a product that promises they never touch code was reading a note about a TypeScript constant. The
   same class as the comments that were travelling inside every email, except rendered in full rather than
   invisible. It lives in `AGENTS.md` now, which also tells the agent that the owner reads that file.
+- **Every screen has a title, and a site's screens name the site** — "History · Ridgeway Cycles · Webly". They were all
+  "Webly": the whole tab bar for somebody with two sites open, the whole of their history, and the first thing a
+  screen reader says about a page (WCAG 2.4.2). The screen's name is a route `title`; the site's is not known until
+  it loads, so `shared/title-strategy.ts` reads `SiteService.current` in an effect and writes the title again when
+  it arrives, changes, or is renamed. The sweep fails a page titled only "Webly".
 - **An error that appears after something was pressed is `role="alert"`.** The sign-in screens always were and
   none of the editor's were, so a failed send, publish, rename, upload or domain was silent to a screen reader —
   the banner arrived, and nothing said so. Static error text inside a list (a failed publish in the history, a
