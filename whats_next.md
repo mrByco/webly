@@ -1440,6 +1440,11 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     things on the way: a trailing dot inside a pasted URL (`https://example.com./`) was refused, and a
     `DeployError.BuildFailed` with its own sentence existed that nothing could produce.
 
+102. **An enquiry that arrived while the Messages tab sat open stayed invisible** until somebody pressed its
+    reload button, which nobody does in a tab they have just come back to. It reloads on return now: walked by
+    sending one from the published contact page as a stranger, then focusing the owner's tab — five messages
+    became six and the tab's unread badge cleared.
+
 
 ## What is still intent
 

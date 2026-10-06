@@ -1330,8 +1330,9 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   going on elsewhere, and the chat re-reads the thread when its newest message is not the one it last saw, joining
   a running turn through the replay. When nothing changed nothing is redrawn, because a reloaded thread is plainer
   than the live stream and a transcript should not change under somebody for nothing — which is why the chat
-  records what its own turn wrote when the turn ends. Not a push: a second window sitting visible beside the first
-  catches up when it is clicked into, and a site-level hub group is what would close that.
+  records what its own turn wrote when the turn ends. The Messages tab reloads on return as well, so an enquiry
+  that arrived while it sat open is on it when somebody looks. Not a push: a second window sitting visible beside
+  the first catches up when it is clicked into, and a site-level hub group is what would close that.
 - **Switching sites has to let go of the run**, and it did not. The editor keeps one `SiteChat` alive across
   the switch — an effect reloads it — so a turn running on the site being left went on writing into the new
   site's transcript: its "waking up your site" line appeared under somebody else's history, and the composer
