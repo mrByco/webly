@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 261-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 263-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -434,6 +434,13 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   one `UPDATE … WHERE CodeAttempts < max`, which Postgres re-checks against the row a concurrent update just wrote,
   so a burst of two hundred gets exactly five. `EmailCodeTests` drives the burst and is red on the old order. Do
   not count per account instead: deleting the account and registering the address again resets that.
+- **Signing in and signing up are rate limited per IP, and neither was.** Forty wrong passwords in a row against
+  one account were forty plain 401s, and fifteen sign-ups from one address sent fifteen confirmation emails to
+  fifteen strangers, under a name the caller typed. `SignIn` is ten per five minutes and `SignUp` ten per quarter
+  hour, each its own policy so that its refusal says what was done too often. Per IP rather than per account,
+  because the account is the caller's choice and a limit on it would let anybody lock anybody out. **The limits
+  are configuration** (`RateLimits`, defaults in `RateLimitOptions`) because the tests send everything from one
+  address: `AuthEndpointTestBase` lifts the two account limits, and `AccountLimitTests` keeps them.
 - **The sixth digit of the confirmation code is what submits it.** It used to fill the box and light a button,
   which is one step more than a one-time code needs: the length is known, there is exactly one thing that can
   happen next, and the code is on a phone while the box is on a laptop. `onCodeInput` calls `submitCode`, which

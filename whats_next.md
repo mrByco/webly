@@ -1544,6 +1544,14 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     and resending the code — say only the failures that cannot depend on the address (`notActedOn`: unreachable,
     or rate limited), and a code survives a failure that was not about it. The real refusals were walked again
     afterwards and read exactly as they did.
+116. **Nothing limited signing in or signing up.** Forty wrong passwords in a row against one account from one
+    address were forty plain refusals, and fifteen sign-ups in a row sent fifteen confirmation emails to fifteen
+    strangers — the mail limit covered resend and forgotten-password and not the endpoint that mails whatever
+    address it is given. `SignIn` (ten per five minutes) and `SignUp` (ten per quarter hour) are per-IP policies of
+    their own, each refusing with a sentence about itself: the first cut shared the mail budget and told somebody
+    creating an account that "a lot of email has been asked for". The limits became configuration on the way,
+    because the tests send everything from one address and a fixture registering an account per test would have
+    met the sign-up limit by its eleventh; `AccountLimitTests` keeps the real ones and is red without them.
 
 
 ## What is still intent

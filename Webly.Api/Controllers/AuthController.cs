@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
@@ -29,6 +30,7 @@ public class AuthController(
 {
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SignUp)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK)]
     public async Task<ActionResult<MeResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -42,6 +44,7 @@ public class AuthController(
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SignIn)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK)]
     public async Task<ActionResult<MeResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {

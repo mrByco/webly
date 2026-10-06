@@ -36,6 +36,13 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
     /// </summary>
     protected const string AdministratorEmail = "admin@example.com";
 
+    /// <summary>
+    /// Whether this fixture runs with the sign-up and sign-in limits lifted. Every request a test sends comes from
+    /// one address, so a fixture that registers an account per test would meet the sign-up limit by its eleventh
+    /// test — refused by a limit it is not about. Lifted by default; a fixture about those limits keeps the real ones.
+    /// </summary>
+    protected virtual bool LiftsAccountLimits => true;
+
     [OneTimeSetUp]
     public void StartApi()
     {
@@ -45,6 +52,30 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
         Environment.SetEnvironmentVariable("ConnectionStrings__WeblyDb", ConnectionString);
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
 
+        var settings = new Dictionary<string, string?>
+        {
+            ["Administrators:Emails:0"] = AdministratorEmail,
+
+            // The three paths the app checks at boot. They default to relative, resolved against the
+            // working directory, which for the real app is the repository root and for a test host is
+            // the test's own bin directory — so without these the host refuses to start with a
+            // perfectly accurate message about a template that is not there. Absolute here rather
+            // than by chdir: a test run must not depend on where it was launched from.
+            ["Templates:SitePath"] = Path.Combine(RepositoryRoot, "templates", "next-site"),
+            ["Sandbox:Local:AgentPath"] =
+                Path.Combine(RepositoryRoot, "tools", "sandbox-agent", "index.js"),
+
+            // Somewhere disposable. These tests never create a site, but the directory is created at
+            // boot, and creating it inside the build output is how a stale one ends up committed.
+            ["Repositories:Root"] = Path.Combine(Path.GetTempPath(), $"webly-tests-{Guid.NewGuid():N}")
+        };
+
+        if (LiftsAccountLimits)
+        {
+            settings["RateLimits:SignUp:PermitLimit"] = "10000";
+            settings["RateLimits:SignIn:PermitLimit"] = "10000";
+        }
+
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder
                 // The administrator list goes in last, and deliberately not in an environment
@@ -53,24 +84,7 @@ public abstract class AuthEndpointTestBase : PostgresTestBase
                 // secrets silently replaced this and made the whole run administrator-less. This
                 // source is appended after everything Program.cs sets up, so nothing on the
                 // machine running the tests can outrank it.
-                .ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        ["Administrators:Emails:0"] = AdministratorEmail,
-
-                        // The three paths the app checks at boot. They default to relative, resolved against the
-                        // working directory, which for the real app is the repository root and for a test host is
-                        // the test's own bin directory — so without these the host refuses to start with a
-                        // perfectly accurate message about a template that is not there. Absolute here rather
-                        // than by chdir: a test run must not depend on where it was launched from.
-                        ["Templates:SitePath"] = Path.Combine(RepositoryRoot, "templates", "next-site"),
-                        ["Sandbox:Local:AgentPath"] =
-                            Path.Combine(RepositoryRoot, "tools", "sandbox-agent", "index.js"),
-
-                        // Somewhere disposable. These tests never create a site, but the directory is created at
-                        // boot, and creating it inside the build output is how a stale one ends up committed.
-                        ["Repositories:Root"] = Path.Combine(Path.GetTempPath(), $"webly-tests-{Guid.NewGuid():N}")
-                    }))
+                .ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings))
                 .ConfigureTestServices(services => services.AddSingleton<IEmailSender>(Emails)));
 
         Client = _factory.CreateClient(new WebApplicationFactoryClientOptions

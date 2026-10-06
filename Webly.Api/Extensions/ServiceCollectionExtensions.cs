@@ -147,7 +147,7 @@ public static class ServiceCollectionExtensions
             });
         }
 
-        services.AddWeblyRateLimiting();
+        services.AddWeblyRateLimiting(configuration);
 
         services.AddAuthorization(options =>
         {
@@ -181,8 +181,13 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddWeblyRateLimiting(this IServiceCollection services) =>
-        services.AddRateLimiter(options =>
+    private static IServiceCollection AddWeblyRateLimiting(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
+
+        return services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = WriteRejectionAsync;
@@ -193,12 +198,19 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(RateLimitPolicies.Mail, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(15),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Mail.ToLimiterOptions()));
+
+            options.AddPolicy(RateLimitPolicies.SignUp, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => Limits(context).SignUp.ToLimiterOptions()));
+
+            // Per IP, for the reason RateLimitPolicies.SignIn gives: the account is the one thing here the caller
+            // chooses, so a limit on it would be a way to lock somebody else out.
+            options.AddPolicy(RateLimitPolicies.SignIn, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => Limits(context).SignIn.ToLimiterOptions()));
 
             // Per user, not per IP: reaching this already takes a verified account, and an office behind one NAT must
             // not share a single budget. See RateLimitPolicies for what it is fencing.
@@ -211,23 +223,21 @@ public static class ServiceCollectionExtensions
             options.AddPolicy(RateLimitPolicies.Forms, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     $"{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}|{context.Request.Path}",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(10),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Forms.ToLimiterOptions()));
 
             options.AddPolicy(RateLimitPolicies.Deploy, context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     PartitionByUser(context),
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 20,
-                        Window = TimeSpan.FromHours(1),
-                        QueueLimit = 0
-                    }));
+                    _ => Limits(context).Deploy.ToLimiterOptions()));
         });
+    }
+
+    /// <summary>
+    /// Read when a partition is first made rather than once at startup, because the test host adds its configuration
+    /// after <c>Program.cs</c> has run — a value captured here would never see it.
+    /// </summary>
+    private static RateLimitOptions Limits(HttpContext context) =>
+        context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
 
     /// <summary>
     /// Everything a site's source and its hosting need: where repositories live, where the starter template is,
@@ -411,6 +421,8 @@ public static class ServiceCollectionExtensions
         {
             RateLimitPolicies.Deploy => "This account has published a lot in the last hour.",
             RateLimitPolicies.Mail => "A lot of email has been asked for from here recently.",
+            RateLimitPolicies.SignUp => "A lot of accounts have been created from here recently.",
+            RateLimitPolicies.SignIn => "There have been a lot of sign-in attempts from here.",
             _ => "That has been done a lot in a short time."
         };
 
