@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 263-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 266-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -1727,4 +1727,7 @@ start, not a build error.
   would each hold a warm sandbox for the same site, editing two working trees and committing over each
   other. Plus `DeploymentJobRunner`, which polls rather than leasing, and `InterruptedTurnSweeper`, which
   assumes that no other process can be mid-turn when this one starts. Scaling out means addressing all six,
-  and each one says so where it is.
+  and each one says so where it is. The database pool is a seventh, smaller: `ConnectionPool` caps one instance
+  at fifty connections so that a burst waits in the pool instead of being refused by a server that takes a
+  hundred — three hundred requests at once used to answer two 500s every time — and two instances would take the
+  hundred between them again.

@@ -1552,6 +1552,12 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     creating an account that "a lot of email has been asked for". The limits became configuration on the way,
     because the tests send everything from one address and a fixture registering an account per test would have
     met the sign-up limit by its eleventh; `AccountLimitTests` keeps the real ones and is red without them.
+117. **A burst of requests answered some of itself with 500s.** Found by the code burst in 114: one of two hundred
+    failed with Postgres's "sorry, too many clients already". Npgsql's pool defaults to a hundred connections and
+    so does Postgres's `max_connections`, so the request wanting the hundred-and-first was refused by the server
+    rather than queued in the pool. Three hundred signed-in site lists at once reproduced it — two 500s, every
+    time. `ConnectionPool` caps the pool at fifty unless the connection string chooses a size; the same bursts,
+    three in a row, answered nine hundred 200s, and about a third faster.
 
 
 ## What is still intent
