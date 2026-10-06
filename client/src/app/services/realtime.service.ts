@@ -1,6 +1,6 @@
 import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpError, HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+import { HttpError, HubConnection, HubConnectionBuilder, HubConnectionState, IRetryPolicy } from '@microsoft/signalr';
 import { Observer, Subject, Subscription } from 'rxjs';
 import { RunEvent } from '../api/models/run-event';
 import { RunEventEnvelope } from '../api/models/run-event-envelope';
@@ -175,7 +175,7 @@ export class RealtimeService {
     // the cookie — see CookieAuthenticationMiddleware.
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/realtime')
-      .withAutomaticReconnect()
+      .withAutomaticReconnect(RECONNECT)
       .build();
 
     connection.on('RunEvent', (envelope: RunEventEnvelope) => this.dispatch(envelope));
@@ -267,6 +267,22 @@ export class RealtimeService {
     }
   }
 }
+
+/**
+ * When to try the hub again after losing it: at once, then soon, then every fifteen seconds or so — and never giving
+ * up.
+ *
+ * SignalR's default schedule stops after about forty seconds, and Webly can take longer than that to come back from
+ * a deploy. A page watching a turn was then left on "Reconnecting…" for good, long after the server was back, with a
+ * Stop button for a turn the restart had already ended: measured with a sixty-second outage. Reconnecting is what
+ * re-subscribes, and re-subscribing is what tells the page how the turn ended either way. The jitter is so every
+ * open editor does not knock in the same second when Webly returns. A session that has ended does not loop here:
+ * signing out closes the socket from the server in a way the client does not reconnect from.
+ */
+const RECONNECT: IRetryPolicy = {
+  nextRetryDelayInMilliseconds: ({ previousRetryCount }) =>
+    [0, 2_000, 5_000, 10_000][previousRetryCount] ?? 15_000 + Math.random() * 5_000,
+};
 
 /**
  * A connection that could not be made, described the way an HTTP failure is: `status` 0 when nothing answered — the

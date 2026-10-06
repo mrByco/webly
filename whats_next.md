@@ -1445,6 +1445,16 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     sending one from the published contact page as a stranger, then focusing the owner's tab — five messages
     became six and the tab's unread badge cleared.
 
+103. **A deploy of Webly told everybody mid-turn that they had pressed Stop.** A graceful shutdown cancels a turn
+    through the same token Stop does, so the thread said "Stopped. Nothing was changed." — which only a `kill -9`
+    had ever avoided, because then the startup sweep wrote the right note. The handle now records who cancelled
+    (Stop, unwatched, too long; nobody, for a shutdown) and the thread and the live event read the same sentence
+    from it. Walked both: a polite stop mid-wake ends on "This was interrupted when Webly restarted… please send it
+    again", once; pressing Stop still says "Stopped". **And a page whose hub was down for more than ~40 seconds
+    never recovered**: SignalR stopped retrying, and the chat sat on "Reconnecting… your changes are still running"
+    a minute after Webly was back. It retries for ever now and resolved within five seconds of Webly returning.
+    Also: the waking line's spinner no longer keeps turning above a turn that has ended.
+
 
 ## What is still intent
 

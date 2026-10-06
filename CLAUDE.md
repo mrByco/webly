@@ -26,7 +26,7 @@ re-derived.
 **The whole product loop has been driven through the running app.** A verified account, a site whose bare
 repository holds the template in one commit, three agent turns over the hub each committing one version, the
 preview served through Webly's own origin, and a published page at `/published/{nanoid}/` saying what the
-person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 243-test
+person typed. The backend compiles, the schema is real migrations applied to a real Postgres, the 247-test
 suite is green, and `client/src/app/api/` is the real generated client that the Angular app type-checks and
 prerenders against.
 
@@ -891,6 +891,17 @@ removing the row, so the ordinary delete does not depend on the deferral at all.
   half had that from the start and the stop half did not, so pressing Stop ended with the spinner gone and a
   status line frozen mid-sentence: the "Stopped. Nothing was changed." note was in the database and only
   appeared if the person reloaded the page.
+- **And the sentence depends on who ended it** (`CancelReason` on the `RunHandle`, `AgentTurnService.CancelledNote`).
+  Stop, the reaper and a shutdown all cancel the same token, and all three ended the turn with "Stopped" — so a
+  deploy of Webly, which sends a polite shutdown, recorded every turn in flight as stopped by a person who had
+  pressed nothing. Stop and the reaper now say who they are; a shutdown reaches the run through the linked token
+  and gives no reason, which is what marks it, and it gets the same "interrupted when Webly restarted" note the
+  startup sweep writes for a process that died without the chance to. Found by stopping the backend politely
+  mid-turn and reading the thread; a `kill -9` had always produced the right sentence, which is why it hid.
+- **The page does not give up on the hub.** SignalR's default reconnect schedule stops after about forty seconds,
+  and a page watching a turn through a longer outage stayed on "Reconnecting… your changes are still running"
+  for good — a sentence the page cannot know, said over a turn the restart had ended. `RealtimeService` retries
+  for ever with jitter, and the line now promises only what reconnecting delivers: how the turn went.
 - **A sandbox failure has two readers, and the log is the one that gets the cause.** `SandboxException`'s message
   is the sentence for the chat and names no cause; its `Detail` is the CLI's own error or the tail of the command
   that failed, and `ToString()` appends it, so every place that logs one — a turn, a wake, a publish — records

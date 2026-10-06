@@ -559,6 +559,11 @@ export class SiteChat {
     this.running.set(false);
     this.turnFinished.emit();
 
+    // A turn that ended while its site was still waking — stopped, failed, or cut off by a restart — left the waking
+    // line and its spinner above the sentence saying it was over, still turning. `WorkspaceReady` removes it in the
+    // ordinary case; this is every other way the wait can end.
+    this.entries.update(entries => entries.filter(entry => entry.kind !== 'waking'));
+
     this.events?.unsubscribe();
     this.events = undefined;
 

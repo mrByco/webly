@@ -152,9 +152,12 @@
 
       <!-- Only while a turn is in flight. The connection is deliberately lazy — an editor nobody is talking to
            holds no socket — so `connected()` is false on every freshly opened site, and the banner sat there
-           permanently telling people about changes that were not running. -->
+           permanently telling people about changes that were not running.
+           And no promise about the turn, which this page cannot see while it is disconnected: it used to say "your
+           changes are still running" over a turn a restart of Webly had already ended. What it can promise is that
+           reconnecting brings the answer — the replay finishes the turn, or the thread says how it ended. -->
       @if (running() && !connected()) {
-        <p class="mb-2 text-xs font-semibold text-warning-ink">Reconnecting… your changes are still running.</p>
+        <p class="mb-2 text-xs font-semibold text-warning-ink">Reconnecting to Webly… this will show how it went once it is back.</p>
       }
 
       <div class="flex items-end gap-2">
