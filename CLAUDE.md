@@ -1425,7 +1425,11 @@ with raw strings. Folder layout under `src/app/`: `api/` (generated), `pages/`, 
   "Webly": the whole tab bar for somebody with two sites open, the whole of their history, and the first thing a
   screen reader says about a page (WCAG 2.4.2). The screen's name is a route `title`; the site's is not known until
   it loads, so `shared/title-strategy.ts` reads `SiteService.current` in an effect and writes the title again when
-  it arrives, changes, or is renamed. The sweep fails a page titled only "Webly".
+  it arrives, changes, or is renamed. The sweep fails a page titled only "Webly". Two details: the title waits for
+  the site the **route** names, because a switch changes the route before the next site loads and the first version
+  named the site being left; and the same title goes to a polite live region in the app's root
+  (`RouteAnnouncement`), because a client-side navigation changes the screen without a page load and nothing else
+  told a screen reader it had — never for the first page, whose title is read anyway.
 - **An error that appears after something was pressed is `role="alert"`.** The sign-in screens always were and
   none of the editor's were, so a failed send, publish, rename, upload or domain was silent to a screen reader —
   the banner arrived, and nothing said so. Static error text inside a list (a failed publish in the history, a

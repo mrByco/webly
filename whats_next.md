@@ -1490,7 +1490,9 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     of "Webly", and a screen reader's first words about any page said nothing about it. Routes carry their screen's
     name now and a title strategy adds the open site's: "History · Ridgeway Cycles · Webly", following a switch
     and the back button, and "Sign in · Webly" in the prerendered HTML. The sweep fails a page titled only "Webly",
-    and did on 14 screens before the change.
+    and did on 14 screens before the change. A navigation inside the app is also announced now, through a polite
+    live region that says the new title — sampled every 50ms through a site switch, the title never names the site
+    being left.
 
 
 ## What is still intent

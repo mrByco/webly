@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { RouteAnnouncement } from './shared/title-strategy';
 
 @Component({
   imports: [RouterOutlet],
@@ -8,5 +9,6 @@ import { RouterOutlet } from '@angular/router';
   templateUrl: './app.html',
 })
 export class App {
-  protected readonly title = signal('Webly');
+  /** The new screen's title after a client-side navigation. See `RouteAnnouncement`. */
+  protected readonly announcement = inject(RouteAnnouncement).text;
 }
