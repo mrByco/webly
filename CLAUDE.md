@@ -398,6 +398,14 @@ cookies: `webly_access` (15 min) and `webly_refresh` (60 days, rotated on every 
   sessions go on the blacklist, every socket of the user is closed, and the API, the cookie middleware and the hub
   all ask whether a token's **session** has ended rather than only its own id — which also makes a sign-out
   refuse every access token of that session at once, not just the one it was presented with.
+- **A session that ends elsewhere sends this browser to sign in, from wherever it was.** A password changed or
+  reset on another device now ends every other session at once, and an editor left open answered its next action
+  with the wrong sentence — "That could not be saved." on opening History, "Webly cannot be reached" on sending a
+  message — until a reload showed the sign-in page. `sessionInterceptor` treats a 401 from the app's API (not
+  `/api/auth/`, whose 401s are about the credentials just typed) as exactly that: `AuthService.sessionEnded` drops
+  the profile, closes the socket and goes to `/login?redirect=…&ended=1`, where the page says why, and signing in
+  lands back on the screen it left. `messageOf` says "signed out" for a bare 401, and the hub's negotiation failure
+  is read for its status, since SignalR only puts it in the message.
 - **The verification gate lives in the accessors, not in an attribute.** `GetUserId()` /
   `GetUserIdIfLoggedIn()` return a caller **only if their email is verified** and throw
   `EmailNotVerifiedException` (→ 403, `email_not_verified`) otherwise; `GetUserIdUnverified()` is the

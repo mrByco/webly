@@ -292,7 +292,11 @@ const RECONNECT: IRetryPolicy = {
  * the kind of failure worth trying again.
  */
 function connectionFailure(failure: unknown): Error & { status: number } {
-  const status = failure instanceof HttpError ? failure.statusCode : 0;
+  // The negotiation's own HTTP failure arrives wrapped, with its status only in the message — "Failed to complete
+  // negotiation with the server: Error: Unauthorized: Status code '401'" — and a 401 there is a session that has
+  // ended, not a Webly that cannot be reached.
+  const wrapped = /Status code '(\d{3})'/.exec(String(failure))?.[1];
+  const status = failure instanceof HttpError ? failure.statusCode : wrapped ? Number(wrapped) : 0;
 
   return Object.assign(new Error('The realtime connection could not be made.', { cause: failure }), { status });
 }

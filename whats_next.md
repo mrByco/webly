@@ -1514,6 +1514,13 @@ Kept here because each is a shape of mistake that will recur, not because the fi
     delete cancels it and waits (0.7s in the walk), and an abandoned publish records and emails nothing; the
     deleted site stays a 404. Pinned by a test that times out on the old runner.
 
+112. **An editor whose session ended elsewhere said the wrong thing.** With the password changed on another device,
+    the laptop's next click on History said "That could not be saved." and sending a message said "Webly cannot be
+    reached" — only a reload revealed it had been signed out. A 401 from the app's API now takes it to the sign-in
+    page with the reason and a way back: walked, History → "You have been signed out — your password was changed or
+    your session ended elsewhere", and signing in with the new password returned to History. A wrong password at
+    sign-in still gets its own message, because `/api/auth/` is left alone.
+
 
 ## What is still intent
 

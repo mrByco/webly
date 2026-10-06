@@ -192,6 +192,31 @@ export class AuthService {
     }
   }
 
+  /** Set while `sessionEnded` is working, so the burst of 401s an open editor produces is answered once. */
+  private ending = false;
+
+  /**
+   * The session ended somewhere else — a password changed or reset on another device — so this browser stops
+   * behaving as if it were signed in and goes to sign in again, with a way back to where it was. What
+   * `sessionInterceptor` calls on a 401.
+   */
+  async sessionEnded(): Promise<void> {
+    if (this.ending || !this.isBrowser) return;
+
+    this.ending = true;
+
+    try {
+      this.me.set(ANONYMOUS);
+      await this.realtime.disconnect();
+
+      const here = this.router.url;
+
+      if (!here.startsWith('/login')) await this.router.navigateByUrl(AppRoutes.login.build(here, true));
+    } finally {
+      this.ending = false;
+    }
+  }
+
   /**
    * Ends the session and lands on login. Where sign-out goes is decided here rather than in each
    * component that offers it — the header and the onboarding footer must not disagree.

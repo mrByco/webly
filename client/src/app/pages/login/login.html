@@ -1,5 +1,9 @@
 <app-auth-layout heading="Sign in" subheading="Welcome back — pick up where you left off.">
   <form class="flex flex-col gap-5" [formGroup]="form" (ngSubmit)="submit()">
+    @if (notice(); as message) {
+      <div role="status" class="alert alert-info alert-soft text-sm">{{ message }}</div>
+    }
+
     @if (error(); as message) {
       <div role="alert" class="alert alert-error alert-soft text-sm">{{ message }}</div>
     }

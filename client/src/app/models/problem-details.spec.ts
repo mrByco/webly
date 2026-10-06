@@ -46,6 +46,13 @@ describe('messageOf', () => {
     expect(messageOf({ status: 503, error: null })).toBe(unreachable);
   });
 
+  // A session that ended elsewhere answers 401 with no body, and used to read as "That could not be saved."
+  it('says somebody was signed out on a bare 401', () => {
+    expect(messageOf({ status: 401, error: null })).toBe('You have been signed out. Sign in again to carry on.');
+    expect(messageOf({ status: 401, error: { title: 'That email address and password do not match.' } }))
+      .toBe('That email address and password do not match.');
+  });
+
   // A 503 that *is* ours — the preview's own sentence, say — carries its title and keeps it.
   it('keeps our own sentence on a gateway status', () => {
     expect(messageOf({ status: 503, error: { title: 'Your preview is asleep.' } })).toBe('Your preview is asleep.');

@@ -16,6 +16,10 @@ export function messageOf(error: unknown, fallback = 'That could not be saved.')
 
   if (unreachable(error)) return UNREACHABLE;
 
+  // A 401 with nothing of ours in it is a session that ended — on another device, usually. The page is on its way to
+  // the sign-in screen by then (see `sessionInterceptor`); this is the sentence for the moment before it gets there.
+  if ((error as { status?: unknown })?.status === 401 && !sentenceOf(body)) return SIGNED_OUT;
+
   if (typeof body === 'string') {
     try {
       return sentenceOf(JSON.parse(body)) ?? fallback;
@@ -68,6 +72,8 @@ function hubMessageOf(error: unknown): string | undefined {
 }
 
 const UNREACHABLE = 'Webly cannot be reached right now. Check your connection, or try again in a moment.';
+
+const SIGNED_OUT = 'You have been signed out. Sign in again to carry on.';
 
 /**
  * Whether the request never got an answer from Webly itself: no response at all (status 0 — offline, or the server

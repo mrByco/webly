@@ -12,8 +12,14 @@ export const AppRoutes = {
   },
   login: {
     path: 'login',
-    build: (redirect?: string) =>
-      redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login',
+    // `ended` says the session finished somewhere else, which the page explains — see `AuthService.sessionEnded`.
+    build: (redirect?: string, ended = false) => {
+      const query = [redirect ? `redirect=${encodeURIComponent(redirect)}` : '', ended ? 'ended=1' : '']
+        .filter(Boolean)
+        .join('&');
+
+      return query ? `/login?${query}` : '/login';
+    },
   },
   register: {
     path: 'register',

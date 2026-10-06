@@ -19,6 +19,7 @@ export class LoginPage {
   protected readonly googleEnabled = this.auth.googleEnabled;
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly notice = signal<string | null>(null);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -30,6 +31,12 @@ export class LoginPage {
 
     // The Google callback cannot render a page, so it reports failures by redirecting here.
     const failure = this.route.snapshot.queryParamMap.get('error');
+
+    // Sent here by `AuthService.sessionEnded`: the session finished on another device, and the page they were on
+    // is where signing in returns them to.
+    if (this.route.snapshot.queryParamMap.get('ended')) {
+      this.notice.set('You have been signed out — your password was changed or your session ended elsewhere. Sign in again to carry on.');
+    }
 
     if (failure === 'google_email_unverified') {
       this.error.set('That Google account has an unconfirmed email address, so it cannot be used to sign in.');
